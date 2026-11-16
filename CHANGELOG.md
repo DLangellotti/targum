@@ -19,6 +19,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   B2+, and French's rows as the box has them.
 
 ### Added
+- French register is practised on the Grammar tab, French's second hard-spot practice
+  (design.md §12, "French register is practised as formal or informal, and who *on* is",
+  2026-11-16). `stages._practices("fr")["register: ne-drop and on/nous"]` is now true.
+  - `practices.register_candidates` reads a line with the card's own rules. A *ne*
+    dropped (`NeDrop:<formal clause>`, hard) is set against one kept (`NeKept`, found by
+    the new `french_register.ne_kept`). An *on* is `OnWe` (hard) only where the rule
+    says "we", and `OnOpen` everywhere else.
+  - An item can carry a question other than its spot's (`_ASKS`): an *on* is asked
+    "Who is on here?".
+  - Eleven new keys in English and Russian, Russian cleared by ling-ru. Nothing spends.
 - French gender is practised on the Grammar tab, the first of French's seven hard-spot
   practices toward Beta (targum-internal#644; design.md §12, "French gender is practised
   as masculine or feminine", 2026-11-16). "Masculine or feminine?" of a French noun in a

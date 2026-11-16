@@ -126,6 +126,11 @@ REGISTERED: dict[str, dict[str, Practice]] = {
     # (`annotate/endings.py`) deciding which items are the easy kind.
     "fr": {
         "gender": Practice("gender", "choice", "practice.ask.gender"),
+        # Register, not error (D5, 2026-11-05): formal or informal for a negation, and who
+        # an *on* is, both as `annotate/french_register.py` reads them for the card.
+        "register: ne-drop and on/nous": Practice(
+            "register: ne-drop and on/nous", "choice", "practice.ask.register"
+        ),
     },
 }
 
@@ -141,6 +146,7 @@ KEYS: dict[str, str] = {
     "the vav-consecutive": "vav",
     "pronoun suffixes": "suffix",
     "gender": "gender",
+    "register: ne-drop and on/nous": "register",
 }
 SPOTS: dict[str, str] = {key: name for name, key in KEYS.items()}
 
@@ -367,6 +373,56 @@ def gender_candidates(token: Mapping[str, Any], segment: str) -> Iterator[Candid
     yield Candidate("gender", segment, start, end, answer, GENDERS[gender], not agrees)
 
 
+def register_candidates(
+    text: str, stored: Sequence[Mapping[str, Any]], segment: str
+) -> Iterator[Candidate]:
+    """Register, for one French line (French's seventh hard spot): read off its words by
+    the rules the card uses (`annotate/french_register.py`), so nothing is asked that the
+    card does not say.
+
+    A negator said without *ne* is informal, `NeDrop:<the formal clause>` where the rule is
+    sure of it, and one said with it is formal, `NeKept`: each is the other's contrast,
+    and the dropped one is the hard kind, the one a learner reads as a mistake or misses.
+    An *on* the sentence says is "we" is `OnWe`, the hard kind; every other *on* is
+    `OnOpen`, "people in general, or 'we' in speech", which is all the rule claims of it."""
+    from .annotate.french_register import Word, ne_dropped, ne_kept, ons
+
+    words = [
+        Word(
+            int(token.get("start") or 0),
+            int(token.get("end") or 0),
+            str(token.get("surface") or ""),
+            str(token.get("pos") or "") or None,
+            str(token.get("feats") or "") or None,
+        )
+        for token in stored
+    ]
+
+    def made(at: int, answer: str, contrast: str, hard: bool) -> Candidate:
+        return Candidate(
+            "register", segment, words[at].start, words[at].end, answer, contrast, hard
+        )
+
+    for dropped in ne_dropped(text, words):
+        said = f"NeDrop:{dropped.formal}" if dropped.formal else "NeDrop"
+        yield made(dropped.negator, said, "NeKept", True)
+    for at in ne_kept(text, words):
+        yield made(at, "NeKept", "NeDrop", False)
+    for one in ons(text, words):
+        if one.we:
+            yield made(one.at, "OnWe", "OnOpen", True)
+        else:
+            yield made(one.at, "OnOpen", "OnWe", False)
+
+
+#: Spots whose answers carry the rule's detail after a colon, so two answers are the same
+#: answer when what comes before it is (`_kind`).
+_DETAILED = frozenset({"gender", "register"})
+
+#: An item whose question is not its spot's: who an *on* is, on the register spot.
+_ASKS = {"OnWe": "practice.ask.on", "OnOpen": "practice.ask.on"}
+
+
 def _kind(code: str) -> str:
     """What an answer says, less the rule's detail after a colon: `Fem:tion` is `Fem`."""
     return code.partition(":")[0]
@@ -513,8 +569,10 @@ def _french(
     by_section: dict[int, list[Candidate]] = {}
     for segment in segmented.segments:
         found = by_section.setdefault(section_of.get(segment.id, 1), [])
-        for token in tokens.get(segment.id) or ():
+        stored = tokens.get(segment.id) or ()
+        for token in stored:
             found.extend(gender_candidates(token, segment.id))
+        found.extend(register_candidates(segment.text, stored, segment.id))
     return TextPractice(by_section=by_section)
 
 
@@ -761,6 +819,14 @@ def said(spot: str, code: str, ui: str, homographs: Mapping[str, str] | None = N
         return code.partition(":")[2] or code
     if spot == "gender":
         return t("reader.grammar.feminine" if _kind(code) == "Fem" else "reader.grammar.masculine")
+    if spot == "register":
+        return t(
+            {
+                "NeDrop": "practice.register.informal",
+                "NeKept": "practice.register.formal",
+                "OnWe": "practice.register.we",
+            }.get(_kind(code), "reader.card.on-open")
+        )
     feats = _feats(code)
     if spot == "agreement":
         gender = t(
@@ -835,11 +901,24 @@ def rule(spot: str, code: str, ui: str) -> str:
         "vav": "practice.rule.vav-past" if code == "Past" else "practice.rule.vav-future",
         "suffix": _SUFFIX_RULES.get(code.partition(":")[0], "practice.rule.suffix-3ms"),
         "gender": _gender_rule(code),
+        "register": _REGISTER_RULES.get(_kind(code), "practice.rule.on-open"),
     }
     key = keys[spot]
     if spot == "gender" and code.partition(":")[2]:
         return strings.text(key, ui, ending=code.partition(":")[2])
+    if spot == "register" and code.partition(":")[2]:
+        return strings.text("practice.rule.ne-dropped", ui, formal=code.partition(":")[2])
     return strings.text(key, ui, **_RULE_HEBREW.get(key, {}))
+
+
+#: The register rule for each answer; a dropped *ne* with its formal clause is said by
+#: `practice.rule.ne-dropped` instead.
+_REGISTER_RULES = {
+    "NeDrop": "practice.rule.ne-dropped-alone",
+    "NeKept": "practice.rule.ne-kept",
+    "OnWe": "practice.rule.on-we",
+    "OnOpen": "practice.rule.on-open",
+}
 
 
 def _gender_rule(code: str) -> str:
@@ -973,7 +1052,7 @@ def _item(
             for each in found
             if (
                 _kind(each.candidate.answer) == candidate.contrast
-                if candidate.spot == "gender"
+                if candidate.spot in _DETAILED
                 else each.candidate.answer == candidate.contrast
             )
             and each.candidate.segment != candidate.segment
@@ -1003,7 +1082,7 @@ def _item(
         "key": line_key(one.document, candidate.segment),
         "spot": candidate.spot,
         "example": example,
-        "ask": strings.text(REGISTERED_ASK[candidate.spot], ui),
+        "ask": strings.text(_ASKS.get(_kind(candidate.answer), REGISTERED_ASK[candidate.spot]), ui),
         "options": options,
         "answer": options.index(right),
         "said": right,

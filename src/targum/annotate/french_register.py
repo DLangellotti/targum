@@ -539,6 +539,23 @@ def ne_dropped(text: str, words: Sequence[Word]) -> list[NeDropped]:
     return out
 
 
+def ne_kept(text: str, words: Sequence[Word]) -> list[int]:
+    """Every clause in `text` that negates with its *ne*, at its first negator: the formal
+    negation, which the practice sets beside a dropped one (`practices.register_candidates`)."""
+    out: list[int] = []
+    seen: set[int] = set()
+    for at in range(len(words)):
+        if not _is_negator(text, words, at):
+            continue
+        start = _clause_start(text, words, at)
+        if start in seen:
+            continue
+        seen.add(start)
+        if any(_ne(norm(word.surface)) for word in words[start:at]):
+            out.append(at)
+    return out
+
+
 def _has(said: Sequence[str], phrase: tuple[str, ...]) -> bool:
     size = len(phrase)
     return any(tuple(said[i : i + size]) == phrase for i in range(len(said) - size + 1))
