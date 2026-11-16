@@ -201,7 +201,7 @@ def _empty_survey() -> Any:
 def test_the_notice_says_both_new_sentences_word_for_word() -> None:
     """David approved the wording on 2026-11-01; the date the page gives moved with it, and
     again with clause 3.7's difficulty sentence (targum-internal#586)."""
-    assert LEGAL_CHANGED == "15 November 2026"
+    assert LEGAL_CHANGED == "16 November 2026"
     page = _said(legal_page("privacy"))
     assert (
         "the controls of the reader that were pressed. Also, for each text, recording or"
@@ -231,13 +231,16 @@ def test_the_notice_says_both_new_sentences_word_for_word() -> None:
 def test_the_notice_names_the_words_check_word_for_word() -> None:
     """David approved the wording on 2026-11-01 (targum-internal#613): clause 3.2 names the
     words a reader marks as known on the arrival's words check, in his words. Amended
-    2026-11-15 (David): the by-ear mark (#536) and the daily goal (#537)."""
-    assert LEGAL_CHANGED == "15 November 2026"
+    2026-11-15 (David): the by-ear mark (#536) and the daily goal (#537); and 2026-11-16
+    (David, word for word): the beta readers' free plan, with the day it ends (#59)."""
+    assert LEGAL_CHANGED == "16 November 2026"
     page = _said(legal_page("privacy"))
     assert (
         "the date on which each word was marked as known, whether the Data Subject has"
         " marked a word as known by ear, with the date, any daily goal the Data Subject"
-        " has set, and the words the Data Subject"
+        " has set, whether the Data Subject's account, or an invitation made to their"
+        " address, carries a free plan for beta readers, with the day it ends, and the"
+        " words the Data Subject"
         " marked as known on the check offered on arrival, with the date, which are used"
         " only to estimate which texts suit them, and the dictionary forms of the words in"
         " sections the Data Subject has marked as finished" in page
@@ -248,7 +251,7 @@ def test_the_notice_names_topics_and_the_web_search_word_for_word() -> None:
     """David approved the wording on 2026-11-01 (targum-internal#615): the topics a reader
     reads choose what is suggested, and a search of the web for them is sent the topics
     and the level alone."""
-    assert LEGAL_CHANGED == "15 November 2026"
+    assert LEGAL_CHANGED == "16 November 2026"
     page = _said(legal_page("privacy"))
     assert (
         "which are never combined with those of any other Data Subject, and the topics of"

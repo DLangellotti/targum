@@ -137,6 +137,9 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     "Payments open soon".
   - Strings: `you.plan.comp`, `plans.page.comp` in English and Russian. The Russian is a
     first draft for ling-ru.
+  - The Privacy Notice's clause 3.2 says, in David's words (2026-11-16), "whether the
+    Data Subject's account, or an invitation made to their address, carries a free plan
+    for beta readers, with the day it ends". The legal pages are dated 16 November 2026.
 
 ### Changed
 - A Russian verb's card says what its prefix adds, and only where it adds it
