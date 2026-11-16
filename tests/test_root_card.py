@@ -131,6 +131,51 @@ RUSSIAN = {
             "transparency": "transparent",
             "borrowed": False,
         },
+        # A transparent verb whose prefix means what it says; an opaque one and a partial
+        # one, whose prefixes do not; and one whose prefix only makes its aspect partner.
+        "выйти": {
+            "roots": [{"morph": "й", "variants": ["ход", "ш"], "sense": "go"}],
+            "prefixes": ["вы"],
+            "suffixes": None,
+            "transparency": "transparent",
+            "borrowed": False,
+        },
+        "понять": {
+            "roots": [{"morph": "ня", "variants": ["ним", "ем"], "sense": "take"}],
+            "prefixes": ["по"],
+            "suffixes": [],
+            "transparency": "opaque",
+            "borrowed": False,
+        },
+        "выиграть": {
+            "roots": [{"morph": "игр", "variants": [], "sense": "play"}],
+            "prefixes": ["вы"],
+            "suffixes": ["а"],
+            "transparency": "partial",
+            "borrowed": False,
+        },
+        "сделать": {
+            "roots": [{"morph": "дел", "variants": [], "sense": "do"}],
+            "prefixes": ["с"],
+            "suffixes": ["а"],
+            "transparency": "transparent",
+            "borrowed": False,
+        },
+        "подъехать": {
+            "roots": [{"morph": "ех", "variants": ["езж"], "sense": "ride"}],
+            "prefixes": ["подъ"],
+            "suffixes": ["а"],
+            "transparency": "transparent",
+            "borrowed": False,
+        },
+        # Graded transparent as a word, and its у- is not "away": not on the list.
+        "узнать": {
+            "roots": [{"morph": "зна", "variants": [], "sense": "know"}],
+            "prefixes": ["у"],
+            "suffixes": [],
+            "transparency": "transparent",
+            "borrowed": False,
+        },
         "летать": {
             "roots": [{"morph": "лет", "variants": ["леч"], "sense": "fly"}],
             "prefixes": [],
@@ -416,6 +461,7 @@ def test_a_russian_word_carries_its_root_variants_and_prefixes() -> None:
         ["при"],
         0,
         1,
+        [["при", "arriving", "прибытие"]],
     ]
     # ё folded: the lexicon's самолёт is found from самолет, and its лёт is лет.
     shape = root_card.russian_shape("самолет", "NOUN")
@@ -524,8 +570,130 @@ def test_a_russian_page_carries_its_words_morphemes(tmp_path: Path) -> None:
     )
     extensions = data["extensions"]
     assert isinstance(extensions, dict)
-    assert extensions["morphemes"] == [[[["ход", [], "go"]], ["вы"], 0, 1], 0]
+    # A noun: its prefix is listed, and the card says no sense of it.
+    assert extensions["morphemes"] == [[[["ход", [], "go"]], ["вы"], 0, 1, []], 0]
     assert "shapes" not in extensions
+
+
+# --- What a prefix adds (targum-internal#600) -----------------------------------------------
+
+
+@pytest.mark.usefixtures("lexicons")
+def test_a_transparent_verb_on_the_list_says_what_its_prefix_adds() -> None:
+    shape = root_card.russian_shape("выйти", "VERB")
+    assert shape and shape[4] == [["вы", "out", "наружу"]]
+    # The verb's own spelling of the prefix is the one written, with the list's sense.
+    shape = root_card.russian_shape("подъехать", "VERB")
+    assert shape and shape[4] == [["подъ", "up close", "приближение"]]
+
+
+@pytest.mark.usefixtures("lexicons")
+@pytest.mark.parametrize("lemma", ["понять", "выиграть"])
+def test_an_opaque_or_partial_verb_says_nothing_of_its_prefix(lemma: str) -> None:
+    shape = root_card.russian_shape(lemma, "VERB")
+    assert shape and shape[1] and shape[4] == [], "the prefix is known, its sense not said"
+
+
+@pytest.mark.usefixtures("lexicons")
+@pytest.mark.parametrize("lemma", ["сделать", "узнать"])
+def test_a_transparent_verb_off_the_list_says_nothing_of_its_prefix(lemma: str) -> None:
+    """The lexicon grades the word, not the prefix: "с- down" on сделать, which is only
+    делать's partner, and "у- away" on узнать would both be false."""
+    shape = root_card.russian_shape(lemma, "VERB")
+    assert shape and shape[3] == 1 and shape[4] == []
+
+
+@pytest.mark.usefixtures("lexicons")
+def test_only_a_verb_says_what_its_prefix_adds() -> None:
+    shape = root_card.russian_shape("выход", "NOUN")
+    assert shape and shape[1] == ["вы"] and shape[4] == []
+
+
+def test_a_verb_is_read_only_in_the_prefix_the_list_names() -> None:
+    from targum.annotate import ru_prefixes
+
+    assert ru_prefixes.senses("выйти", "VERB", ["вы"], True) == [["вы", "out", "наружу"]]
+    # A lexicon that cut the verb another way, or found two prefixes, gets nothing.
+    assert ru_prefixes.senses("выйти", "VERB", ["в"], True) == []
+    assert ru_prefixes.senses("выйти", "VERB", ["по", "вы"], True) == []
+    assert ru_prefixes.senses("выйти", "VERB", ["вы"], False) == []
+
+
+@pytest.mark.usefixtures("lexicons")
+def test_a_russian_page_carries_its_verbs_prefix_senses(tmp_path: Path) -> None:
+    data = _page(
+        tmp_path,
+        "ru",
+        [
+            Token(start=0, end=5, surface="вышел", lemma="выйти", band=2, pos="VERB"),
+            Token(start=6, end=11, surface="понял", lemma="понять", band=2, pos="VERB"),
+            Token(start=12, end=18, surface="сделал", lemma="сделать", band=2, pos="VERB"),
+        ],
+    )
+    extensions = data["extensions"]
+    assert isinstance(extensions, dict)
+    assert [row[4] for row in extensions["morphemes"]] == [[["вы", "out", "наружу"]], [], []]
+
+
+def test_the_prefix_list_is_twenty_prefixes_said_in_both_languages() -> None:
+    from targum.annotate import ru_prefixes
+
+    body = json.loads(
+        Path(ru_prefixes.__file__).with_name("ru_prefixes.json").read_text(encoding="utf-8")
+    )
+    rows = body["prefixes"]
+    assert len(rows) == 20
+    spellings = [s for row in rows for s in (row["prefix"], *row["spellings"])]
+    assert len(spellings) == len(set(spellings)), "one spelling, one prefix"
+    for row in rows:
+        assert re.fullmatch(r"[а-яъ]+", row["prefix"]), row
+        assert 1 <= len(row["senses"]) <= 3, row
+        for said in row["senses"].values():
+            # Short: a card line, not a grammar.
+            assert said["en"] and len(said["en"]) <= 20, row
+            assert not re.search(r"[а-яё]", said["en"], re.I), row
+            assert said["ru"] and re.fullmatch(r"[а-яё ,-]+", said["ru"]), row
+    # The prefixes of the commonest prefixed verbs are all on it (ling-ru, 2026-10-30, §1).
+    for prefix in ("по", "у", "при", "с", "за", "вы", "на", "пере", "раз", "от"):
+        assert ru_prefixes.senses_of(prefix), prefix
+    # Every verb is read in a sense its prefix has, and the prefix begins the verb.
+    assert len(body["verbs"]) >= 100
+    for verb, read in body["verbs"].items():
+        prefix, _, key = read.partition(":")
+        assert key in ru_prefixes.senses_of(prefix), verb
+        assert any(verb.startswith(s) for s, p in _spellings(rows) if p == prefix), verb
+
+
+def _spellings(rows: list[dict[str, object]]) -> list[tuple[str, str]]:
+    out = []
+    for row in rows:
+        prefix = str(row["prefix"])
+        spelled = row["spellings"]
+        assert isinstance(spelled, list)
+        out += [(prefix, prefix)] + [(str(s), prefix) for s in spelled]
+    return out
+
+
+def test_no_verb_the_research_names_as_opaque_is_on_the_list() -> None:
+    """ling-ru's research of 2026-10-30, §4c: nothing on выиграть, понять or заниматься;
+    and nothing on a verb whose prefix only makes its aspect partner."""
+    from targum.annotate import ru_prefixes
+
+    for lemma in (
+        "выиграть",
+        "понять",
+        "заниматься",
+        "сделать",
+        "написать",
+        "прочитать",
+        "увидеть",
+        "узнать",
+        "показать",
+        "начинать",
+        "положить",
+        "подумать",
+    ):
+        assert ru_prefixes.verb_sense(lemma) is None, lemma
 
 
 # --- The family line -------------------------------------------------------------------------

@@ -2265,8 +2265,23 @@ finished" (2026-09-28), whose family line counted a verb's root only.
   the asking word's meaning. It is still never a headline: no count, level or yardstick
   reads it, and a word marked known gives its root no credit.
 - **Russian.** The Root row shows the root morph with its meaning (English interface only)
-  and its other spellings after "also": "ход · go · also хож, ш". A Prefix row follows:
-  "при-". The same family line is counted by root morph over words graded transparent.
+  and its other spellings after "also": "ход · go · also хож, ш". A Prefix row follows,
+  with what the prefix adds: "при- · arriving", «при- · прибытие» under the Russian
+  interface, and no sense under any other. The same family line is counted by root morph
+  over words graded transparent.
+- **The Prefix row is said only where the prefix means something** (targum-internal#600,
+  2026-11-16). It was drawn on every prefixed word, so понять showed "по-" as if it meant
+  something there. Now it shows on a verb the root lexicon grades transparent **and** that
+  targum's own list names (`annotate/ru_prefixes.json`, ling-ru): twenty prefixes with one
+  or two senses each, and about a hundred verbs, each read in the one sense it carries
+  (выйти "out", пойти "start", поговорить "for a while"). Both, because the lexicon grades
+  the word and not the prefix: узнать, показать and начинать are graded transparent, and
+  "у- · away" or "по- · for a while" on them would teach something false, as "с- · down"
+  would on сделать, whose prefix only makes делать's partner. An opaque or partial verb
+  (понять, заниматься, выиграть), a noun and a verb off the list have no Prefix row. The
+  list grows by ling-ru's reading, verb by verb. A page built before this shows no Prefix
+  row until it is built again. The prefixed motion verbs as one grid, and prefix
+  practice, wait for a design of their own.
 - **A page carries only its own words' rows** (`extensions.shapes`,
   `extensions.morphemes`). The lexicons are private, read from
   `/etc/targum/roots-<language>.json` on the box, and never in the repository or the

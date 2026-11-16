@@ -1,0 +1,378 @@
+{
+ "about": "Russian verbal prefixes, each with the one or two spatial or lexical senses a learner can see in a verb, and the verbs whose prefix is read in one of them. targum's own judgement, written 2026-11-16 by ling-ru from its sublexical research of 2026-10-30 (§1, §4c, §5 slice 2); no published list was copied. Shipped under targum's licence. See annotate/ru_prefixes.py.",
+ "reviewed": "ling-ru, 2026-11-16: every sense in both languages and every verb, written and read by targum's Russian seat; David has not read it (targum-internal#600)",
+ "prefixes": [
+  {
+   "prefix": "в",
+   "spellings": [
+    "во",
+    "въ"
+   ],
+   "senses": {
+    "in": {
+     "en": "in, into",
+     "ru": "внутрь"
+    }
+   }
+  },
+  {
+   "prefix": "вз",
+   "spellings": [
+    "вс",
+    "воз",
+    "вос",
+    "взо",
+    "взъ"
+   ],
+   "senses": {
+    "up": {
+     "en": "up",
+     "ru": "вверх"
+    }
+   }
+  },
+  {
+   "prefix": "вы",
+   "spellings": [],
+   "senses": {
+    "out": {
+     "en": "out",
+     "ru": "наружу"
+    }
+   }
+  },
+  {
+   "prefix": "до",
+   "spellings": [],
+   "senses": {
+    "reach": {
+     "en": "as far as",
+     "ru": "до цели"
+    }
+   }
+  },
+  {
+   "prefix": "за",
+   "spellings": [],
+   "senses": {
+    "start": {
+     "en": "start",
+     "ru": "начало"
+    },
+    "in": {
+     "en": "in, behind",
+     "ru": "внутрь, за что-то"
+    }
+   }
+  },
+  {
+   "prefix": "из",
+   "spellings": [
+    "ис",
+    "изо"
+   ],
+   "senses": {
+    "out": {
+     "en": "out of",
+     "ru": "изнутри"
+    }
+   }
+  },
+  {
+   "prefix": "на",
+   "spellings": [],
+   "senses": {
+    "onto": {
+     "en": "onto",
+     "ru": "на поверхность"
+    },
+    "lot": {
+     "en": "a lot",
+     "ru": "много"
+    }
+   }
+  },
+  {
+   "prefix": "над",
+   "spellings": [
+    "надо"
+   ],
+   "senses": {
+    "over": {
+     "en": "over, on top",
+     "ru": "сверху"
+    }
+   }
+  },
+  {
+   "prefix": "о",
+   "spellings": [
+    "об",
+    "обо",
+    "объ"
+   ],
+   "senses": {
+    "around": {
+     "en": "around",
+     "ru": "вокруг"
+    }
+   }
+  },
+  {
+   "prefix": "от",
+   "spellings": [
+    "ото",
+    "отъ"
+   ],
+   "senses": {
+    "away": {
+     "en": "away, aside",
+     "ru": "прочь, в сторону"
+    }
+   }
+  },
+  {
+   "prefix": "пере",
+   "spellings": [],
+   "senses": {
+    "across": {
+     "en": "across",
+     "ru": "через"
+    },
+    "again": {
+     "en": "again",
+     "ru": "заново"
+    }
+   }
+  },
+  {
+   "prefix": "по",
+   "spellings": [],
+   "senses": {
+    "start": {
+     "en": "start",
+     "ru": "начало"
+    },
+    "while": {
+     "en": "for a while",
+     "ru": "недолго"
+    }
+   }
+  },
+  {
+   "prefix": "под",
+   "spellings": [
+    "подо",
+    "подъ"
+   ],
+   "senses": {
+    "near": {
+     "en": "up close",
+     "ru": "приближение"
+    },
+    "under": {
+     "en": "from below",
+     "ru": "снизу"
+    }
+   }
+  },
+  {
+   "prefix": "пред",
+   "spellings": [
+    "предо"
+   ],
+   "senses": {
+    "ahead": {
+     "en": "ahead, beforehand",
+     "ru": "заранее"
+    }
+   }
+  },
+  {
+   "prefix": "пре",
+   "spellings": [],
+   "senses": {
+    "beyond": {
+     "en": "across, beyond",
+     "ru": "через, сверх"
+    }
+   }
+  },
+  {
+   "prefix": "при",
+   "spellings": [],
+   "senses": {
+    "arrive": {
+     "en": "arriving",
+     "ru": "прибытие"
+    },
+    "attach": {
+     "en": "attaching",
+     "ru": "присоединение"
+    }
+   }
+  },
+  {
+   "prefix": "про",
+   "spellings": [],
+   "senses": {
+    "through": {
+     "en": "through, past",
+     "ru": "сквозь, мимо"
+    },
+    "whole": {
+     "en": "the whole time",
+     "ru": "всё время"
+    }
+   }
+  },
+  {
+   "prefix": "раз",
+   "spellings": [
+    "рас",
+    "разо",
+    "разъ"
+   ],
+   "senses": {
+    "apart": {
+     "en": "apart",
+     "ru": "в разные стороны"
+    }
+   }
+  },
+  {
+   "prefix": "с",
+   "spellings": [
+    "со",
+    "съ"
+   ],
+   "senses": {
+    "down": {
+     "en": "down",
+     "ru": "вниз"
+    },
+    "together": {
+     "en": "together",
+     "ru": "вместе"
+    }
+   }
+  },
+  {
+   "prefix": "у",
+   "spellings": [],
+   "senses": {
+    "away": {
+     "en": "away",
+     "ru": "прочь"
+    }
+   }
+  }
+ ],
+ "verbs": {
+  "войти": "в:in",
+  "входить": "в:in",
+  "внести": "в:in",
+  "вносить": "в:in",
+  "влететь": "в:in",
+  "вбежать": "в:in",
+  "въехать": "в:in",
+  "впустить": "в:in",
+  "вскочить": "вз:up",
+  "взлететь": "вз:up",
+  "выйти": "вы:out",
+  "выходить": "вы:out",
+  "вывести": "вы:out",
+  "выводить": "вы:out",
+  "вынести": "вы:out",
+  "выносить": "вы:out",
+  "выбежать": "вы:out",
+  "выехать": "вы:out",
+  "вылететь": "вы:out",
+  "выгнать": "вы:out",
+  "выпрыгнуть": "вы:out",
+  "выпустить": "вы:out",
+  "дойти": "до:reach",
+  "доходить": "до:reach",
+  "добежать": "до:reach",
+  "доехать": "до:reach",
+  "заплакать": "за:start",
+  "засмеяться": "за:start",
+  "закричать": "за:start",
+  "заговорить": "за:start",
+  "замолчать": "за:start",
+  "заснуть": "за:start",
+  "запеть": "за:start",
+  "зайти": "за:in",
+  "заходить": "за:in",
+  "заглянуть": "за:in",
+  "обойти": "о:around",
+  "обходить": "о:around",
+  "объехать": "о:around",
+  "отойти": "от:away",
+  "отходить": "от:away",
+  "отнести": "от:away",
+  "отъехать": "от:away",
+  "отвернуться": "от:away",
+  "перейти": "пере:across",
+  "переходить": "пере:across",
+  "перенести": "пере:across",
+  "переехать": "пере:across",
+  "передать": "пере:across",
+  "переписать": "пере:again",
+  "переделать": "пере:again",
+  "перечитать": "пере:again",
+  "пойти": "по:start",
+  "поехать": "по:start",
+  "побежать": "по:start",
+  "полететь": "по:start",
+  "поплыть": "по:start",
+  "понести": "по:start",
+  "поговорить": "по:while",
+  "постоять": "по:while",
+  "посидеть": "по:while",
+  "погулять": "по:while",
+  "поиграть": "по:while",
+  "почитать": "по:while",
+  "поработать": "по:while",
+  "поспать": "по:while",
+  "подойти": "под:near",
+  "подходить": "под:near",
+  "подъехать": "под:near",
+  "подбежать": "под:near",
+  "подхватить": "под:under",
+  "прийти": "при:arrive",
+  "приходить": "при:arrive",
+  "приехать": "при:arrive",
+  "прибежать": "при:arrive",
+  "прилететь": "при:arrive",
+  "принести": "при:arrive",
+  "приносить": "при:arrive",
+  "привести": "при:arrive",
+  "приводить": "при:arrive",
+  "пройти": "про:through",
+  "проходить": "про:through",
+  "пробежать": "про:through",
+  "проехать": "про:through",
+  "прожить": "про:whole",
+  "просидеть": "про:whole",
+  "простоять": "про:whole",
+  "разойтись": "раз:apart",
+  "разбежаться": "раз:apart",
+  "раскрыть": "раз:apart",
+  "сойти": "с:down",
+  "слезть": "с:down",
+  "сбросить": "с:down",
+  "слететь": "с:down",
+  "сбежаться": "с:together",
+  "уйти": "у:away",
+  "уходить": "у:away",
+  "уехать": "у:away",
+  "уезжать": "у:away",
+  "убежать": "у:away",
+  "унести": "у:away",
+  "уносить": "у:away",
+  "увезти": "у:away",
+  "улететь": "у:away",
+  "удалиться": "у:away"
+ }
+}

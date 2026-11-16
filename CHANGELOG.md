@@ -112,6 +112,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     two options would both be that language.
 
 ### Changed
+- A Russian verb's card says what its prefix adds, and only where it adds it
+  (targum-internal#600, design.md §12). The Prefix row was drawn on every prefixed word,
+  opaque ones too, as a bare "по-". It now shows only on a verb the root lexicon grades
+  transparent and ling-ru's list names, with the sense beside it: "вы- · out",
+  "при- · arriving", and in Russian under the Russian interface («вы- · наружу»).
+  `annotate/ru_prefixes.json` holds twenty prefixes with their spellings and one or two
+  senses each, and 105 verbs each read in one sense; 90 of them show on today's lexicon,
+  and the other 15 wait for it to cut or grade them. понять, заниматься, выиграть, a
+  noun, and transparent verbs whose prefix means none of its senses (узнать, показать,
+  сделать) get no Prefix row. The senses ride in the page's `morphemes` table at page-build
+  time: no spend, no cache key moved. A page built before this shows no Prefix row until
+  it is built again.
 - `/gloss` has an hour's ceiling per account, as `/phrase` has (targum-internal#737,
   raised by qa-claude on #1258). It had none: a signed-in page could name lemma after
   lemma and targum bought each meaning. An account may now buy 300 meanings an hour
