@@ -470,8 +470,14 @@ def hebrew_shape(lemma: str, pos: str | None, page_root: str) -> list[Any] | int
 
 def russian_shape(lemma: str, pos: str | None) -> list[Any] | int:
     """What a Russian word's page row carries of the lexicon: [[[morph, [variants],
-    sense], ...], [prefixes], borrowed, transparent], or 0 for nothing to say. The
-    morph is also the key the family line asks by."""
+    sense], ...], [prefixes], borrowed, transparent, [[prefix, English, Russian], ...]],
+    or 0 for nothing to say. The morph is also the key the family line asks by.
+
+    The last is what the card's Prefix line says (targum-internal#600): the sense targum's
+    own list reads the prefix in, on a transparent verb the list names and nothing else
+    (`ru_prefixes.senses`). Empty, the card draws no Prefix line."""
+    from .ru_prefixes import senses
+
     if (pos or "") not in RUSSIAN_KINDS:
         return 0
     row = russian_row(lemma)
@@ -482,6 +488,7 @@ def russian_shape(lemma: str, pos: str | None) -> list[Any] | int:
         list(row.prefixes),
         1 if row.borrowed else 0,
         1 if row.transparent else 0,
+        senses(lemma, pos, row.prefixes, row.transparent),
     ]
 
 
