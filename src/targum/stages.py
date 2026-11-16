@@ -28,8 +28,9 @@ standard from 2026-10-12, while its measurements, its read-through record and it
 practices caught up, and the test printed its shortfall instead of failing on it. It
 earned Beta on 2026-10-14 and the entry came out. Russian is kept at Alpha from 2026-10-21,
 short only of its read-through (David). Hebrew is kept at Beta again from 2026-10-25, when
-the floors came to count modern Hebrew alone and its B1 held 53 texts of 90, until the first
-generated modern B1 tranche lands (David). Nothing may be added to `KEPT` without a design.md
+the floors came to count modern Hebrew alone and its B1 held 53 texts of 90 (David). B1
+cleared on the box's measure of 2026-11-16, and the Beta now stands on A2, at 80 texts of
+90. Nothing may be added to `KEPT` without a design.md
 entry first, and the entry's name is in its `why`.
 
 **The record is a fact here, its substance stays private** (`RECORDED`, 2026-10-13). The
@@ -274,8 +275,8 @@ KEPT: dict[str, Kept] = {
         review=date(2026, 12, 31),
         why=(
             'design.md §12, "The floors count modern Hebrew" (David, 2026-10-25): '
-            "the shelf floors read the modern ladder alone, where B1 holds 53 texts of 90, "
-            "until the first generated modern B1 tranche lands."
+            "the shelf floors read the modern ladder alone. Modern B1 cleared its floor on "
+            "2026-11-16; A2 holds 80 texts of 90, and is the one floor short."
         ),
     ),
     "ru": Kept(

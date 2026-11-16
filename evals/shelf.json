@@ -1,5 +1,5 @@
 {
- "measured": "2026-10-14",
+ "measured": "2026-11-16",
  "levels": [
   "A1",
   "A2",
@@ -20,6 +20,22 @@
     "texts": 0,
     "recordings": 0
    },
+   "B2": {
+    "texts": 0,
+    "recordings": 0
+   },
+   "C1": {
+    "texts": 0,
+    "recordings": 0
+   },
+   "C2": {
+    "texts": 0,
+    "recordings": 0
+   },
+   "past-C2": {
+    "texts": 0,
+    "recordings": 0
+   },
    "B2+": {
     "texts": 0,
     "recordings": 0
@@ -27,38 +43,70 @@
   },
   "fr": {
    "A1": {
-    "texts": 0,
-    "recordings": 0
+    "texts": 84,
+    "recordings": 48
    },
    "A2": {
+    "texts": 6,
+    "recordings": 5
+   },
+   "B1": {
+    "texts": 113,
+    "recordings": 22
+   },
+   "B2": {
+    "texts": 22,
+    "recordings": 10
+   },
+   "C1": {
     "texts": 0,
     "recordings": 0
    },
-   "B1": {
-    "texts": 5,
-    "recordings": 5
+   "C2": {
+    "texts": 0,
+    "recordings": 0
+   },
+   "past-C2": {
+    "texts": 0,
+    "recordings": 0
    },
    "B2+": {
-    "texts": 9,
-    "recordings": 9
+    "texts": 22,
+    "recordings": 10
    }
   },
   "he": {
    "A1": {
-    "texts": 114,
-    "recordings": 114
+    "texts": 211,
+    "recordings": 183
    },
    "A2": {
-    "texts": 96,
-    "recordings": 96
+    "texts": 80,
+    "recordings": 77
    },
    "B1": {
-    "texts": 53,
-    "recordings": 51
+    "texts": 177,
+    "recordings": 80
+   },
+   "B2": {
+    "texts": 101,
+    "recordings": 43
+   },
+   "C1": {
+    "texts": 7,
+    "recordings": 2
+   },
+   "C2": {
+    "texts": 1,
+    "recordings": 0
+   },
+   "past-C2": {
+    "texts": 0,
+    "recordings": 0
    },
    "B2+": {
-    "texts": 90,
-    "recordings": 51
+    "texts": 109,
+    "recordings": 45
    }
   },
   "it": {
@@ -74,6 +122,22 @@
     "texts": 33,
     "recordings": 33
    },
+   "B2": {
+    "texts": 56,
+    "recordings": 42
+   },
+   "C1": {
+    "texts": 0,
+    "recordings": 0
+   },
+   "C2": {
+    "texts": 0,
+    "recordings": 0
+   },
+   "past-C2": {
+    "texts": 0,
+    "recordings": 0
+   },
    "B2+": {
     "texts": 56,
     "recordings": 42
@@ -81,27 +145,43 @@
   },
   "ru": {
    "A1": {
-    "texts": 93,
-    "recordings": 75
+    "texts": 144,
+    "recordings": 124
    },
    "A2": {
-    "texts": 100,
-    "recordings": 85
+    "texts": 49,
+    "recordings": 47
    },
    "B1": {
     "texts": 124,
     "recordings": 94
    },
+   "B2": {
+    "texts": 99,
+    "recordings": 65
+   },
+   "C1": {
+    "texts": 0,
+    "recordings": 0
+   },
+   "C2": {
+    "texts": 0,
+    "recordings": 0
+   },
+   "past-C2": {
+    "texts": 0,
+    "recordings": 0
+   },
    "B2+": {
-    "texts": 100,
+    "texts": 99,
     "recordings": 65
    }
   }
  },
  "videos": {
   "arc": 0,
-  "fr": 0,
-  "he": 88,
+  "fr": 43,
+  "he": 120,
   "it": 78,
   "ru": 178
  },
@@ -120,6 +200,22 @@
      "texts": 54,
      "recordings": 50
     },
+    "B2": {
+     "texts": 29,
+     "recordings": 24
+    },
+    "C1": {
+     "texts": 1,
+     "recordings": 1
+    },
+    "C2": {
+     "texts": 0,
+     "recordings": 0
+    },
+    "past-C2": {
+     "texts": 0,
+     "recordings": 0
+    },
     "B2+": {
      "texts": 30,
      "recordings": 25
@@ -135,6 +231,22 @@
      "recordings": 0
     },
     "B1": {
+     "texts": 0,
+     "recordings": 0
+    },
+    "B2": {
+     "texts": 17,
+     "recordings": 0
+    },
+    "C1": {
+     "texts": 0,
+     "recordings": 0
+    },
+    "C2": {
+     "texts": 0,
+     "recordings": 0
+    },
+    "past-C2": {
      "texts": 0,
      "recordings": 0
     },
@@ -156,6 +268,22 @@
      "texts": 0,
      "recordings": 0
     },
+    "B2": {
+     "texts": 78,
+     "recordings": 0
+    },
+    "C1": {
+     "texts": 2,
+     "recordings": 0
+    },
+    "C2": {
+     "texts": 0,
+     "recordings": 0
+    },
+    "past-C2": {
+     "texts": 0,
+     "recordings": 0
+    },
     "B2+": {
      "texts": 80,
      "recordings": 0
@@ -173,6 +301,22 @@
     "B1": {
      "texts": 48,
      "recordings": 1
+    },
+    "B2": {
+     "texts": 109,
+     "recordings": 6
+    },
+    "C1": {
+     "texts": 0,
+     "recordings": 0
+    },
+    "C2": {
+     "texts": 0,
+     "recordings": 0
+    },
+    "past-C2": {
+     "texts": 0,
+     "recordings": 0
     },
     "B2+": {
      "texts": 109,
