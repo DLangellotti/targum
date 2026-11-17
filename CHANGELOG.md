@@ -174,6 +174,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   - Privacy Notice clause 3.2 carries David's line word for word, "If you follow the
     weekly portion, we keep whether you read Israel's calendar or the diaspora's, so the
     mail names your portion."; `LEGAL_CHANGED` is 16 November 2026.
+- The Privacy Notice and the Data Retention Schedule say how paying through Paddle
+  works, in David's words, approved word for word on 2026-11-17 (targum-internal#59).
+  They cover:
+  - a payment clause (3.15);
+  - Paddle as a controller in its own right, with its checkout on the plans page (a new
+    4.3; the old 4.3 is 4.4 and reads "clauses 4.2 and 4.3");
+  - the transfer to the United Kingdom (5.3);
+  - one sentence in the cookie clause;
+  - retention 1.6 amended, waiting for Paddle's cancel;
+  - new 1.14, records of payment, and 1.15, Paddle's notifications, kept without limit.
+
+  `LEGAL_CHANGED` is 17 November 2026. `tests/test_notice_paddle.py` pins every line.
 - The store for paying for Plan and for top-ups through Paddle (targum-internal#59 phase
   2, item 6; design.md §12 "Payments are Paddle's, by a hosted checkout", 2026-11-15).
   Nothing can pay yet: no webhook, checkout or key is here, so nothing writes these rows
