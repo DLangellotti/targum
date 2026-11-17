@@ -1302,7 +1302,9 @@ def _credits_left(ctx: Ctx) -> int | None:
 
     if ctx.store is None or ctx.person is None or ctx.admin:
         return None
-    allowed = ctx.library.allowance(paid_plan=plans.paid(ctx.person))
+    allowed = ctx.library.allowance(
+        paid_plan=plans.paid(ctx.person), owner=ctx.person.id if ctx.person else None
+    )
     if allowed is None:
         return None
     used = ctx.store.hours_used(ctx.person.id, ctx.library._month_from())
@@ -2556,7 +2558,9 @@ def my_hours(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     """
     from .. import plans
 
-    allowed = ctx.library.allowance(paid_plan=plans.paid(ctx.person))
+    allowed = ctx.library.allowance(
+        paid_plan=plans.paid(ctx.person), owner=ctx.person.id if ctx.person else None
+    )
     used = (
         ctx.store.hours_used(ctx.person_id, ctx.library._month_from())
         if ctx.store is not None

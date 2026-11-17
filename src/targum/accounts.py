@@ -31,6 +31,7 @@ heard of yet, and the phone puts it back on the next sync.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
@@ -41,6 +42,7 @@ import threading
 import time
 from collections.abc import Callable, Collection, Iterable, Mapping
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -495,11 +497,21 @@ REGISTRATIONS_PER_HOUR = 60
 #    other row and on every row before it, which reads as the diaspora's, the calendar
 #    the mail followed until now. One ALTER, which does not depend on the
 #    number.
+# 73→74: plan, credit_grant and billing_event — paying for Plan and for top-ups through
+#    Paddle (targum-internal#59 phase 2, design.md §12 2026-11-15, "Payments are Paddle's,
+#    by a hosted checkout"). Three new tables (`BILLING`), so `CREATE TABLE IF NOT
+#    EXISTS` and nothing in MIGRATIONS: they land whichever schema number merges first.
+#    `plan` is one row per account that has ever started a plan, as Paddle last said it;
+#    `plan_period` the paid periods it has held, so an earlier month is known to have
+#    been Plan or Free; `credit_grant` one row per top-up paid for, keyed on Paddle's
+#    transaction so a webhook said twice grants once; `billing_event` the ids of the
+#    webhooks already handled. No card, no address and no amount of money is kept:
+#    Paddle is the merchant of record and keeps those.
 #
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 73
+SCHEMA_VERSION = 74
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -595,7 +607,10 @@ WIPE_BY_HAND = ("chat", "playlist", "subscription")
 #: through Tell us (#456) is a finding of whoever was testing, addressed to the operator,
 #: and the wipe exists to give the account a fresh first visit, not to lose the findings;
 #: it still goes with the account in `purge`.
-KEPT_BY_A_WIPE = ("told",)
+#: The plan and top-ups (schema 74) are left too: they are Paddle's word about a payment
+#: that is still Paddle's, and a wipe that dropped the `plan` row of a live subscription
+#: would leave Paddle charging for a plan the account no longer knows it has.
+KEPT_BY_A_WIPE = ("told", "plan", "plan_period", "plan_ended", "credit_grant")
 
 #: What can be subscribed to (design.md §12, "A subscription is the account's",
 #: 2026-10-09): targum's series, a news topic, one outlet, a YouTube channel, a podcast.
@@ -695,6 +710,89 @@ CREATE TABLE IF NOT EXISTS event (
 CREATE INDEX IF NOT EXISTS event_person_day ON event (person, day);
 CREATE INDEX IF NOT EXISTS event_segment ON event (document, segment, kind);
 """
+
+BILLING = """
+-- One row per account that has started a plan through Paddle (schema 74), as Paddle's
+-- webhooks last said it. Never the card, the address or a price: Paddle is the merchant
+-- of record and keeps those. `status` is Paddle's word (active, trialing, past_due,
+-- paused, canceled); `period_end` the ISO moment the paid period ends; `cancel_at_end` 1
+-- when the reader has cancelled and the plan runs to that moment; `past_due_since` the
+-- millisecond Paddle first said a renewal failed, for the grace period, NULL otherwise.
+CREATE TABLE IF NOT EXISTS plan (
+  person         INTEGER PRIMARY KEY,
+  plan           TEXT    NOT NULL DEFAULT 'plan',
+  cadence        TEXT    NOT NULL DEFAULT '',
+  status         TEXT    NOT NULL DEFAULT '',
+  period_end     TEXT    NOT NULL DEFAULT '',
+  cancel_at_end  INTEGER NOT NULL DEFAULT 0,
+  customer       TEXT    NOT NULL DEFAULT '',
+  subscription   TEXT    NOT NULL DEFAULT '',
+  past_due_since INTEGER,
+  updated        INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS plan_subscription ON plan (subscription);
+CREATE INDEX IF NOT EXISTS plan_customer ON plan (customer);
+
+-- A top-up paid for (schema 74): credits that stay until used. What is left of them is
+-- never stored; it is read from the job rows (`Store.grant_seconds`), the one ledger.
+-- `txn` is Paddle's transaction id, unique, so a webhook said twice grants once.
+CREATE TABLE IF NOT EXISTS credit_grant (
+  id      INTEGER PRIMARY KEY,
+  person  INTEGER NOT NULL,
+  credits INTEGER NOT NULL,
+  at      INTEGER NOT NULL,
+  txn     TEXT    NOT NULL UNIQUE
+);
+CREATE INDEX IF NOT EXISTS credit_grant_person ON credit_grant (person, at);
+
+-- The paid periods a plan has held (schema 74), as Paddle's subscription events said
+-- them, in milliseconds: one row per subscription and period start. Read only to know
+-- which plan an earlier month was on, so a top-up is spent against that month's
+-- allowance (`Store.grant_seconds`). A failed renewal's period holds only for its grace.
+CREATE TABLE IF NOT EXISTS plan_period (
+  person       INTEGER NOT NULL,
+  subscription TEXT    NOT NULL,
+  starts       INTEGER NOT NULL,
+  ends         INTEGER NOT NULL,
+  PRIMARY KEY (subscription, starts)
+);
+CREATE INDEX IF NOT EXISTS plan_period_person ON plan_period (person, starts);
+
+-- The subscriptions Paddle has said are canceled (schema 74), so one that has ended can
+-- never come back by a late event and take the plan row from the one that holds it.
+CREATE TABLE IF NOT EXISTS plan_ended (
+  subscription TEXT    PRIMARY KEY,
+  person       INTEGER NOT NULL,
+  at           INTEGER NOT NULL
+);
+
+-- The webhooks already handled (schema 74), by Paddle's event id, so one delivered twice
+-- is handled once. Its type and when it arrived, and nothing of its body.
+CREATE TABLE IF NOT EXISTS billing_event (
+  id   TEXT    PRIMARY KEY,
+  type TEXT    NOT NULL,
+  at   INTEGER NOT NULL
+);
+"""
+
+
+def _millis(said: str) -> int | None:
+    """An ISO moment Paddle said (`2026-11-16T10:00:00.123Z`) in milliseconds, or None."""
+    if not said:
+        return None
+    try:
+        moment = datetime.fromisoformat(said.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=UTC)
+    return int(moment.timestamp() * 1000)
+
+
+#: Paddle's subscription statuses (schema 74), as the `plan` row keeps them.
+PLAN_STATUSES = ("active", "trialing", "past_due", "paused", "canceled")
+#: How a plan is paid for: every month or every three months.
+CADENCES = ("month", "quarter")
 
 #: What can happen, and what `amount` is for each: seconds for a stretch played, words for
 #: a page or a section, a fraction of the text for where a sitting stopped, nothing else.
@@ -2086,6 +2184,26 @@ class Person:
     #: (schema 72, targum-internal#59). Read from the person's row when they are loaded,
     #: like `admin`; `plans.comped` says whether it holds today.
     plan_until: str = ""
+    #: The plan paid for through Paddle, from the `plan` row (schema 74), or None for an
+    #: account that never started one. `plans.paid` reads it beside the comp.
+    billing: Billing | None = None
+
+
+@dataclass(frozen=True)
+class Billing:
+    """An account's plan as Paddle's webhooks last said it (the `plan` row, schema 74)."""
+
+    plan: str = "plan"
+    cadence: str = ""
+    status: str = ""
+    #: The ISO moment the paid period ends: when a cancelled plan stops, when a renewal
+    #: is due otherwise.
+    period_end: str = ""
+    cancel_at_end: bool = False
+    customer: str = ""
+    subscription: str = ""
+    #: The millisecond Paddle first said a renewal failed, or None.
+    past_due_since: int | None = None
 
 
 @dataclass(frozen=True)
@@ -2323,6 +2441,7 @@ class Store:
         self.db.executescript(EVENTS)
         self.db.executescript(FINDS)
         self.db.executescript(PRESSES)
+        self.db.executescript(BILLING)
         self._migrate()
         self._adopt_reads()
         # The day the word records began here (targum-internal#603): kept once, at the
@@ -4511,8 +4630,8 @@ class Store:
         return True
 
     def _who(self, person_id: Any, email: Any) -> Person:
-        """A person as loaded: whether they are an admin, from `admin`, and the comp to
-        Plan on their row (schema 72)."""
+        """A person as loaded: whether they are an admin, from `admin`, the comp to
+        Plan on their row (schema 72), and the plan paid for, from `plan` (schema 74)."""
         row = self.db.execute(
             "SELECT plan_until FROM person WHERE id = ?", (int(person_id),)
         ).fetchone()
@@ -4521,7 +4640,288 @@ class Store:
             str(email),
             self.is_admin(str(email)),
             str(row[0] or "") if row is not None else "",
+            self.billing(int(person_id)),
         )
+
+    # -- the plan paid for, and top-ups (schema 74, targum-internal#59 phase 2) ---------
+
+    def billing(self, person_id: int) -> Billing | None:
+        """This account's plan as Paddle last said it, or None if it never had one."""
+        row = self.db.execute("SELECT * FROM plan WHERE person = ?", (int(person_id),)).fetchone()
+        if row is None:
+            return None
+        return Billing(
+            plan=str(row["plan"]),
+            cadence=str(row["cadence"]),
+            status=str(row["status"]),
+            period_end=str(row["period_end"]),
+            cancel_at_end=bool(row["cancel_at_end"]),
+            customer=str(row["customer"]),
+            subscription=str(row["subscription"]),
+            past_due_since=(
+                int(row["past_due_since"]) if row["past_due_since"] is not None else None
+            ),
+        )
+
+    def set_billing(
+        self,
+        person_id: int,
+        *,
+        cadence: str,
+        status: str,
+        period_end: str,
+        cancel_at_end: bool,
+        customer: str,
+        subscription: str,
+        said_at: int | None = None,
+        period_start: str = "",
+        ended_at: str = "",
+    ) -> bool:
+        """Keep what Paddle said of this account's subscription, over whatever it said
+        before, and False where it changed nothing.
+
+        **Only the subscription the row holds may change it.** A reader can come to have
+        two (a Start pressed twice, a new plan after a lapsed one), and the older one's
+        later `canceled` must not end the plan they are paying for. So another
+        subscription replaces the held one only when it is active or trialing (a past
+        due one never takes the row from another), and only when Paddle said it no
+        earlier than what the row holds, unless the held one has been canceled, which
+        any live one replaces. A subscription Paddle has said is canceled is
+        kept in `plan_ended` and never comes back, whatever arrives after.
+
+        A `canceled` trims that subscription's paid periods to the moment it ended
+        (`ended_at`, Paddle's `canceled_at`, else `said_at`), so a plan cancelled at once
+        or refunded and cancelled counts as Plan only for the time it really held.
+
+        `said_at` is when Paddle said it (the event's `occurred_at`, in milliseconds).
+        Paddle does not promise to deliver events in order, so one older than what the
+        row already holds about the same subscription changes nothing.
+
+        A renewal that fails starts the grace period once (`past_due_since`), and any
+        other status ends it, so a second past_due does not restart the clock. A live
+        status with its period (`period_start` to `period_end`) is kept in `plan_period`,
+        which is how an earlier month is known to have been on Plan."""
+        if status not in PLAN_STATUSES:
+            raise ValueError(f"not a plan status: {status!r}")
+        if cadence and cadence not in CADENCES:
+            raise ValueError(f"not a cadence: {cadence!r}")
+        at = now() if said_at is None else int(said_at)
+        live = status in ("active", "trialing", "past_due")
+        with self.write() as db:
+            if subscription and status == "canceled":
+                stop = _millis(ended_at) or at
+                db.execute(
+                    "INSERT OR IGNORE INTO plan_ended (subscription, person, at) VALUES (?, ?, ?)",
+                    (subscription, int(person_id), stop),
+                )
+                db.execute(
+                    "UPDATE plan_period SET ends = MIN(ends, ?) WHERE subscription = ?",
+                    (stop, subscription),
+                )
+                db.execute(
+                    "DELETE FROM plan_period WHERE subscription = ? AND ends <= starts",
+                    (subscription,),
+                )
+            elif (
+                subscription
+                and db.execute(
+                    "SELECT 1 FROM plan_ended WHERE subscription = ?", (subscription,)
+                ).fetchone()
+            ):
+                return False
+            held = db.execute("SELECT * FROM plan WHERE person = ?", (int(person_id),)).fetchone()
+            if held is not None and str(held["subscription"]):
+                same = str(held["subscription"]) == subscription
+                taking = not same and status in ("active", "trialing")
+                # A held subscription that has ended gives way to any live one, whenever
+                # Paddle said it: two tabs can make two, and the paying one's `created`
+                # may arrive after the other's `canceled` (qa-claude on #1280).
+                # `plan_ended` already keeps an ended one from coming back.
+                if at < int(held["updated"]) and not (taking and held["status"] == "canceled"):
+                    return False
+                if not same and not taking:
+                    return False
+            same_held = held is not None and str(held["subscription"]) == subscription
+            since: int | None = None
+            if status == "past_due":
+                kept = held["past_due_since"] if same_held and held is not None else None
+                since = int(kept) if kept is not None else at
+            db.execute(
+                "INSERT INTO plan (person, cadence, status, period_end, cancel_at_end,"
+                " customer, subscription, past_due_since, updated)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                " ON CONFLICT(person) DO UPDATE SET"
+                "  cadence = CASE WHEN excluded.cadence != '' THEN excluded.cadence"
+                "            ELSE plan.cadence END,"
+                "  status = excluded.status, period_end = excluded.period_end,"
+                "  cancel_at_end = excluded.cancel_at_end,"
+                "  customer = CASE WHEN excluded.customer != '' THEN excluded.customer"
+                "             ELSE plan.customer END,"
+                "  subscription = excluded.subscription,"
+                "  past_due_since = excluded.past_due_since,"
+                "  updated = excluded.updated",
+                (
+                    int(person_id),
+                    cadence,
+                    status,
+                    period_end,
+                    int(cancel_at_end),
+                    customer,
+                    subscription,
+                    since,
+                    at,
+                ),
+            )
+            starts, ends = _millis(period_start), _millis(period_end)
+            if live and starts is not None and ends is not None and ends > starts:
+                if since is not None:
+                    from .plans import GRACE_DAYS
+
+                    ends = min(ends, since + GRACE_DAYS * 86_400_000)
+                db.execute(
+                    "INSERT INTO plan_period (person, subscription, starts, ends)"
+                    " VALUES (?, ?, ?, ?)"
+                    " ON CONFLICT(subscription, starts) DO UPDATE SET ends = excluded.ends",
+                    (int(person_id), subscription, starts, ends),
+                )
+            return True
+
+    def live_billing(self, person_id: int) -> bool:
+        """Whether this account's Paddle subscription may still charge: anything but
+        canceled. `purge` waits for it, so an account is never deleted out from under a
+        plan Paddle is still billing."""
+        row = self.db.execute(
+            "SELECT status FROM plan WHERE person = ? AND subscription != ''", (int(person_id),)
+        ).fetchone()
+        return row is not None and str(row[0]) != "canceled"
+
+    def person_by_subscription(self, subscription: str) -> Person | None:
+        """Whose plan a Paddle subscription is, once a webhook has named it."""
+        row = self.db.execute(
+            "SELECT person.id, person.email FROM plan JOIN person ON person.id = plan.person"
+            " WHERE plan.subscription = ?",
+            (subscription,),
+        ).fetchone()
+        return self._who(row[0], row[1]) if row else None
+
+    def person_by_customer(self, customer: str) -> Person | None:
+        """Whose Paddle customer this is, once a webhook has named it."""
+        row = self.db.execute(
+            "SELECT person.id, person.email FROM plan JOIN person ON person.id = plan.person"
+            " WHERE plan.customer = ?",
+            (customer,),
+        ).fetchone()
+        return self._who(row[0], row[1]) if row else None
+
+    def grant_credits(self, person_id: int, credits: int, txn: str) -> bool:
+        """Grant a top-up's credits, once per Paddle transaction. False when this
+        transaction was granted already, which a webhook said twice is."""
+        if credits <= 0 or not txn:
+            raise ValueError("a grant needs credits and a transaction")
+        with self.write() as db:
+            done = db.execute(
+                "INSERT OR IGNORE INTO credit_grant (person, credits, at, txn) VALUES (?, ?, ?, ?)",
+                (int(person_id), int(credits), now(), txn),
+            )
+            return done.rowcount == 1
+
+    def grant_seconds(self, owner: int | None, month_from: int, full: float, free: float) -> float:
+        """What is left of this reader's top-ups for this month, in seconds: every grant
+        made, less what earlier months spent past their own allowance.
+
+        Never stored, so there is still one ledger (design.md §12, "Free and Plan, behind
+        a switch": "topped-up credits stay until they are used"). Read month by month from
+        the first grant's: each month's grants join what is left, and whatever that
+        month's job rows spent past that month's allowance comes off it. This month's
+        spending is not taken here; `claim` holds it to the base plus this.
+
+        An earlier month's allowance is prorated by how much of it the reader was on Plan
+        (`_plan_share`): `free`, and the share of the month that a paid period or a comp
+        covered of the difference to `full`. The operator's is `full`."""
+        if owner is None:
+            return 0.0
+        rows = self.db.execute(
+            "SELECT credits, at FROM credit_grant WHERE person = ? ORDER BY at",
+            (int(owner),),
+        ).fetchall()
+        if not rows:
+            return 0.0
+        first = datetime.fromtimestamp(int(rows[0]["at"]) / 1000, UTC)
+        start = datetime(first.year, first.month, 1, tzinfo=UTC)
+        left = 0.0
+        while (begin := int(start.timestamp() * 1000)) < month_from:
+            year, month = (
+                (start.year + 1, 1) if start.month == 12 else (start.year, start.month + 1)
+            )
+            start = datetime(year, month, 1, tzinfo=UTC)
+            whole = int(start.timestamp() * 1000)
+            end = min(whole, month_from)
+            left += 60.0 * sum(int(r["credits"]) for r in rows if begin <= int(r["at"]) < end)
+            used = self.db.execute(
+                "SELECT COALESCE(SUM(length), 0) AS used FROM job "
+                "WHERE length > 0 AND made >= ? AND made < ? AND owner IS ?",
+                (begin, end, owner),
+            ).fetchone()
+            base = free + (full - free) * self._plan_share(int(owner), begin, whole)
+            left = max(0.0, left - max(0.0, float(used["used"]) - base))
+        return left + 60.0 * sum(int(r["credits"]) for r in rows if int(r["at"]) >= month_from)
+
+    def _plan_share(self, owner: int, begin: int, end: int) -> float:
+        """How much of a month, 0 to 1, this reader was on Plan: the operator all of it;
+        anyone else the part their paid periods (`plan_period`, trimmed at a cancel) and
+        their comp (until its day) covered, each moment counted once."""
+        row = self.db.execute(
+            "SELECT email, plan_until FROM person WHERE id = ?", (owner,)
+        ).fetchone()
+        if row is None or end <= begin:
+            return 0.0
+        if self.is_admin(str(row["email"])):
+            return 1.0
+        spans = [
+            (max(begin, int(one["starts"])), min(end, int(one["ends"])))
+            for one in self.db.execute(
+                "SELECT starts, ends FROM plan_period WHERE person = ? AND starts < ? AND ends > ?",
+                (owner, end, begin),
+            )
+        ]
+        until = str(row["plan_until"] or "")
+        with contextlib.suppress(ValueError):
+            if until:
+                day = datetime.fromisoformat(until).replace(tzinfo=UTC)
+                spans.append((begin, min(end, int(day.timestamp() * 1000))))
+        covered, reach = 0, begin
+        for starts, ends in sorted(one for one in spans if one[1] > one[0]):
+            starts = max(starts, reach)
+            if ends > starts:
+                covered += ends - starts
+                reach = ends
+        return covered / (end - begin)
+
+    def top_ups(self, person_id: int) -> list[dict[str, Any]]:
+        """Every top-up this account paid for, oldest first: credits and when."""
+        return [
+            {"credits": int(row["credits"]), "at": int(row["at"])}
+            for row in self.db.execute(
+                "SELECT credits, at FROM credit_grant WHERE person = ? ORDER BY at",
+                (int(person_id),),
+            )
+        ]
+
+    def billing_seen(self, event_id: str, kind: str) -> bool:
+        """Record a webhook as handled. False when it was handled already, so a
+        delivery Paddle retries does nothing the second time."""
+        with self.write() as db:
+            done = db.execute(
+                "INSERT OR IGNORE INTO billing_event (id, type, at) VALUES (?, ?, ?)",
+                (event_id, kind, now()),
+            )
+            return done.rowcount == 1
+
+    def billing_unseen(self, event_id: str) -> None:
+        """Forget that a webhook was handled, when handling it failed part way, so
+        Paddle's retry is handled rather than skipped."""
+        with self.write() as db:
+            db.execute("DELETE FROM billing_event WHERE id = ?", (event_id,))
 
     # -- the beta comped to Plan (targum-internal#59) ----------------------------------
 
@@ -4888,7 +5288,18 @@ class Store:
             rows = db.execute(
                 "SELECT id FROM person WHERE leaving IS NOT NULL AND leaving < ?", (cutoff,)
             ).fetchall()
-            gone = [int(row["id"]) for row in rows]
+            # Never out from under a plan Paddle may still charge (schema 74): the
+            # account waits until Paddle says its subscription is canceled, so a reader
+            # is never left paying for an account that is gone.
+            gone = [
+                int(row["id"])
+                for row in rows
+                if not db.execute(
+                    "SELECT 1 FROM plan WHERE person = ? AND subscription != ''"
+                    " AND status != 'canceled'",
+                    (int(row["id"]),),
+                ).fetchone()
+            ]
             for person_id in gone:
                 for table in (
                     "word",
@@ -4924,6 +5335,12 @@ class Store:
                     # page that broke (clause 3.14): theirs, so it goes with them.
                     "told",
                     "fault",
+                    # The plan they paid for and the top-ups they bought (schema 74).
+                    # Paddle keeps its own record of the sale as merchant of record.
+                    "plan",
+                    "plan_period",
+                    "plan_ended",
+                    "credit_grant",
                 ):
                     db.execute(f"DELETE FROM {table} WHERE person = ?", (person_id,))
                 # Conversations too: half of every one is what the person said.
@@ -5305,6 +5722,20 @@ class Store:
         # Which clients they connected, and what they let each one do. The digests stay
         # out, for the reason at the top of this method.
         out["connections"] = self.connections(person.id)
+        # The plan they pay for and the top-ups they bought (schema 74): what targum keeps
+        # of Paddle's word, which is no card and no money. Paddle's own ids are in it,
+        # since they are what the reader quotes to Paddle about a charge.
+        billing = self.billing(person.id)
+        out["plan"] = billing.__dict__ if billing is not None else None
+        out["top_ups"] = self.top_ups(person.id)
+        out["plan_periods"] = [
+            dict(row)
+            for row in self.db.execute(
+                "SELECT subscription, starts, ends FROM plan_period WHERE person = ?"
+                " ORDER BY starts",
+                (person.id,),
+            )
+        ]
         # What they subscribed to, and its cap: their choices, as their playlists are. The
         # stop token stays out — it is a way to change the row, not a fact about it.
         out["subscriptions"] = [

@@ -578,8 +578,9 @@ def _functions(db: sqlite3.Connection) -> None:
 
 def _admins(db: sqlite3.Connection) -> set[str]:
     """The addresses on Plan (`plans.paid`), so their month is the plan's: the admins, as
-    `Store.is_admin` compares them, and the beta readers comped to Plan today (schema 72,
-    targum-internal#59), whose comp ends on its day."""
+    `Store.is_admin` compares them, the beta readers comped to Plan today (schema 72,
+    targum-internal#59), whose comp ends on its day, and the readers whose Paddle plan
+    holds (schema 74, `plans.subscribed`), a failed renewal inside its grace included."""
     on_plan: set[str] = set()
     with contextlib.suppress(sqlite3.Error):
         on_plan |= {str(row[0]).strip().lower() for row in db.execute("SELECT email FROM admin")}
@@ -588,6 +589,19 @@ def _admins(db: sqlite3.Connection) -> set[str]:
         on_plan |= {
             str(row[0]).strip().lower()
             for row in db.execute("SELECT email FROM person WHERE plan_until > ?", (today,))
+        }
+    from .plans import GRACE_DAYS
+
+    with contextlib.suppress(sqlite3.Error):
+        graced = int(datetime.now(UTC).timestamp() * 1000) - GRACE_DAYS * 86_400_000
+        on_plan |= {
+            str(row[0]).strip().lower()
+            for row in db.execute(
+                "SELECT person.email FROM plan JOIN person ON person.id = plan.person"
+                " WHERE plan.status IN ('active', 'trialing')"
+                " OR (plan.status = 'past_due' AND plan.past_due_since > ?)",
+                (graced,),
+            )
         }
     return on_plan
 

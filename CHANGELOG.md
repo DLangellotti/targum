@@ -174,6 +174,53 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   - Privacy Notice clause 3.2 carries David's line word for word, "If you follow the
     weekly portion, we keep whether you read Israel's calendar or the diaspora's, so the
     mail names your portion."; `LEGAL_CHANGED` is 16 November 2026.
+- `deploy/box.env.op` names Paddle's sandbox: the API key, the webhook secret and the
+  client-side token as `op://targum/Paddle sandbox…` references (the items David made
+  on 2026-11-17), and the three price ids and `PADDLE_ENVIRONMENT=sandbox` as plain
+  values. `TARGUM_PLANS` is not set, so plans stay off for readers. All three references
+  resolve with the read-only `targum-box` service account (checked 2026-11-17).
+- The Privacy Notice and the Data Retention Schedule say how paying through Paddle
+  works, in David's words, approved word for word on 2026-11-17 (targum-internal#59).
+  They cover:
+  - a payment clause (3.15);
+  - Paddle as a controller in its own right, with its checkout on the plans page (a new
+    4.3; the old 4.3 is 4.4 and reads "clauses 4.2 and 4.3");
+  - the transfer to the United Kingdom (5.3);
+  - one sentence in the cookie clause;
+  - retention 1.6 amended, waiting for Paddle's cancel;
+  - new 1.14, records of payment, and 1.15, Paddle's notifications, kept without limit.
+
+  `LEGAL_CHANGED` is 17 November 2026. `tests/test_notice_paddle.py` pins every line.
+- The store for paying for Plan and for top-ups through Paddle (targum-internal#59 phase
+  2, item 6; design.md §12 "Payments are Paddle's, by a hosted checkout", 2026-11-15).
+  Nothing can pay yet: no webhook, checkout or key is here, so nothing writes these rows
+  and every reader is as they were.
+  - Accounts schema 73→74: three new tables, `CREATE TABLE IF NOT EXISTS`, so they land
+    whichever schema number merges first. `plan`, one row per account as Paddle's
+    webhooks last said it: plan, cadence, status, period end, cancel at period end,
+    Paddle's customer and subscription ids, and when a renewal first failed.
+    `plan_period`, the paid periods a plan held (a failed renewal's only for its
+    grace, a cancelled one only to its cancel), so an earlier month is known to have
+    been Plan or Free. `plan_ended`, the subscriptions Paddle said are canceled.
+    `credit_grant`, one row per top-up, unique on Paddle's transaction id.
+    `billing_event`, the webhook ids already handled. No card, address or sum of money
+    is kept. `models.SCHEMA_VERSION` is untouched.
+  - Only the subscription the `plan` row holds may change it: another replaces it only
+    when active or trialing and said no earlier than the row (or the row's has been
+    canceled, which any live one replaces), so an old subscription's
+    late `canceled`, or its dunning, cannot change a paying reader's plan. A subscription
+    once canceled never comes back. An older event about the held one changes nothing.
+  - `plans.paid` is the operator, a comp that holds today, or a Paddle subscription that
+    holds (`plans.subscribed`): active or trialing, or past due for under
+    `plans.GRACE_DAYS` (7, proposed). A comp still wins until its day.
+  - The month's allowance is the plan's plus what is left of the reader's top-ups, on
+    either plan. What is left is never stored: `Store.grant_seconds` reads it month by
+    month from the job rows, the one ledger, each earlier month counted at the allowance
+    it had, prorated: Free's, and of the difference to Plan's the share of the month a
+    paid period or a comp covered (the operator's is Plan's).
+  - The account's export carries its plan row, periods and top-ups; a purged account
+    takes them, and a purge waits while Paddle may still charge (`Store.live_billing`).
+    The back office counts a paying reader's month at Plan's size.
 - "A first week of Onkelos", targum's own playlist for a reader with Hebrew and no
   Aramaic (targum-internal#530, part 1). Seven rows, one a day: Genesis 1:1-5, 1:6-19,
   1:20-2:3, 2:4-14, 3:1-13, 6:9-22 and 37:1-11, each the Hebrew with the public-domain
