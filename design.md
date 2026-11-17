@@ -427,6 +427,27 @@ this spends targum's on David's.
 - **Off unless both are set.** `TARGUM_GROW` names the languages and the cap must be above
   nothing; either unset, a round says what is off and spends nothing.
 
+### French register is practised as formal or informal, and who *on* is — 2026-11-16
+
+David, 2026-11-17 (ling-fr's draft, approved as written), French's second practice toward
+Beta, under "A practice for every hard spot" (2026-10-13) and D5's "register, not error"
+(2026-11-05).
+
+- **Two questions on one spot, each the card's.** A negation is asked "Formal or
+  informal?", with a negation said without *ne* against one said with it. An *on* is
+  asked "Who is on here?", with "“we”" against the card's own open line, "people in
+  general, or “we” in speech".
+- **Nothing is claimed past the rule** (`annotate/french_register.py`, the card's rules).
+  An *on* is asked only where the sentence says it is "we". An open *on* is never asked,
+  because "we" may be right of it too (*On va au cinéma ce soir ?*), and it is not counted
+  as a meeting. It is shown only as the line where the other answer is right. The formal
+  clause is given only where the rule is sure of it.
+- **A *jamais* after *que* is not asked as a dropped *ne*.** There it is often "ever",
+  with no negation at all (*le meilleur film que j'aie jamais vu*).
+- **Hard is the spoken kind:** a dropped *ne*, and an *on* the line makes "we".
+- **The rules are read again for the practice, never stored.** A negation said with its
+  *ne* is found by the same clause rules (`ne_kept`).
+
 ### French gender is practised as masculine or feminine — 2026-11-16
 
 David, 2026-11-16, the first of French's seven practices toward Beta under "A practice

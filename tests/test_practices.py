@@ -447,7 +447,7 @@ def test_french_gender_is_registered_and_the_standard_sees_it() -> None:
     said = stages._practices("fr")
     assert said["gender"] is True
     assert [name for name, held in said.items() if not held] == [
-        spot.name for spot in stages.HARD_SPOTS["fr"] if spot.name != "gender"
+        spot.name for spot in stages.HARD_SPOTS["fr"] if spot.name not in practices.REGISTERED["fr"]
     ]
     assert practices.REGISTERED["fr"]["gender"].kind == "choice"
     assert practices.KEYS["gender"] == "gender" and practices.SPOTS["gender"] == "gender"
@@ -548,9 +548,12 @@ def test_french_gender_is_offered_on_the_grammar_tab(
 
     status, said, _ = call(port, "GET", f"/account/practice?language=fr&k={token}", cookie=cookie)
     assert status == 200, said
-    assert [spot["key"] for spot in said["spots"]] == ["gender"]
-    (spot,) = said["spots"]
+    spots = {spot["key"]: spot for spot in said["spots"]}
+    spot = spots["gender"]
     assert spot["encounters"] == 8 and spot["texts"] == 2 and spot["ready"]
+    status, said, _ = call(
+        port, "GET", f"/account/practice?language=fr&spot=gender&k={token}", cookie=cookie
+    )
     round_ = said["round"]
     assert round_["spot"] == "gender"
     items = round_["items"]
@@ -571,3 +574,123 @@ def test_french_gender_is_offered_on_the_grammar_tab(
         cookie=cookie,
     )
     assert status == 200 and kept["ok"], kept
+
+
+# -- French register ---------------------------------------------------------------------
+
+
+def _said(line: str) -> list[dict[str, Any]]:
+    """A line's words as the tagger stores them, cut where the register eval cuts them."""
+    from targum.annotate.french_register import words_of
+
+    return [{"start": w.start, "end": w.end, "surface": w.surface} for w in words_of(line)]
+
+
+def _register(line: str) -> list[tuple[str, str, bool, str]]:
+    return [
+        (c.answer, c.contrast, c.hard, line[c.start : c.end])
+        for c in practices.register_candidates(line, _said(line), "s")
+    ]
+
+
+def test_french_register_is_registered() -> None:
+    assert stages._practices("fr")["register: ne-drop and on/nous"] is True
+    assert practices.KEYS["register: ne-drop and on/nous"] == "register"
+
+
+def test_a_negation_is_asked_formal_or_informal() -> None:
+    """D5 (2026-11-05): register, not error. The dropped *ne* carries the formal clause the
+    card gives it, and the negation said with *ne* is its contrast."""
+    assert _register("Je sais pas.") == [("NeDrop:Je ne sais pas", "NeKept", True, "pas")]
+    assert _register("J'ai jamais vu ça.") == [("NeDrop:Je n'ai jamais", "NeKept", True, "jamais")]
+    assert _register("Je ne sais pas.") == [("NeKept", "NeDrop", False, "pas")]
+    # *Plus* where it could be "more" is no negation, said or dropped.
+    assert _register("Il en faut plus.") == []
+    # A dropped *ne* and a kept one in the same line are each asked at their own word.
+    line = "Je ne sais pas, mais je veux pas."
+    found = practices.register_candidates(line, _said(line), "s")
+    assert [
+        (c.answer, c.contrast, c.hard, line[c.start : c.end])
+        for c in sorted(found, key=lambda c: c.start)
+    ] == [
+        ("NeKept", "NeDrop", False, "pas"),
+        ("NeDrop:je ne veux pas", "NeKept", True, "pas"),
+    ]
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "C'est le meilleur film que j'aie jamais vu.",
+        "Je doute qu'il ait jamais menti.",
+        "Il ne faut pas que tu aies jamais peur.",
+    ],
+)
+def test_a_jamais_after_que_is_never_asked_as_a_dropped_ne(line: str) -> None:
+    """qa on #1283: after *que*, *jamais* is often "ever", with no negation to drop."""
+    assert not [one for one in _register(line) if one[0].startswith("NeDrop")], _register(line)
+
+
+def test_an_on_is_asked_who_and_never_said_to_be_we_unless_the_line_says_so() -> None:
+    assert _register("Nous, on est partis.") == [("OnWe", "OnOpen", True, "on")]
+    assert _register("On dit que oui.") == [("OnOpen", "OnWe", False, "On")]
+
+
+@pytest.mark.parametrize("ui", ["en", "ru"])
+def test_register_answers_and_rules_are_the_cards(ui: str) -> None:
+    from targum import strings
+
+    assert practices.said("register", "NeDrop:Je ne sais pas", ui) == strings.text(
+        "practice.register.informal", ui
+    )
+    assert practices.said("register", "NeKept", ui) == strings.text("practice.register.formal", ui)
+    assert practices.said("register", "OnOpen", ui) == strings.text("reader.card.on-open", ui)
+    told = practices.rule("register", "NeDrop:Je ne sais pas", ui)
+    assert "Je ne sais pas" in told and "{" not in told
+    for code in ("NeDrop", "NeKept", "OnWe", "OnOpen"):
+        said = practices.rule("register", code, ui)
+        assert said and "{" not in said
+
+
+def _registers(name: str) -> list[tuple[str, list[dict[str, Any]]]]:
+    lines = [
+        f"Je sais pas, {name}.",
+        f"Je ne sais pas, {name}.",
+        f"Nous, on est partis, {name}.",
+        f"On dit que {name} vient.",
+    ]
+    return [(line, _said(line)) for line in lines]
+
+
+def test_french_register_is_offered_with_its_own_question_per_item(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    port, token, out = served
+    for name in ("un", "deux"):
+        text(out / "shared" / name, {1: _registers(name)}, language="fr", content_hash=name)
+    cookie = sign_in(port, postbox)
+    sections = [
+        {"hash": name, "section": "1", "at": ms(2026, 11), "seen": ms(2026, 11)}
+        for name in ("un", "deux")
+    ]
+    status, answer, _ = call(
+        port, "POST", f"/sync?k={token}", {"sections": sections}, cookie=cookie
+    )
+    assert status == 200, answer
+    status, said, _ = call(
+        port, "GET", f"/account/practice?language=fr&spot=register&k={token}", cookie=cookie
+    )
+    assert status == 200, said
+    spot = {one["key"]: one for one in said["spots"]}["register"]
+    # An open *on* is never asked and never counted: three lines a text.
+    assert spot["encounters"] == 6 and spot["ready"]
+    items = said["round"]["items"]
+    assert said["round"]["spot"] == "register" and len(items) == practices.ROUND + 1
+    asks = {"formal", "informal"}, {"“we”", "people in general, or “we” in speech"}
+    for item in items:
+        options = set(item["options"])
+        assert options in asks, item
+        assert item["ask"] == ("Formal or informal?" if options == asks[0] else "Who is on here?")
+        assert item["options"][item["answer"]] == item["said"]
+        assert item["said"] != "people in general, or “we” in speech", "an open on is not asked"
+        assert item["contrast"] and item["contrast"]["said"] in options - {item["said"]}

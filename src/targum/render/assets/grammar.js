@@ -32,6 +32,7 @@
     vav: ["practice.spot.vav", "The vav-consecutive"],
     suffix: ["practice.spot.suffix", "Pronoun suffixes"],
     gender: ["practice.spot.gender", "Gender"],
+    register: ["practice.spot.register", "Formal and informal"],
   };
 
   function at(id) {
