@@ -428,8 +428,9 @@ this spends targum's on David's.
   nothing; either unset, a round says what is off and spends nothing.
 ### French register is practised as formal or informal, and who *on* is — 2026-11-16
 
-ling-fr, 2026-11-16, French's second practice toward Beta, under "A practice for every
-hard spot" (2026-10-13) and D5's "register, not error" (2026-11-05).
+David, 2026-11-17 (ling-fr's draft, approved as written), French's second practice toward
+Beta, under "A practice for every hard spot" (2026-10-13) and D5's "register, not error"
+(2026-11-05).
 
 - **Two questions on one spot, each the card's.** A negation is asked "Formal or
   informal?", with a negation said without *ne* against one said with it. An *on* is
