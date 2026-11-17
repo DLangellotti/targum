@@ -514,7 +514,13 @@ HARD_SPOTS: dict[str, tuple[HardSpot, ...]] = {
 #: language whose lemmas are bought by the model is cache-only on the box (memory
 #: 2026-09-17): a text built on the laptop ships its reader, not its cache entries.
 #: Aramaic has no lemmatiser at all.
-BUILDS_UNATTENDED: frozenset[str] = frozenset({"he"})
+#:
+#: French since 2026-11-17 (French Beta's two ops gaps, epic targum-internal#628): a
+#: new French video is built on the box by `targum grow run` on its timer, pressed
+#: through `Library.press` and claimed like any build, its lemmas bought inside that
+#: claim into the box's own cache — so the cache-only rule above is a rebuild's, not a
+#: new build's. The promise holds once the timer is armed (`deploy/targum-grow.service`).
+BUILDS_UNATTENDED: frozenset[str] = frozenset({"he", "fr"})
 
 #: Which languages have chat evals *in the language* with floors in `evals/floors.json`.
 #: The `recast` rows for `tatoeba-ru` and `ntrex-128-in-ru` measure Hebrew recast for a
@@ -522,8 +528,13 @@ BUILDS_UNATTENDED: frozenset[str] = frozenset({"he"})
 CHAT_EVALS: frozenset[str] = frozenset({"he"})
 
 #: What grows a language's shelf without anybody's hand: the parasha, the daily and the
-#: weekly for Hebrew; the weekly's Russian edition for Russian.
-GROWING: dict[str, str] = {"he": "parasha, daily, weekly", "ru": "weekly, Russian edition"}
+#: weekly for Hebrew; the weekly's Russian edition for Russian; for French, the catalogue's
+#: growing channels, built on the box inside a month's credits (`grow`, 2026-11-17).
+GROWING: dict[str, str] = {
+    "he": "parasha, daily, weekly",
+    "ru": "weekly, Russian edition",
+    "fr": "growing channels (targum grow)",
+}
 
 #: Where the committed shelf snapshot lives, and where the floors do.
 SHELF_SNAPSHOT = Path(__file__).resolve().parent.parent.parent / "evals" / "shelf.json"

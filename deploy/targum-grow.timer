@@ -1,0 +1,16 @@
+# /etc/systemd/system/targum-grow.timer — not installed by deploy.sh: armed by hand
+# (deploy/README.md, "The shelf grows by itself").
+#
+# 05:30 UTC: after the backup at 04:00, so a night's round is in the next one, and after
+# the subscriptions mail at 04:30, clear of the night's finds and sweeps.
+
+[Unit]
+Description=targum shelf grows by itself, daily
+
+[Timer]
+OnCalendar=*-*-* 05:30:00 UTC
+RandomizedDelaySec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

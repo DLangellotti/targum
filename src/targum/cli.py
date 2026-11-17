@@ -73,6 +73,11 @@ finds_app = typer.Typer(
     no_args_is_help=True, help="Things to read targum finds on the web (targum-internal#619)."
 )
 app.add_typer(finds_app, name="finds")
+grow_app = typer.Typer(
+    no_args_is_help=True,
+    help="What grows a language's shelf by itself, on the box (design.md §12, 2026-11-17).",
+)
+app.add_typer(grow_app, name="grow")
 
 console = Console()
 err = Console(stderr=True)
@@ -6041,6 +6046,60 @@ def finds_youtube(
             fail(error)
         console.print(f"[green]YouTube[/green] ({code}): {found}")
         left = max(0, left - found.units)
+
+
+@grow_app.command("run")
+def grow_run(
+    store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,
+    out: Annotated[
+        Path, typer.Option("--out", help="The Library's root, as `targum serve` is given it.")
+    ] = Path("targum-out"),
+    budget: Annotated[
+        float,
+        typer.Option(
+            "--budget", help="The box's daily ceiling in dollars, as `targum serve` has it."
+        ),
+    ] = 10.00,
+) -> None:
+    """One round of the shelf growing by itself: each catalogue collection whose channel
+    grows, in a language TARGUM_GROW names, has its new uploads that pass built through
+    the Library's own press and claim, inside TARGUM_GROW_CREDITS a month, and joined to
+    the shelf. Does nothing unless both are set: the box's timer runs it once a day."""
+    from . import grow
+    from .accounts import Store
+    from .serve import Library, default_store
+
+    if not grow.languages() or grow.cap() <= 0:
+        console.print(
+            f"[dim]The shelf does not grow by itself here ({grow.FLAG} and "
+            f"{grow.CREDITS_ENV} must both be set).[/dim]"
+        )
+        return
+    keeping = Store(store or default_store())
+    # Beside the running server, on its database: a side Library builds through the same
+    # press, claim and worker and runs none of the server's start-up — recovery would
+    # fail every build the server has in hand, and the sweeps are the server's.
+    library = Library(out, budget=budget, store=keeping, hosted=True, side=True)
+    try:
+        grown = grow.grow(library, keeping)
+    except TargumError as error:
+        fail(error)
+    console.print(f"[green]Grown[/green]: {grown}")
+    for identifier, why in grown.failed:
+        console.print(f"[yellow]failed[/yellow] {identifier}: {why}")
+
+
+@grow_app.command("drop")
+def grow_drop(
+    identifier: Annotated[str, typer.Argument(help="The video's id, or its row's id.")],
+) -> None:
+    """Take a grown video off the shelf: its row and its curated folder go, and the round
+    never builds it again."""
+    from . import grow
+
+    if not grow.drop(identifier):
+        fail(TargumError(f"No grown video {identifier} on this shelf."))
+    console.print(f"[green]Taken down[/green]: {identifier}")
 
 
 @finds_app.command("podcasts")

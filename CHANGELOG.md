@@ -203,6 +203,32 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     Data Subject's account, or an invitation made to their address, carries a free plan
     for beta readers, with the day it ends". The legal pages are dated 16 November 2026.
 
+- The shelf grows by itself, on the box, for French (French Beta's two ops gaps, epic
+  targum-internal#628; design.md §12, "The shelf grows by itself, inside a month's
+  credits", drafted by ops, approved by David 2026-11-17). Disarmed: deploy.sh does not install
+  `deploy/targum-grow.service` or its timer, and the command does nothing until
+  `TARGUM_GROW` and `TARGUM_GROW_CREDITS` are both in targum.env.
+  - `targum grow run`, once a day as targum: each catalogue collection that names a
+    `channel` and says `"grows": true` (`Collection.grows`) has its new uploads asked
+    through the Data API. Creative Commons by the video's own field, a track somebody
+    wrote in the language, ten minutes or less, not music and past the screen; the
+    track is fetched through the proxy and nothing is transcribed.
+  - Each is a job of kind `grow` through `Library.prepare`, `Library.press` and so
+    `Library.claim`: targum's to pay (`gift`), held to the box's daily ceiling, and before
+    each press to the month's credits off the `grow` job rows, failed builds with their
+    claim kept included. At most three presses a round, and one round at a time.
+  - The round makes a side `Library` (`Library(side=True)`, new): the same press, claim
+    and worker, and none of a server's start-up recovery (`Store.interrupt_running`) or
+    sweeps, so the live server's builds are left as they are. A round's own rows left
+    working by a dead process are failed, claim kept, by the next round.
+  - `Library._prepare_video` prices a video whose job already carries a written track
+    (`options.transcript`, set only by targum's own doors) as written: no hearing quoted.
+  - Built, it is curated into the video shelf and entered in `grown.json` beside it, which
+    `catalogue.everything` joins as it joins the weekly, and `catalogue.collections` adds
+    to its channel's collection: on the shelf with no deploy. `targum grow drop` takes one
+    down and keeps it down.
+  - `stages.GROWING` and `stages.BUILDS_UNATTENDED` now name French.
+
 ### Changed
 - A Russian verb's card says what its prefix adds, and only where it adds it
   (targum-internal#600, design.md §12). The Prefix row was drawn on every prefixed word,
