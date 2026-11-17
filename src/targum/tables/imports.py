@@ -93,7 +93,7 @@ TABLES = (WORDS, PHRASES, roots.ROOTS, spellings.READINGS)
 LANGUAGES = ("he",)
 
 #: Sources a model wrote, which may sit in a home but no reader brought.
-MODEL_WRITTEN = ("dialogue:", "weekly:", "chat:")
+MODEL_WRITTEN = ("dialogue:", "story:", "weekly:", "chat:")
 
 
 def on() -> bool:

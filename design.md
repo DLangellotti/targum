@@ -400,6 +400,17 @@ noted is shown, under clauses 3.2, 3.6 and 3.7 as amended the same day. Write st
 mailto, so nothing new is stored. An unconfirmed waitlist address is deleted after
 thirty days. Operator and test accounts are counted nowhere.
 
+### /plans alone loads Paddle's checkout script; no reader page, and no other page, loads anything from another site — 2026-11-17
+
+David, 2026-11-17. It amends "Payments are Paddle's, by a hosted checkout" (2026-11-15),
+whose redirect needed an approval Paddle gives sparingly. A pay press still makes the
+transaction on targum's own server and comes back to `/plans`; that one view of `/plans`,
+after the press, loads Paddle.js from Paddle's own CDN and opens Paddle's checkout over the
+page, in Paddle's frame. Its policy names Paddle's script, the checkout's frame and
+Paddle's checkout service, and nothing else; `/plans` before a press names none of them.
+Every reader, every saved copy and every other page keep the rule of 2026-10-30: nothing
+from any other site.
+
 ### The shelf grows by itself, inside a month's credits — 2026-11-17
 
 **Approved by David on 2026-11-17** (drafted by ops): the channels Wandering French and

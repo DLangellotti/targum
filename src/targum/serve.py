@@ -42,9 +42,9 @@ from pathlib import Path
 from typing import Any, ClassVar
 from urllib.parse import parse_qs, quote, unquote, urlencode, urlparse
 
+from . import billing, mcp_http, oauth, plans, voices
 from . import incidents as incidents_module
 from . import level as level_module
-from . import mcp_http, oauth, plans, voices
 from . import telegram as telegram_module
 from .accounts import (
     CHAT_RESTARTED,
@@ -887,6 +887,15 @@ WAITLIST_POSTS = frozenset({"/waitlist", "/waitlist/confirm", "/waitlist/stop"})
 #: The open door's form on the public pages (targum-internal#671): one field that mails
 #: the sign-in link, as /account/signin's does, from a page that works with JavaScript off.
 SIGNUP_POST = "/signup"
+#: Where Paddle sends its events (targum-internal#59 phase 2). Answered only where the
+#: deployment has Paddle's webhook secret; a 404 everywhere else.
+BILLING_HOOK = "/billing/webhook"
+#: The two pay presses: Start the plan, with its cadence, and Top up, with its size.
+PLANS_START = "/plans/start"
+PLANS_TOP_UP = "/plans/topup"
+PAY_POSTS = frozenset({PLANS_START, PLANS_TOP_UP})
+#: Your account's Manage: a fresh link into Paddle's customer portal, by a 303.
+PLANS_MANAGE = "/plans/manage"
 
 #: The posts that mail a link to whatever address they are given (targum-internal#688).
 #: A form on another site could post to any of them, so each refuses a browser that
@@ -3248,6 +3257,7 @@ class Library:
         # Who is about to go, read before the rows do: the last mail needs the address
         # and the day they asked (design.md §12, "Every mail is the board's", 2026-10-09).
         leaving = self.store.leaving_due()
+        self._cancel_departing_plans(leaving)
         notes = {int(row["id"]): self._note_departure(int(row["id"])) for row in leaving}
         gone = self.store.purge()
         for person_id in gone:
@@ -3258,6 +3268,25 @@ class Library:
         self._finish_departures()
         self._mail_the_departed([row for row in leaving if row["id"] in gone])
         return gone
+
+    def _cancel_departing_plans(self, rows: list[dict[str, Any]]) -> None:
+        """Ask Paddle again to cancel the plan of each account whose grace is up but whose
+        subscription has not ended: the cancel at closing failed, or the plan was paused.
+        The purge waits for Paddle's `canceled` (`Store.live_billing`), so without this an
+        account could wait for ever. Each try is written down; nothing here raises."""
+        if self.store is None or not billing.configured():
+            return
+        for row in rows:
+            person = self.store.person_by_id(int(row["id"]))
+            if person is None or person.billing is None:
+                continue
+            if not self.store.live_billing(person.id):
+                continue
+            try:
+                billing.cancel(person.billing.subscription)
+                print(f"billing: asked Paddle again to cancel {person.billing.subscription}")
+            except billing.PaddleError as error:
+                incidents_module.record(self.incidents, "billing-cancel", error)
 
     def _mail_the_departed(self, rows: list[dict[str, Any]]) -> None:
         """Tell each account that went that it is gone, once, when it is.
@@ -7649,7 +7678,7 @@ class Handler(BaseHTTPRequestHandler):
         return self._person() is not None
 
     @staticmethod
-    def _policy(body: bytes, frames: str = "", forms: str = "") -> str:
+    def _policy(body: bytes, frames: str = "", forms: str = "", paddle: str = "") -> str:
         """The content policy for one page, naming its own inline blocks by hash.
 
         A page that holds an `<iframe>` may frame its own origin — read off the page as
@@ -7692,6 +7721,21 @@ class Handler(BaseHTTPRequestHandler):
             policy = policy.replace("frame-ancestors 'none'", "frame-ancestors 'self'")
         if re.search(rb"<iframe\b", body):
             policy = policy + "; frame-src 'self'"
+        # The one view of `/plans` that opens Paddle's checkout (design.md §12,
+        # 2026-11-17): the overlay's frame and the service Paddle.js talks to, in the
+        # deployment's environment, and Paddle.js's own origin under script-src below.
+        # Never read off the page: only `_plans_page` passes it, on a checkout it made.
+        sources = billing.CHECKOUT_SOURCES.get(paddle) if paddle else None
+        if sources:
+            if "; frame-src " in policy:
+                policy = policy.replace(
+                    "; frame-src 'self'", f"; frame-src 'self' {sources['frame']}"
+                )
+            else:
+                policy = policy + f"; frame-src {sources['frame']}"
+            policy = policy.replace(
+                "connect-src 'self'", f"connect-src 'self' {sources['connect']}"
+            )
         # Your Words may call the reader's own AnkiConnect, and no other page may (design.md
         # §12, "Send to Anki talks to the Anki on your own computer", 2026-11-14). Read
         # off the page as written, like the frames: only a page holding the Send to Anki
@@ -7710,6 +7754,8 @@ class Handler(BaseHTTPRequestHandler):
             scripts = f"'self' {allowed}".rstrip()
         if re.search(rb'<link\b[^>]*\bhref="' + ASSET_ROUTE.encode() + rb"[^\"]+\"", body):
             styles = f"'self' {allowed}".rstrip()
+        if sources:
+            scripts = f"{scripts} {sources['script']}".strip()
         return f"{policy}; script-src {scripts}; style-src {styles}"
 
     # A reader page is around 180 kB, most of it the same stylesheet and script every
@@ -7744,6 +7790,7 @@ class Handler(BaseHTTPRequestHandler):
         cookie: str = "",
         forms: str = "",
         version: str = "",
+        paddle: str = "",
     ) -> None:
         if status == 404 and body == b"not found" and self._navigating():
             # ACCOUNT-12 (QA 2026-10-11): an unknown `/library/<id>` or a reader's page
@@ -7772,7 +7819,7 @@ class Handler(BaseHTTPRequestHandler):
         # Read off the page as written. The policy names this page's own inline blocks
         # by their hash, so it has to be taken before the bytes are compressed. It is
         # taken from whichever of the two pages is sent, so each is named exactly.
-        policy = self._policy(body, frames, forms) if kind.startswith("text/html") else None
+        policy = self._policy(body, frames, forms, paddle) if kind.startswith("text/html") else None
         zipped = self._worth_zipping(body, kind)
         if zipped:
             body = gzip.compress(body, 6)
@@ -10869,6 +10916,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._subscribe_page()
         if route == "/plans":
             return self._plans_page()
+        if route == PLANS_MANAGE:
+            return self._manage()
         if route.startswith("/set/") and not self._needs_account(route):
             return self._set_page(route[len("/set/") :])
         # There is no server-initiated stream here — every call is answered out of a
@@ -11487,6 +11536,10 @@ class Handler(BaseHTTPRequestHandler):
         # authorises it is the secret Telegram was given, never a cookie.
         if route == telegram_module.HOOK:
             return self._telegram_hook()
+        # Paddle's webhook (targum-internal#59 phase 2). Before the account check, like
+        # Telegram's: what authorises it is Paddle's signature, never a cookie.
+        if route == BILLING_HOOK:
+            return self._billing_hook()
         # The back office's one action, a form post from the page an admin is on.
         if route == BACK_OFFICE_ROUTE + "/promote":
             return self._promote(self._form())
@@ -11584,6 +11637,10 @@ class Handler(BaseHTTPRequestHandler):
         # The press on a subscription's confirm page: a plain form, like the build's.
         if route == "/subscribe":
             return self._subscribe_post(self._form())
+        # The pay presses (targum-internal#59 phase 2): plain forms that leave for
+        # Paddle's hosted checkout by a 303 (design.md §12, 2026-11-15).
+        if route in PAY_POSTS:
+            return self._pay(route, self._form())
         # The press on a whole set (#365): a form post too, carrying the ticked items.
         if route.startswith("/set/"):
             return self._set_press(route[len("/set/") :])
@@ -13622,6 +13679,7 @@ class Handler(BaseHTTPRequestHandler):
                 person,
                 listed=self.store.listed_words(person.id) if plans.on() else 0,
                 language=self._ui_language(),
+                manage=billing.configured(),
             ),
         }
         # The chats bound to Telegram (targum-internal#328), only where there is a bot:
@@ -13965,10 +14023,118 @@ class Handler(BaseHTTPRequestHandler):
         if person is None:
             return self._go("/account/signin")
         language = self._page_language()
+        pay = billing.configured()
+        asked = parse_qs(urlparse(self.path).query)
+        # The one view that opens a checkout (design.md §12, 2026-11-17): a transaction
+        # our server made for this account, with the live ticket that says so. Any other
+        # id, one made for somebody else, a ticket past `billing.TICKET_MINUTES`, or a
+        # Start for an account whose plan already holds (a link kept from before it
+        # subscribed) opens nothing and loads nothing of Paddle's.
+        opening = asked.get("checkout", [""])[0]
+        kind = billing.ticket_kind(person.id, opening, asked.get("ticket", [""])[0]) if pay else ""
+        if not kind or (kind == "start" and plans.subscribed(person)):
+            opening = ""
         page = plans_page(
-            plans.summary(person, language=language), language=language, token=self._key_if_given()
+            plans.summary(person, language=language),
+            language=language,
+            token=self._key_if_given(),
+            pay=pay,
+            failed=asked.get("pay", [""])[0] == "failed",
+            checkout=(
+                {
+                    "transaction": opening,
+                    "token": billing.client_token(),
+                    "environment": billing.environment(),
+                    "script": billing.PADDLE_JS,
+                }
+                if opening
+                else None
+            ),
         )
-        self._send(200, page.encode("utf-8"), HTML)
+        # Only this view names Paddle in its policy, and only the checkout's own origins
+        # (`billing.CHECKOUT_SOURCES`): Paddle.js, the overlay's frame and its service.
+        self._send(200, page.encode("utf-8"), HTML, paddle=billing.environment() if opening else "")
+
+    def _manage(self) -> None:
+        """Your account's Manage (targum-internal#59 phase 2, item 9): a link into
+        Paddle's customer portal, made for this reader as they press and never kept,
+        where the card, the receipts and Cancel are. A link rather than a form, so Your
+        account keeps `form-action 'self'`: a navigation is not a form's redirect.
+
+        A 404 until plans are on and Paddle is configured, like the pay presses; for a
+        reader who has never paid there is no portal, and they go to `/plans`. A Paddle
+        that does not answer sends them back to Your account. In the operator's preview
+        (`plans.previewing`) it is there for an admin account too, and for nobody else."""
+        person = self._person()
+        if not plans.shown(person) or not billing.configured():
+            return self._not_found()
+        if person is None:
+            return self._go("/account/signin")
+        held = person.billing
+        if held is None or not held.customer:
+            return self._go("/plans")
+        try:
+            where = billing.portal(held.customer, held.subscription)
+        except billing.PaddleError as error:
+            print(f"billing: portal not made ({error})")
+            return self._go("/account?manage=failed")
+        self._go(where)
+
+    def _pay(self, route: str, form: dict[str, str]) -> None:
+        """A pay press: make a Paddle transaction for it and send the reader back to
+        `/plans` holding its id and a ticket only this server makes, where Paddle's
+        overlay opens on it (design.md §12, "/plans alone loads Paddle's checkout
+        script", 2026-11-17).
+
+        This answers a 303 to our own origin. Refused unless plans are on and every Paddle
+        setting is there, so with
+        the keys missing both addresses are a 404 like any that is not there. A form on
+        another site cannot press it for the reader. Start is for a reader with no plan
+        that holds; Top up for a reader on Plan, as "No top-up on Free" says. Anything
+        else, and a Paddle that does not answer, goes back to `/plans`. In the operator's
+        preview (`plans.previewing`) both presses are there for an admin account too, and
+        for nobody else."""
+        person = self._person()
+        if not plans.shown(person) or not billing.configured():
+            return self._not_found()
+        if self._cross_site():
+            self.close_connection = True
+            return self._json({"error": "forbidden"}, 403)
+        if person is None or self.store is None:
+            return self._go("/account/signin")
+        held = person.billing
+        customer = held.customer if held is not None else ""
+        prices = billing.prices()
+        if route == PLANS_START:
+            cadence = form.get("cadence", "")
+            if cadence not in ("month", "quarter") or plans.subscribed(person):
+                return self._go("/plans")
+            price, quantity, back = prices[cadence], 1, "/plans"
+        else:
+            try:
+                size = int(form.get("size", ""))
+            except ValueError:
+                size = 0
+            if size not in plans.TOP_UPS or not plans.paid(person):
+                return self._go("/account")
+            price, quantity, back = prices["top-up"], size // billing.TOP_UP_UNIT, "/account"
+        made = self.store.db.execute("SELECT made FROM person WHERE id = ?", (person.id,))
+        row = made.fetchone()
+        try:
+            made_id = billing.transaction(
+                price,
+                account=person.id,
+                made=int(row[0]) if row else 0,
+                quantity=quantity,
+                customer=customer,
+            )
+        except billing.PaddleError as error:
+            print(f"billing: checkout not made ({error})")
+            return self._go(f"{back}?pay=failed")
+        held_ticket = billing.ticket(
+            person.id, made_id, "start" if route == PLANS_START else "top-up"
+        )
+        self._go(f"/plans?{urlencode({'checkout': made_id, 'ticket': held_ticket})}")
 
     def _subscribe_post(self, form: dict[str, str]) -> None:
         """The press: read the source again, check the plan, write the subscription with
@@ -14871,6 +15037,54 @@ class Handler(BaseHTTPRequestHandler):
         if isinstance(update, dict):
             door.accept(update)
         self._json({})
+
+    def _billing_hook(self) -> None:
+        """An event from Paddle: a plan started, changed, cancelled or behind, or a
+        top-up paid for (`billing.handle`; design.md §12, "Payments are Paddle's, by a
+        hosted checkout", 2026-11-15).
+
+        The body is read before anything can turn the request away, as `_telegram_hook`
+        does. Without a secret this is a 404 like any address that is not there. A
+        signature that does not check, or is older than `billing.TOLERANCE_SECONDS`, is a
+        401, and Paddle sends again. Each event is handled once by its id: one seen
+        already is a 200 that changes nothing, and one whose handling fails is forgotten
+        again, so Paddle's retry is handled rather than skipped.
+        """
+        length = int(self.headers.get("Content-Length") or 0)
+        raw = self.rfile.read(min(length, billing.MOST_BODY_BYTES)) if length > 0 else b""
+        secret = billing.webhook_secret()
+        if not secret or self.store is None:
+            return self._json({"error": "not found"}, 404)
+        if length > billing.MOST_BODY_BYTES:
+            # The rest of the body is unread, so the connection closes after this.
+            self.close_connection = True
+            return self._json({"error": "too large"}, 413)
+        refused = billing.verify(self.headers.get("Paddle-Signature"), raw, secret)
+        if refused:
+            return self._json({"error": refused}, 401)
+        try:
+            event = json.loads(raw)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            return self._json({"error": "bad request"}, 400)
+        if not isinstance(event, dict) or not event.get("event_id"):
+            return self._json({"error": "bad request"}, 400)
+        event_id = str(event["event_id"])
+        kind = str(event.get("event_type") or "")
+        if not self.store.billing_seen(event_id, kind):
+            return self._json({"seen": True})
+        try:
+            outcome = billing.handle(self.store, event)
+        except Exception as error:
+            # Written down as any escaped error is, and answered 500 rather than dropped,
+            # so Paddle knows to send it again.
+            self.store.billing_unseen(event_id)
+            incidents_module.record(self.library.incidents, self.path, error)
+            return self._json({"error": "not handled"}, 500)
+        if outcome.kind == "unknown-account":
+            # Nobody here to give it to. Said in the journal with Paddle's own id, never
+            # an address, so the operator can look it up in Paddle's dashboard.
+            print(f"billing: {kind} {event_id} names no account here ({outcome.detail})")
+        self._json({"handled": outcome.kind})
 
     def _telegram_account(self, payload: dict[str, Any]) -> None:
         """The Telegram row on /account: a fresh one-time link, or a chat unbound."""
@@ -16688,6 +16902,16 @@ class Handler(BaseHTTPRequestHandler):
             )
         # The page's language, so the last mail is written in it.
         self.store.forget(person, self._ui_language())
+        # A plan Paddle may still charge is cancelled at the end of what is paid for, so
+        # a reader who leaves is not billed again; the purge waits for Paddle to say so
+        # (`Store.live_billing`). Best effort: an answer that does not come is written
+        # down, and the purge still waits.
+        held = person.billing
+        if held is not None and billing.configured() and self.store.live_billing(person.id):
+            try:
+                billing.cancel(held.subscription)
+            except billing.PaddleError as error:
+                incidents_module.record(self.library.incidents, "billing-cancel", error)
         self._sign_out()
 
     def _due(self, query: dict[str, list[str]]) -> None:

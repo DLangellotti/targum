@@ -1,0 +1,71 @@
+{
+  "event_id": "evt_01hv8x2a0000000000000001",
+  "event_type": "subscription.created",
+  "occurred_at": "2026-11-16T10:00:01.000Z",
+  "notification_id": "ntf_01hv8x2a0000000000000001",
+  "data": {
+    "id": "sub_01hv8x29kz0t586xy6zn1a62ny",
+    "status": "active",
+    "customer_id": "ctm_01hv6y1jedq4p1n0yqn5ba3ky4",
+    "address_id": "add_01hv8gq3318ktkfengj2r75gfx",
+    "business_id": null,
+    "currency_code": "USD",
+    "created_at": "2026-11-16T10:00:00.000Z",
+    "updated_at": "2026-11-16T10:00:00.000Z",
+    "started_at": "2026-11-16T10:00:00.000Z",
+    "first_billed_at": "2026-11-16T10:00:00.000Z",
+    "next_billed_at": "2026-12-16T10:00:00.000Z",
+    "paused_at": null,
+    "canceled_at": null,
+    "collection_mode": "automatic",
+    "billing_details": null,
+    "current_billing_period": {
+      "starts_at": "2026-11-16T10:00:00.000Z",
+      "ends_at": "2026-12-16T10:00:00.000Z"
+    },
+    "billing_cycle": {
+      "frequency": 1,
+      "interval": "month"
+    },
+    "scheduled_change": null,
+    "items": [
+      {
+        "status": "active",
+        "quantity": 1,
+        "recurring": true,
+        "created_at": "2026-11-16T10:00:00.000Z",
+        "updated_at": "2026-11-16T10:00:00.000Z",
+        "previously_billed_at": "2026-11-16T10:00:00.000Z",
+        "next_billed_at": "2026-12-16T10:00:00.000Z",
+        "trial_dates": null,
+        "price": {
+          "id": "pri_month",
+          "product_id": "pro_plan",
+          "description": "Plan, monthly",
+          "billing_cycle": {
+            "frequency": 1,
+            "interval": "month"
+          },
+          "trial_period": null,
+          "tax_mode": "account_setting",
+          "unit_price": {
+            "amount": "1600",
+            "currency_code": "USD"
+          },
+          "status": "active",
+          "custom_data": null,
+          "import_meta": null
+        }
+      }
+    ],
+    "custom_data": {
+      "targum_account": "ACCOUNT"
+    },
+    "management_urls": {
+      "update_payment_method": "https://buyer-portal.paddle.com/subscriptions/sub_01hv8x29kz0t586xy6zn1a62ny/update-payment-method",
+      "cancel": "https://buyer-portal.paddle.com/subscriptions/sub_01hv8x29kz0t586xy6zn1a62ny/cancel"
+    },
+    "discount": null,
+    "import_meta": null
+  }
+}

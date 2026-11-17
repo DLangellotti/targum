@@ -669,6 +669,56 @@ def test_a_comped_reader_is_named_with_the_day_the_comp_ends() -> None:
     assert bought["switchRow"] is False and bought["cancelRow"] is False
 
 
+PAID = {"on": True, "plan": "plan", "credits": 480, "planCredits": 480, "words": None}
+
+
+def test_a_paddle_plan_says_when_it_renews_and_links_the_portal() -> None:
+    """Manage (targum-internal#59 phase 2, item 9): the renewal day, and Manage, a link
+    our server answers with Paddle's portal, where Cancel and the card are, so the greyed
+    Switch and Cancel rows give way to it."""
+    billed = {
+        "cadence": "quarter",
+        "ending": False,
+        "manage": True,
+        "renews": "2027-02-16",
+        "renewsSaid": "February 16, 2027",
+    }
+    drawn = run(who={**SIGNED_IN, "plan": {**PAID, "listed": 0, "billed": billed}})["plan"]
+    assert drawn["paidName"] == "Plan, paid every 3 months"
+    assert drawn["renewsRow"] is False and drawn["manage"] is False
+    assert drawn["renews"] == "Your plan renews on February 16, 2027"
+    assert drawn["renewsSays"] == "Paddle handles your card and receipts, and you can cancel there."
+    assert drawn["switchRow"] is True and drawn["cancelRow"] is True
+
+
+def test_a_cancelled_paddle_plan_says_when_it_ends() -> None:
+    billed = {"cadence": "month", "ending": True, "manage": True, "renewsSaid": "December 16, 2026"}
+    drawn = run(who={**SIGNED_IN, "plan": {**PAID, "listed": 0, "billed": billed}})["plan"]
+    assert drawn["paidName"] == "Monthly plan"
+    assert drawn["renews"] == "Your plan ends on December 16, 2026"
+
+
+def test_a_failed_renewal_says_until_when_the_plan_stays() -> None:
+    billed = {
+        "cadence": "month",
+        "ending": False,
+        "manage": True,
+        "renewsSaid": "December 16, 2026",
+        "graceSaid": "December 23, 2026",
+    }
+    drawn = run(who={**SIGNED_IN, "plan": {**PAID, "listed": 0, "billed": billed}})["plan"]
+    assert drawn["renews"] == "Your last payment didn't go through"
+    assert "stays until December 23, 2026" in drawn["renewsSays"]
+
+
+def test_without_paddle_there_is_no_manage_and_no_renewal_row() -> None:
+    unmanaged = {"cadence": "month", "ending": False, "manage": False, "renewsSaid": "May 1, 2027"}
+    drawn = run(who={**SIGNED_IN, "plan": {**PAID, "listed": 0, "billed": unmanaged}})["plan"]
+    assert drawn["manage"] is True, "no portal to open"
+    nothing = run(who={**SIGNED_IN, "plan": {**PAID, "listed": 0}})["plan"]
+    assert nothing["renewsRow"] is True
+
+
 # -- ways to sign in (targum-internal#502) ---------------------------------------------
 
 WAYS_LINKED = {

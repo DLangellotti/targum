@@ -1,0 +1,68 @@
+{
+  "event_id": "evt_01hv8x2a0000000000000007",
+  "event_type": "transaction.completed",
+  "occurred_at": "2026-11-16T10:00:02.000Z",
+  "notification_id": "ntf_01hv8x2a0000000000000007",
+  "data": {
+    "id": "txn_01hv8wptq8987qeep44cyrewq0",
+    "status": "completed",
+    "customer_id": "ctm_01hv6y1jedq4p1n0yqn5ba3ky4",
+    "address_id": "add_01hv8gq3318ktkfengj2r75gfx",
+    "business_id": null,
+    "custom_data": {
+      "targum_account": "ACCOUNT"
+    },
+    "origin": "web",
+    "collection_mode": "automatic",
+    "subscription_id": "sub_01hv8x29kz0t586xy6zn1a62ny",
+    "invoice_id": "inv_01hv8x29nsh54c2pgt0hnq0zkx",
+    "invoice_number": "325-10566",
+    "billing_details": null,
+    "billing_period": null,
+    "currency_code": "USD",
+    "discount_id": null,
+    "created_at": "2026-11-18T08:00:00.000Z",
+    "updated_at": "2026-11-18T08:01:00.000Z",
+    "billed_at": "2026-11-18T08:01:00.000Z",
+    "items": [
+      {
+        "price": {
+          "id": "pri_month",
+          "description": "An hour of top-up",
+          "product_id": "pro_top_up",
+          "billing_cycle": null,
+          "unit_price": {
+            "amount": "300",
+            "currency_code": "USD"
+          }
+        },
+        "quantity": 1,
+        "proration": null
+      }
+    ],
+    "details": {
+      "totals": {
+        "subtotal": "900",
+        "tax": "0",
+        "total": "900",
+        "currency_code": "USD"
+      }
+    },
+    "payments": [
+      {
+        "payment_attempt_id": "pa_1",
+        "status": "captured",
+        "method_details": {
+          "type": "card",
+          "card": {
+            "type": "visa",
+            "last4": "4242"
+          }
+        }
+      }
+    ],
+    "checkout": {
+      "url": "https://targum.page/plans?_ptxn=txn_01hv8wptq8987qeep44cyrewp9"
+    }
+  }
+}

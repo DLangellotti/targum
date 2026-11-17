@@ -6153,12 +6153,24 @@ def subscribe_page(
     )
 
 
-def plans_page(plan: dict[str, Any], *, language: str = "en", token: str = "") -> str:
+def plans_page(
+    plan: dict[str, Any],
+    *,
+    language: str = "en",
+    token: str = "",
+    pay: bool = False,
+    failed: bool = False,
+    checkout: dict[str, str] | None = None,
+) -> str:
     """The plans page (design.md §12, "The plans page is the one place money shows",
     2026-10-09; boards PlanPricing and PlanPricingPhone): Free and Plan side by side, what
     the credits buy, and the questions. `plan` is `plans.summary` for the reader looking,
     which says whose plan is whose. The figures come from `plans`, the one place they
-    are kept."""
+    are kept. `pay` is whether Paddle is configured, which makes Start the plan a real
+    press; `failed`, that the last press found no checkout to open. `checkout` is the
+    one view that opens Paddle's overlay (design.md §12, 2026-11-17): the transaction our
+    server made, the client-side token, the environment and Paddle.js's address. None
+    everywhere else, and then the page carries nothing of Paddle's."""
     from .. import plans
 
     return (
@@ -6180,6 +6192,9 @@ def plans_page(plan: dict[str, Any], *, language: str = "en", token: str = "") -
             languages=_language_names(language),
             strings=script_strings(language),
             token=token,
+            pay=pay,
+            failed=failed,
+            checkout=checkout,
         )
     )
 

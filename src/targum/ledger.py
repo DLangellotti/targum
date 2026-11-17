@@ -1255,8 +1255,10 @@ def _licence_of(folder: Path, source: str) -> str:
     from .promote import licence_of
 
     # The weekly is our own writing, an issue in the catalogue or not (David,
-    # 2026-10-27): only the recent issues are catalogue entries.
-    if source.startswith("weekly:"):
+    # 2026-10-27): only the recent issues are catalogue entries. So are the scenes and the
+    # stories the scene loop writes (qa on #1306): a scene not yet in the catalogue, or a
+    # story built before its row is written, is still ours.
+    if source.startswith(("weekly:", "dialogue:", "story:")):
         return "targum"
 
     try:

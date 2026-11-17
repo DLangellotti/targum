@@ -56,6 +56,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ### Added
 - `scripts/voice_scenes.py` gives the director 4,096 tokens of answer: 1,024 ran out near 80
   turns, and French's A2 scenes run to 72. Only what is written is billed.
+- `story:<id>`, a short story targum wrote, read off a shelf of its own as paragraphs
+  (`ingest/fetch/story.py`): the narrative counterpart of `dialogue:`, for French's
+  generated A2 narratives (targum-internal#739). The shelf is `TARGUM_STORY_DIR`, else a
+  `stories` folder beside the dialogue shelf. Public and model-written, as `dialogue:` is:
+  `Build.PUBLIC_SOURCES`, `correct._SHARED`, `imports.MODEL_WRITTEN`, the scenes register
+  and `kinds`. Its voice is a reading attached on the recordings shelf.
+- A `dialogue:` or `story:` name is lower-case letters, digits and hyphens, or it is
+  refused at the door (`fetch.addressable`) and at `load` (qa on #1306): `../outside`
+  read a JSON file off the shelf, `dialogue:` since before this release. Every one of the
+  381 dialogue ids fits. `ledger._licence_of` says "targum" for both, as for the weekly.
 - `scripts/voice_scenes.py` names French to the director: a scene with
   `language: fr` is briefed as French rather than falling back to Hebrew. The first
   piece of the French scene port (targum-internal `scenes/`), ahead of any French scene.
@@ -71,6 +81,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   - The antecedent question is left out until `model_lemma.ANTECEDENT_PRECISION` is
     measured, as the card's is; a test fails when it is, to bring the question in.
   - Eight new keys in English and Russian, Russian cleared by ling-ru. Nothing spends.
+- The operator's preview reaches the pay presses and Manage (targum-internal#59): with
+  `TARGUM_PLANS_PREVIEW=operators`, an admin account can press Start the plan, Top up and
+  Manage against Paddle's sandbox while plans are off. Every other account still gets a
+  404, and nothing anybody may spend changes.
 - The operator's preview of plans while they are off (targum-internal#59 phase 2):
   with `TARGUM_PLANS_PREVIEW=operators` and `TARGUM_PLANS` unset, an admin account sees
   `/plans` and its plan on Your account as a reader would, so paying in Paddle's sandbox
@@ -234,6 +248,84 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   - The account's export carries its plan row, periods and top-ups; a purged account
     takes them, and a purge waits while Paddle may still charge (`Store.live_billing`).
     The back office counts a paying reader's month at Plan's size.
+- Paddle's webhook, `POST /billing/webhook` (targum-internal#59 phase 2, item 8). The
+  one way a plan or a top-up reaches the store. A 404 until `PADDLE_WEBHOOK_SECRET` is
+  set, which nothing here does.
+  - Believed only with Paddle's signature: `Paddle-Signature: ts=…;h1=…`, an
+    HMAC-SHA256 of `ts:body` under the destination's secret, any `h1` matching while a
+    secret rotates, and `ts` within 30 seconds either way (`billing.TOLERANCE_SECONDS`).
+    Anything else, a header that is not ASCII included, is a 401 and changes nothing.
+    A body over 256 KB is a 413 and the connection closes.
+  - Handled once per event id (`billing_event`). One seen already is a 200 that does
+    nothing; one whose handling fails is forgotten again and answered 500, so Paddle's
+    retry is handled.
+  - `subscription.created`, `.updated`, `.canceled`, `.past_due` (and `.activated`,
+    `.paused`, `.resumed`, `.trialing`) set the `plan` row and its paid period: status,
+    cadence, period, cancel at period end, and Paddle's ids. Only a subscription to
+    `PADDLE_PRICE_MONTH` or `PADDLE_PRICE_QUARTER` is Plan. An event older than what the
+    row holds, or about a subscription the row no longer holds, changes nothing.
+  - `transaction.completed` with no subscription and the top-up price on it grants 60
+    credits per unit, once per transaction.
+  - `transaction.payment_failed` on a renewal starts the grace (`plans.GRACE_DAYS`);
+    a card refused at the checkout changes nothing.
+  - The account is found by the subscription the store already holds, then by
+    `custom_data.targum_account` where its `targum_tag` is the one our checkout writes (an
+    HMAC of the id and when the account was made), then by Paddle's customer id. While
+    the webhook secret rotates, `PADDLE_WEBHOOK_SECRET_PREVIOUS` keeps tags made under
+    the old one believed.
+  - A `canceled` trims the subscription's paid period to Paddle's `canceled_at`.
+- The checkout is Paddle's overlay on `/plans`, not a hosted checkout (David,
+  2026-11-17). A pay press still makes the Paddle transaction on our server, with the
+  same `custom_data` and tag, and now answers a 303 back to
+  `/plans?checkout=txn_…&ticket=…`. The ticket is an HMAC our server makes over that
+  account, the transaction, what it is for and when, so a link opens a checkout for
+  nobody else, dies after 30 minutes, and a Start link opens nothing once the account's
+  plan holds. That view alone
+  loads Paddle.js (`https://cdn.paddle.com/paddle/v2/paddle.js`; Paddle publishes no
+  pinned build and no integrity hash) and `plans-checkout.js`, which opens the overlay on
+  the transaction. Its policy alone adds Paddle.js's origin to `script-src`, the
+  overlay's frame to `frame-src` and Paddle's checkout service to `connect-src`, in the
+  deployment's environment, and nothing else. `/plans` before a press, and every other
+  page, name nothing of Paddle's. `PADDLE_CLIENT_TOKEN` (`test_…` or `live_…`, matching
+  `PADDLE_ENVIRONMENT`; safe in the page) replaces `PADDLE_CHECKOUT_URL`, which is gone.
+- The pay presses, `POST /plans/start` and `POST /plans/topup` (targum-internal#59 phase
+  2, items 7 and 10). Each makes a Paddle transaction for the press and answers a 303
+  to Paddle's hosted checkout (`PADDLE_CHECKOUT_URL?transaction_id=txn_…`). No page of
+  ours loads anything of Paddle's. Both are a 404 until plans are on and every Paddle
+  setting is there (`billing.configured()`), which nothing here sets.
+  - Start takes `cadence`, `month` or `quarter`, for a reader whose Paddle plan does not
+    already hold. Top up takes `size`, 60, 180 or 300, for a reader on Plan, as one
+    hour's price times 1, 3 or 5. The account rides in `custom_data` with its tag for
+    the webhook, and a reader who paid before is named by their Paddle customer.
+  - Closing an account asks Paddle to cancel its plan at the end of the period paid
+    for (`billing.cancel`), and the purge waits until Paddle says it is canceled. Each
+    purge sweep asks again for a plan that has not ended (a failed cancel, a paused
+    plan), and writes the try down.
+  - A press from another site is a 403. A Paddle that does not answer sends the reader
+    back with "The checkout didn't open. Try again in a minute."
+  - With Paddle configured, `/plans`'s Start the plan is a real form posting the
+    cadence its radios choose, and that page alone names Paddle's checkout origin in
+    `form-action`. Unconfigured it is greyed with "Payments open soon", as before. A
+    comped reader's stays greyed.
+  - Settings, all read from the environment: `PADDLE_API_KEY`, `PADDLE_WEBHOOK_SECRET`,
+    `PADDLE_ENVIRONMENT` (sandbox unless `live`; a key for the other one is no key),
+    `PADDLE_PRICE_MONTH`, `PADDLE_PRICE_QUARTER`, `PADDLE_PRICE_TOP_UP` (one hour) and
+    `PADDLE_CHECKOUT_URL` (https on `paddle.io` only).
+  - Top up's own press on Account and the out-of-credits panels stays greyed: where a
+    size is chosen is a design decision.
+- Manage, on Your account (targum-internal#59 phase 2, item 9). A reader whose Paddle
+  plan holds is told when it renews ("Your plan renews on December 16, 2026"), when it
+  ends after a cancel, or, after a failed renewal, until when it stays. Manage links
+  `GET /plans/manage`, which makes a Paddle customer-portal session as it is pressed and
+  answers a 303 into it, on the subscription. Cancel and the card are there. The link
+  is never kept.
+  - `plans.summary` carries `billed` (cadence, `renews`/`renewsSaid`, `ending`,
+    `graceSaid`, `manage`) for a Paddle plan that holds; a comp or the operator has none.
+  - The greyed Switch and Cancel rows give way to Manage for a Paddle plan. Your account
+    keeps `form-action 'self'`: Manage is a link, not a form.
+  - `/plans/manage` is a 404 until plans are on and Paddle is configured; a reader who never paid goes to
+    `/plans`; a Paddle that does not answer sends them back to Your account. A portal
+    link that is not https on `paddle.com` is refused.
 - "A first week of Onkelos", targum's own playlist for a reader with Hebrew and no
   Aramaic (targum-internal#530, part 1). Seven rows, one a day: Genesis 1:1-5, 1:6-19,
   1:20-2:3, 2:4-14, 3:1-13, 6:9-22 and 37:1-11, each the Hebrew with the public-domain
