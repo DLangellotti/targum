@@ -136,6 +136,11 @@ REGISTERED: dict[str, dict[str, Practice]] = {
         "object clitics, role and antecedent": Practice(
             "object clitics, role and antecedent", "choice", "practice.ask.role"
         ),
+        # Which past (targum-internal#644): the passé composé the card names on a participle
+        # against the imperfect it names on a finite verb, on texts whose tenses are apart.
+        "passé composé against imparfait": Practice(
+            "passé composé against imparfait", "choice", "practice.ask.tense-past"
+        ),
     },
 }
 
@@ -153,6 +158,7 @@ KEYS: dict[str, str] = {
     "gender": "gender",
     "register: ne-drop and on/nous": "register",
     "object clitics, role and antecedent": "role",
+    "passé composé against imparfait": "past",
 }
 SPOTS: dict[str, str] = {key: name for name, key in KEYS.items()}
 
@@ -532,6 +538,113 @@ def _asked(one: Met) -> bool:
 
 #: An item whose question is not its spot's: who an *on* is, on the register spot.
 _ASKS = {"OnWe": "practice.ask.on", "OnOpen": "practice.ask.on"}
+#: A French compound tense's auxiliaries, and the verbs that take *être* in the passé
+#: composé without being passive: the card's own lists (`compoundLine` in reader.js).
+AUXILIARIES = frozenset({"avoir", "être"})
+ETRE_VERBS = frozenset(
+    "aller venir arriver partir entrer sortir monter descendre naître mourir rester "
+    "tomber retourner devenir revenir rentrer parvenir intervenir survenir décéder "
+    "redescendre remonter repartir ressortir retomber advenir".split()
+)
+REFLEXIVE_FORMS = frozenset({"se", "me", "te", "s'", "m'", "t'"})
+
+#: How far before a participle its auxiliary may stand, as on the card (`auxiliaryBefore`).
+AUXILIARY_REACH = 4
+
+#: What may stand between an auxiliary and its participle: *ne*, *pas*, *jamais*, *bien*,
+#: an inverted subject. Not a noun or its article (*j'ai les yeux fermés*).
+_BETWEEN = frozenset({"ADV", "PART", "PRON"})
+
+#: Verbs of being, having, knowing and wanting, whose imparfait and passé composé English
+#: says with one past: the hard kind.
+STATE_VERBS = frozenset(
+    "être avoir savoir pouvoir vouloir devoir connaître croire penser aimer falloir "
+    "sembler paraître".split()
+)
+
+
+def past_candidates(
+    text: str, stored: Sequence[Mapping[str, Any]], segment: str
+) -> Iterator[Candidate]:
+    """Passé composé or imparfait, for a French line (targum-internal#644), named as the
+    card names them and only where it does.
+
+    A past participle whose auxiliary is *avoir* or *être* in the present, within reach in
+    its clause with no stop between, is the passé composé, asked on the participle (`PC`).
+    *Être* with a verb that does not take it is the passive, which the card names instead,
+    and is not asked. A finite verb in `Tense=Imp` is the imparfait (`Imp`), unless it is
+    the auxiliary of a participle after it, which is the pluperfect. A verb of being,
+    having, knowing or wanting is the hard kind. The caller asks only of a text whose
+    tenses are apart (`model_lemma.tenses_apart`): elsewhere an imparfait may be read as a
+    plain past.
+
+    Narrower than the card's reach in two places (qa on #1285). Between the auxiliary and
+    the participle only an adverb, a particle or a pronoun may stand (*n'a pas vu*,
+    *a-t-il vu*), so a participle used as an adjective after a noun (*j'ai les yeux
+    fermés*) is not taken for the passé composé. And an imparfait after a hypothetical
+    *si* (*si j'avais le temps*) is not asked: it says what is not so, which "how things
+    were" would misexplain."""
+    rows = [
+        (
+            str(t.get("lemma") or "").lower(),
+            _feats(t.get("feats")),
+            int(t.get("start") or 0),
+            int(t.get("end") or 0),
+            str(t.get("surface") or "").lower().replace("’", "'"),
+            str(t.get("pos") or ""),
+        )
+        for t in stored
+    ]
+
+    def stopped(before: int, after: int) -> bool:
+        return bool(re.search(r"[.,;:!?\u2014]", text[rows[before][3] : rows[after][2]]))
+
+    def auxiliary(at: int) -> int | None:
+        for k in range(at - 1, max(-1, at - 1 - AUXILIARY_REACH), -1):
+            if stopped(k, k + 1):
+                return None
+            if rows[k][0] in AUXILIARIES:
+                return k
+            if rows[k][5] not in _BETWEEN:
+                return None
+        return None
+
+    def hypothetical(at: int) -> bool:
+        """Whether the verb at `at` stands in a *si* clause: *si* or *s'il* a word or two
+        before it, with nothing that ends the clause between."""
+        for k in range(at - 1, max(-1, at - 4), -1):
+            if stopped(k, k + 1):
+                return False
+            said = rows[k][4]
+            if said == "si" or (
+                said == "s'" and k + 1 < len(rows) and rows[k + 1][4] in ("il", "ils")
+            ):
+                return True
+        return False
+
+    leaning: set[int] = set()
+    for at, (lemma, feats, start, end, _, _) in enumerate(rows):
+        if feats.get("VerbForm") != "Part" or feats.get("Tense") != "Past":
+            continue
+        k = auxiliary(at)
+        if k is None:
+            continue
+        leaning.add(k)
+        aux, said = rows[k][0], rows[k][1]
+        if said.get("VerbForm", "Fin") != "Fin" or said.get("Mood", "Ind") != "Ind":
+            continue
+        if said.get("Tense") != "Pres":
+            continue
+        reflexive = any(rows[j][4] in REFLEXIVE_FORMS for j in range(max(0, k - 2), k))
+        if aux == "être" and not reflexive and lemma not in ETRE_VERBS:
+            continue
+        yield Candidate("past", segment, start, end, "PC", "Imp", lemma in STATE_VERBS)
+    for at, (lemma, feats, start, end, _, _) in enumerate(rows):
+        if feats.get("Tense") != "Imp" or feats.get("VerbForm", "Fin") != "Fin":
+            continue
+        if feats.get("Mood", "Ind") != "Ind" or at in leaning or hypothetical(at):
+            continue
+        yield Candidate("past", segment, start, end, "Imp", "PC", lemma in STATE_VERBS)
 
 
 def _kind(code: str) -> str:
@@ -624,7 +737,7 @@ def count_text(folder: Path) -> TextPractice | None:
     tokens = loaded.get("tokens") or {}
     section_of = _sections(folder, segmented)
     if segmented.language.split("-")[0] == "fr":
-        return _french(segmented, tokens, section_of)
+        return _french(segmented, tokens, section_of, str(loaded.get("annotator") or ""))
     # The vav-consecutive is asked in Biblical text alone, where the spot is claimed.
     scripture = _biblical(folder)
     by_section: dict[int, list[Candidate]] = {}
@@ -673,10 +786,12 @@ def count_text(folder: Path) -> TextPractice | None:
 
 
 def _french(
-    segmented: Any, tokens: Mapping[str, Any], section_of: Mapping[str, int]
+    segmented: Any, tokens: Mapping[str, Any], section_of: Mapping[str, int], annotator: str = ""
 ) -> TextPractice:
     """A French text's candidates: the Hebrew spots read DICTA's features and binyanim,
     which a French token does not have, so none of them is asked here."""
+    from .annotate.model_lemma import tenses_apart
+
     by_section: dict[int, list[Candidate]] = {}
     for segment in segmented.segments:
         found = by_section.setdefault(section_of.get(segment.id, 1), [])
@@ -686,6 +801,8 @@ def _french(
             found.extend(gender_candidates(token, segment.id))
             found.extend(role_candidates(token, segment.id, before))
         found.extend(register_candidates(segment.text, stored, segment.id))
+        if tenses_apart(annotator):
+            found.extend(past_candidates(segment.text, tokens.get(segment.id) or (), segment.id))
     return TextPractice(by_section=by_section)
 
 
@@ -949,6 +1066,8 @@ def said(spot: str, code: str, ui: str, homographs: Mapping[str, str] | None = N
                 "OnWe": "practice.register.we",
             }.get(_kind(code), "reader.card.on-open")
         )
+    if spot == "past":
+        return t("reader.grammar.passe-compose" if code == "PC" else "reader.grammar.imperfect")
     feats = _feats(code)
     if spot == "agreement":
         gender = t(
@@ -1025,6 +1144,7 @@ def rule(spot: str, code: str, ui: str) -> str:
         "gender": _gender_rule(code),
         "register": _REGISTER_RULES.get(_kind(code), "practice.rule.on-open"),
         "role": _ROLE_RULES.get(code, "practice.rule.role-y"),
+        "past": "practice.rule.tense-pc" if code == "PC" else "practice.rule.tense-imp",
     }
     key = keys[spot]
     if spot == "gender" and code.partition(":")[2]:
