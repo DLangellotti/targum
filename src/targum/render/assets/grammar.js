@@ -30,6 +30,7 @@
     construct: ["practice.spot.construct", "The construct state"],
     stress: ["practice.spot.stress", "Stress"],
     vav: ["practice.spot.vav", "The vav-consecutive"],
+    mood: ["practice.spot.mood", "Subjunctive"],
     suffix: ["practice.spot.suffix", "Pronoun suffixes"],
     gender: ["practice.spot.gender", "Gender"],
     register: ["practice.spot.register", "Formal and informal"],
