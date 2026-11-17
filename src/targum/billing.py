@@ -532,3 +532,32 @@ def cancel(subscription: str) -> None:
         f"/subscriptions/{urllib.parse.quote(subscription)}/cancel",
         {"effective_from": "next_billing_period"},
     )
+
+
+def portal(customer: str, subscription: str = "") -> str:
+    """A link into Paddle's customer portal for this customer, made fresh for each press:
+    its token is short-lived, so it is never kept. Opened on the subscription where there
+    is one, which is where the card, the receipts and Cancel are."""
+    if not customer.startswith("ctm_"):
+        raise PaddleError("no customer")
+    body = {"subscription_ids": [subscription]} if subscription.startswith("sub_") else {}
+    made = _call("POST", f"/customers/{urllib.parse.quote(customer)}/portal-sessions", body)
+    urls = made.get("urls")
+    if not isinstance(urls, dict):
+        raise PaddleError("no portal")
+    for one in urls.get("subscriptions") or []:
+        if isinstance(one, dict) and one.get("id") == subscription and one.get("view_subscription"):
+            return _paddles(str(one["view_subscription"]))
+    general = urls.get("general")
+    overview = str(general.get("overview") or "") if isinstance(general, dict) else ""
+    return _paddles(overview)
+
+
+def _paddles(link: str) -> str:
+    """A link Paddle handed back, where it is https on `paddle.com`, else an error: the
+    server redirects the reader to it, so it is checked like the checkout's."""
+    parsed = urllib.parse.urlsplit(link)
+    host = (parsed.hostname or "").lower()
+    if parsed.scheme != "https" or not (host == "paddle.com" or host.endswith(".paddle.com")):
+        raise PaddleError("not a portal link")
+    return link

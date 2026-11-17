@@ -889,6 +889,8 @@ BILLING_HOOK = "/billing/webhook"
 PLANS_START = "/plans/start"
 PLANS_TOP_UP = "/plans/topup"
 PAY_POSTS = frozenset({PLANS_START, PLANS_TOP_UP})
+#: Your account's Manage: a fresh link into Paddle's customer portal, by a 303.
+PLANS_MANAGE = "/plans/manage"
 
 #: The posts that mail a link to whatever address they are given (targum-internal#688).
 #: A form on another site could post to any of them, so each refuses a browser that
@@ -10836,6 +10838,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._subscribe_page()
         if route == "/plans":
             return self._plans_page()
+        if route == PLANS_MANAGE:
+            return self._manage()
         if route.startswith("/set/") and not self._needs_account(route):
             return self._set_page(route[len("/set/") :])
         # There is no server-initiated stream here — every call is answered out of a
@@ -13597,6 +13601,7 @@ class Handler(BaseHTTPRequestHandler):
                 person,
                 listed=self.store.listed_words(person.id) if plans.on() else 0,
                 language=self._ui_language(),
+                manage=billing.configured(),
             ),
         }
         # The chats bound to Telegram (targum-internal#328), only where there is a bot:
@@ -13971,6 +13976,30 @@ class Handler(BaseHTTPRequestHandler):
         # Only this view names Paddle in its policy, and only the checkout's own origins
         # (`billing.CHECKOUT_SOURCES`): Paddle.js, the overlay's frame and its service.
         self._send(200, page.encode("utf-8"), HTML, paddle=billing.environment() if opening else "")
+
+    def _manage(self) -> None:
+        """Your account's Manage (targum-internal#59 phase 2, item 9): a link into
+        Paddle's customer portal, made for this reader as they press and never kept,
+        where the card, the receipts and Cancel are. A link rather than a form, so Your
+        account keeps `form-action 'self'`: a navigation is not a form's redirect.
+
+        A 404 until plans are on and Paddle is configured, like the pay presses; for a
+        reader who has never paid there is no portal, and they go to `/plans`. A Paddle
+        that does not answer sends them back to Your account."""
+        if not plans.on() or not billing.configured():
+            return self._not_found()
+        person = self._person()
+        if person is None:
+            return self._go("/account/signin")
+        held = person.billing
+        if held is None or not held.customer:
+            return self._go("/plans")
+        try:
+            where = billing.portal(held.customer, held.subscription)
+        except billing.PaddleError as error:
+            print(f"billing: portal not made ({error})")
+            return self._go("/account?manage=failed")
+        self._go(where)
 
     def _pay(self, route: str, form: dict[str, str]) -> None:
         """A pay press: make a Paddle transaction for it and send the reader back to

@@ -139,6 +139,17 @@
             <span class="acct-says" id="plan-paid-says"></span>
           </span>
         </li>
+        {#- A plan paid for through Paddle (targum-internal#59 phase 2): when it renews,
+            or ends after a cancel, and Manage, a link our server answers with a fresh
+            way into Paddle's customer portal. A link, not a form, so this page keeps
+            `form-action 'self'`. Drawn by `you.js` from `plan.billed`. -#}
+        <li class="row" id="plan-renews-row" hidden>
+          <span class="row-main">
+            <span class="acct-name" id="plan-renews"></span>
+            <span class="acct-says" id="plan-renews-says"></span>
+          </span>
+          <a class="acct-link acct-end" id="plan-manage" href="/plans/manage" hidden>{{ t("you.page.plan-manage", "Manage") }}</a>
+        </li>
         <li class="row">
           <span class="row-main">
             <span class="acct-name" id="plan-back"></span>

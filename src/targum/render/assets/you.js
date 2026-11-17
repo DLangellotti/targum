@@ -1486,9 +1486,44 @@
       document.getElementById("plan-paid-name").textContent = comp
         ? t("you.plan.comp", "Plan \u00b7 free for beta readers until {date}", { date: comp })
         : t("you.page.plan-monthly", "Monthly plan");
+      /* A plan paid for through Paddle (targum-internal#59 phase 2): its renewal, and
+         Manage into Paddle's portal, which is where the card and Cancel are, so the
+         greyed Switch and Cancel rows give way to it. */
+      var billed = plan.billed || null;
+      if (billed && !comp) {
+        document.getElementById("plan-paid-name").textContent =
+          billed.cadence === "quarter"
+            ? t("you.plan.quarterly-name", "Plan, paid every 3 months")
+            : t("you.page.plan-monthly", "Monthly plan");
+      }
+      var renews = document.getElementById("plan-renews-row");
+      if (renews) {
+        var when = billed ? billed.renewsSaid || "" : "";
+        document.getElementById("plan-renews").textContent = !billed
+          ? ""
+          : billed.graceSaid
+            ? t("you.plan.grace", "Your last payment didn't go through")
+            : billed.ending
+              ? t("you.plan.ends", "Your plan ends on {date}", { date: when })
+              : t("you.plan.renews", "Your plan renews on {date}", { date: when });
+        document.getElementById("plan-renews-says").textContent = !billed
+          ? ""
+          : billed.graceSaid
+            ? t(
+                "you.plan.grace-says",
+                "Your plan stays until {date}. Update your card with Paddle to keep it.",
+                { date: billed.graceSaid }
+              )
+            : t(
+                "you.plan.manage-says",
+                "Paddle handles your card and receipts, and you can cancel there."
+              );
+        document.getElementById("plan-manage").hidden = !(billed && billed.manage);
+        renews.hidden = !billed || (!when && !billed.graceSaid);
+      }
       ["plan-switch-row", "plan-cancel-row"].forEach(function (id) {
         var row = document.getElementById(id);
-        if (row) row.hidden = !!comp;
+        if (row) row.hidden = !!comp || !!billed;
       });
       document.getElementById("plan-paid-says").textContent = t(
         "you.plan.paid-says",
