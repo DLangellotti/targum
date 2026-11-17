@@ -499,8 +499,8 @@ is targum's and unchanged, and with plans off nothing changes for anybody.
 
 ### French past tenses are practised as the card names them — 2026-11-16
 
-ling-fr, 2026-11-16, French's passé composé against imparfait toward Beta, under "A
-practice for every hard spot" (2026-10-13). It waits for David.
+David, 2026-11-17 (ling-fr's draft, approved as written), French's passé composé against
+imparfait toward Beta, under "A practice for every hard spot" (2026-10-13).
 
 - **One question: "Which past is it?"** The answers are the card's own names, passé
   composé and imperfect. The rule is the textbook line for the right one: "The passé
