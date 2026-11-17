@@ -641,11 +641,17 @@ def read_directions(answer: str, count: int) -> list[str]:
     return [tidy(one) or NEUTRAL for one in said]
 
 
+#: Output room for the director's answer. A direction is two to six words, about a dozen
+#: tokens with its quotes and comma, so 1,024 ran out near 80 turns; French's A2 scenes
+#: run to 72 (targum-internal#739). Only what is written is billed, so room is free.
+DIRECTOR_ROOM = 4096
+
+
 def ask_director(text: str, key: str) -> tuple[str, float]:
     """One request to the director. Returns its text and what it cost in USD."""
     body = {
         "model": DIRECTOR,
-        "max_tokens": 1024,
+        "max_tokens": DIRECTOR_ROOM,
         "temperature": 0,
         "messages": [{"role": "user", "content": text}],
     }

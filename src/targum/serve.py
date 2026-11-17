@@ -13870,12 +13870,13 @@ class Handler(BaseHTTPRequestHandler):
 
     def _plans_page(self) -> None:
         """`/plans` (design.md §12, "The plans page is the one place money shows",
-        2026-10-09): signed in only, and nothing at all while plans are off."""
+        2026-10-09): signed in only, and nothing at all while plans are off, except to an
+        admin in the operator's preview (`plans.previewing`), and to nobody else."""
         from .render.builder import plans_page
 
-        if not plans.on():
-            return self._not_found()
         person = self._person()
+        if not plans.shown(person):
+            return self._not_found()
         if person is None:
             return self._go("/account/signin")
         language = self._page_language()
