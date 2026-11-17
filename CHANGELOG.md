@@ -17,6 +17,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     `scripts/eval_chat_fr.py` now records under `chat-contract/fr2`, and the seven
     `fr-cases` floors hold that system. So the first run is history and breaches nothing,
     and French counts its chat evals once version 2 is run (not run; it waits for David).
+  - Version 2 also says a spoken line's own mistake is still corrected, and that a line
+    with both keeps its register (*j'ai pas allé* becomes *je suis pas allé*). The case
+    file gains two lines to test it: *si j'aurais de l'argent*, and *j'ai pas resté*,
+    which is fixed only as *je suis pas resté*. That makes 42 cases, and the dry run
+    prices it at about $2.05, at most $2.42. None of the contract's examples is a case.
+  - A test pins the contract's text to its version (one hash per gloss), so an edit that
+    does not move `FRENCH_CONTRACT_VERSION` fails CI.
 - The practice cache (`practice.json`) records the spots it was counted for
   (`practices.spots_key`), and a file counted before a spot was registered is counted
   again on its next read (qa on targum#1295). Every text built before a new practice

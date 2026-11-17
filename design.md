@@ -529,10 +529,11 @@ imparfait toward Beta, under "A practice for every hard spot" (2026-10-13).
 David, 2026-11-17 (ling-fr's draft, approved as written), French's "chat evals in the
 language with floors" toward Beta, under "A badge is a promise, checked".
 
-- **What is measured is the recast**, the line of record. Forty learner lines,
+- **What is measured is the recast**, the line of record. Forty-two learner lines,
   hand-written (`evals/chat-fr-cases.jsonl`), are sent one each as the reader's turn to
   the French contract. Fifteen are correct, five are spoken French right in its register,
-  and twenty carry an error of a kind the contract names.
+  and twenty-two carry an error of a kind the contract names, one of them a spoken line
+  with a mistake of its own and one a mixed line whose fix keeps the dropped *ne*.
 - **No model judges.** Each reply is read by the contract's own parser and held to a
   rubric (`chat/rubric.py`). A right line is said back with no `~ ` line, and a woman's
   agreement is kept. A spoken line (*je sais pas*) is said back as written, with no `~ `
@@ -553,7 +554,7 @@ language with floors" toward Beta, under "A badge is a promise, checked".
   newest of each holds (`stages.CHAT_EVAL_SETS`). A row counts only where it was scored on
   the case file as it stands (its `gold=`) and at today's chat model, so a stale run
   cannot keep French green. Hebrew stays named by hand.
-- **The run spends**: forty calls at the chat's model, about $1.91, at most $2.26. Run
+- **The run spends**: forty-two calls at the chat's model, about $2.05, at most $2.42. Run
   bare, the runner only prices it; `--spend` is what calls the model. It is not run until
   David approves it.
 - **The first run, 2026-11-17** ($1.78, David's go). Two of the five spoken lines came back
@@ -561,8 +562,12 @@ language with floors" toward Beta, under "A badge is a promise, checked".
   as *je n'ai jamais vu ça*. Every other line held: no correction on a right line, no
   woman's line turned masculine, 19 of 20 errors fixed (*j'ai visité mes parents* was kept).
   The contract now says spoken French is register, kept as written, and that the full
-  negation is for its own lines, and it names the visiting-people calque (version 2,
-  `hebrew.FRENCH_CONTRACT_VERSION`). Runs are recorded under the contract's version
+  negation is for its own lines. It also says a spoken line's own mistake is still
+  corrected, and that a line with both keeps its register (*j'ai pas allé* becomes *je suis
+  pas allé*). It names the visiting-people calque too (version 2,
+  `hebrew.FRENCH_CONTRACT_VERSION`). Its examples are never the eval's own lines, and a
+  test pins the contract's text to its version, so an edit that does not move the version
+  fails CI. Runs are recorded under the contract's version
   (`chat-contract/fr2`) and the floors hold it, so the first run is kept as a measurement
   of the contract before and held to no floor. French has its chat evals once version 2 is
   run, which waits for David.

@@ -36,7 +36,7 @@ def case(kind: str, sent: str, **more: object) -> rubric.Case:
 def test_the_french_set_is_whole_and_every_error_names_what_it_fixes() -> None:
     cases = rubric.load()
     kinds = {kind: [one for one in cases if one.kind == kind] for kind in rubric.KINDS}
-    assert (len(kinds["correct"]), len(kinds["register"]), len(kinds["error"])) == (15, 5, 20)
+    assert (len(kinds["correct"]), len(kinds["register"]), len(kinds["error"])) == (15, 5, 22)
     assert len({one.id for one in cases}) == len(cases)
     for one in kinds["error"]:
         assert one.error and rubric.says(one.sent, one.error), one
@@ -225,7 +225,19 @@ def test_the_contract_keeps_spoken_french_and_names_the_visiting_calque() -> Non
     assert "Spoken French is right French" in contract
     assert "je sais pas" in contract and 'no "~ " line' in contract
     assert "In your own lines, write the full negation" in contract
-    assert "j'ai visité mes parents" in contract
+    assert "j'ai visité mon oncle" in contract
+    # A spoken line's own mistake is still fixed, and a mixed line keeps its register.
+    assert "si j'aurais su" in contract and "j'ai pas allé becomes je suis" in contract
+    # The contract's examples are not the eval's lines: a case it spells out tests
+    # nothing (qa on #1299).
+    cases = " ".join(rubric.normal(one.sent) for one in rubric.load())
+    for example in (
+        "j'ai visité mon oncle",
+        "si j'aurais su",
+        "j'ai pas allé",
+        "il faut que je vais",
+    ):
+        assert example not in cases, example
 
 
 def test_the_case_file_is_in_the_repository() -> None:
@@ -300,3 +312,25 @@ def test_the_runner_prices_by_default_and_spends_only_when_told(
     assert all(row.system == SYSTEM for row in rows)
     gold = evals.fingerprint([stages.CHAT_EVAL_CASES["fr"]])
     assert all(row.note.endswith(f"gold={gold}") for row in rows)
+
+
+#: The French contract's text at each version, as the first 16 hex of a sha256, for each
+#: language it glosses into (qa on #1299). A run is filed under the version it ran
+#: (`chat-contract/fr<n>`), so the version has to change whenever the words do.
+CONTRACT_PINS: dict[int, dict[str, str]] = {
+    2: {"English": "ea6ae88e7029d052", "Russian": "92d84dec08d249fa"},
+}
+
+
+@pytest.mark.parametrize("gloss", ["English", "Russian"])
+def test_the_french_contract_is_the_text_its_version_names(gloss: str) -> None:
+    import hashlib
+
+    version = hebrew.FRENCH_CONTRACT_VERSION
+    said = hashlib.sha256(hebrew.french_contract(gloss).encode("utf-8")).hexdigest()[:16]
+    assert version in CONTRACT_PINS, f"pin version {version}'s text here"
+    assert said == CONTRACT_PINS[version][gloss], (
+        f"The French contract's words changed and its version did not. Move "
+        f"hebrew.FRENCH_CONTRACT_VERSION past {version} and pin the new text here "
+        f"({gloss}: {said}): an eval run is filed under the version it ran."
+    )

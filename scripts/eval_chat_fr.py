@@ -2,7 +2,7 @@
 
 French Beta asks for chat evals in the language, with floors (design.md, "A badge is a
 promise, checked"). The recast is the line of record, so this is the set that matters
-most: forty learner lines, hand-written by ling-fr (`evals/chat-fr-cases.jsonl`), sent
+most: forty-two learner lines, hand-written by ling-fr (`evals/chat-fr-cases.jsonl`), sent
 one each as the reader's turn to the French contract (`chat/hebrew.py`,
 `french_contract`), each reply read back by the contract's own parser and scored by the
 rubric in `chat/rubric.py`. No model judges anything.
@@ -11,8 +11,9 @@ rubric in `chat/rubric.py`. No model judges anything.
   woman's agreement (*je suis allée*, *contente*) kept.
 - 5 **register** lines, spoken French that is right (*je sais pas*, *on va au cinéma*):
   no `~ ` line, because register is not an error (D5, 2026-11-05).
-- 20 **error** lines of the kinds the contract names: fixed in the recast, with a `~ `
-  line under it.
+- 22 **error** lines of the kinds the contract names: fixed in the recast, with a `~ `
+  line under it. One is spoken French with a mistake of its own, and one a mixed line
+  whose fix keeps the dropped *ne* (*je suis pas resté*).
 
 Rows go to `evals/ledger.jsonl` as stage `chat`, corpus `fr-cases` (`fr-cases-ru` for a
 reader who reads Russian, `--gloss Russian`), system `chat-contract/fr<version>`, the

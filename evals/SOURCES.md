@@ -536,13 +536,17 @@ two bugs; register-rule/3 fixed those four named things once.
 
 ## French chat cases
 
-French's chat evals (targum-internal#644, `scripts/eval_chat_fr.py`): forty learner lines,
+French's chat evals (targum-internal#644, `scripts/eval_chat_fr.py`): forty-two learner lines,
 each sent as the reader's turn, the reply scored by `chat/rubric.py` with no judge.
 
-- **Kind: hand-written.** The builder seat wrote all forty as ling-fr on 2026-11-17: 15
+- **Kind: hand-written.** The builder seat wrote all forty-two as ling-fr on 2026-11-17: 15
   correct everyday lines (two of them a woman's, *je suis allée*, *contente*), 5 spoken
-  lines right in their register (*je sais pas*, *on va au cinéma ce soir ?*), and 20
-  learner errors of the kinds the French contract names. Each error case gives the words
+  lines right in their register (*je sais pas*, *on va au cinéma ce soir ?*), and 22
+  learner errors of the kinds the French contract names. Two of those were added the same
+  day at qa's asking (#1299): a spoken line with a mistake of its own (*si j'aurais de
+  l'argent*), and a mixed line whose fix must keep the dropped *ne* (*j'ai pas resté*,
+  fixed only as *je suis pas resté*). None of the lines is an example the contract spells
+  out. Each error case gives the words
   that must be gone from the recast and, where French has few ways to say it, the fixes
   that count. No person other than the seat has read them yet; a read by David or
   another seat is wanted before the floors are moved on a run's evidence.
