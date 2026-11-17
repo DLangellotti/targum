@@ -68,6 +68,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   - The antecedent question is left out until `model_lemma.ANTECEDENT_PRECISION` is
     measured, as the card's is; a test fails when it is, to bring the question in.
   - Eight new keys in English and Russian, Russian cleared by ling-ru. Nothing spends.
+- The operator's preview reaches the pay presses and Manage (targum-internal#59): with
+  `TARGUM_PLANS_PREVIEW=operators`, an admin account can press Start the plan, Top up and
+  Manage against Paddle's sandbox while plans are off. Every other account still gets a
+  404, and nothing anybody may spend changes.
 - The operator's preview of plans while they are off (targum-internal#59 phase 2):
   with `TARGUM_PLANS_PREVIEW=operators` and `TARGUM_PLANS` unset, an admin account sees
   `/plans` and its plan on Your account as a reader would, so paying in Paddle's sandbox
