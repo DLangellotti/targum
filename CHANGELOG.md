@@ -6,6 +6,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Changed
+- The practice cache (`practice.json`) records the spots it was counted for
+  (`practices.spots_key`), and a file counted before a spot was registered is counted
+  again on its next read (qa on targum#1295). Every text built before a new practice
+  landed now gets it, with no `VERSION` bump for each practice's PR to fight over. The
+  recount is free: it reads the annotation already on disk.
 - The committed shelf snapshot, `evals/shelf.json`, is the box's measure of 2026-11-16
   (David). Modern Hebrew B1 now clears its floor at 177 texts and 80 recordings, and the
   only Beta shortfall is A2, at 80 texts of 90. `stages.KEPT["he"]` names that gap and
