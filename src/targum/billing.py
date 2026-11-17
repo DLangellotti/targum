@@ -1,5 +1,12 @@
 """Paying for Plan and for top-ups, through Paddle (targum-internal#59 phase 2; design.md
-§12, "Payments are Paddle's, by a hosted checkout", 2026-11-15).
+§12, "Payments are Paddle's, by a hosted checkout", 2026-11-15, and "/plans alone loads
+Paddle's checkout script", 2026-11-17).
+
+**The checkout is Paddle's overlay, on `/plans` alone** (David, 2026-11-17). A pay press
+posts to our server, which makes the Paddle transaction (`transaction`) and sends the
+reader back to `/plans` holding its id and a ticket only our server can make (`ticket`).
+That one view of `/plans` loads Paddle.js (`PADDLE_JS`) and opens the overlay on the
+transaction; no other page, and no other view of `/plans`, loads anything of Paddle's.
 
 **Paddle is the merchant of record.** It sells, it keeps the card, it charges the tax and
 it mails the receipt. targum keeps only what Paddle's webhooks say of an account's plan
@@ -22,6 +29,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import time
 import urllib.error
 import urllib.parse
@@ -47,9 +55,32 @@ PRICE_QUARTER_ENV = "PADDLE_PRICE_QUARTER"
 #: One hour of top-up, 60 credits: a top-up of 180 is three of it. One price rather than
 #: three, so the three sizes cannot disagree about what an hour costs.
 PRICE_TOP_UP_ENV = "PADDLE_PRICE_TOP_UP"
-#: The hosted checkout's own link (`https://pay.paddle.io/hsc_...`, or `sandbox-pay`),
-#: made once in Paddle's dashboard, where its return address is set to `/plans`.
-CHECKOUT_URL_ENV = "PADDLE_CHECKOUT_URL"
+#: The client-side token Paddle.js is initialised with (`test_…` in sandbox, `live_…` on
+#: live). Paddle made it to be published: it can open a checkout and preview prices, and
+#: nothing else, so it is safe in the page. Not a secret, though it is kept with the rest.
+CLIENT_TOKEN_ENV = "PADDLE_CLIENT_TOKEN"
+
+#: Paddle.js, where Paddle says it must be loaded from. Paddle publishes it at a major
+#: version only, with no pinned build and no integrity hash, and asks that it always be
+#: loaded from its CDN (developer.paddle.com/paddle-js/about/include-paddlejs), so the
+#: address is pinned to v2 and the policy names the CDN's origin and nothing wider.
+PADDLE_JS = "https://cdn.paddle.com/paddle/v2/paddle.js"
+
+#: What the checkout's page may reach, by environment: Paddle.js from its CDN, the
+#: overlay's frame, and the checkout service Paddle.js talks to. Named for the one view
+#: of `/plans` that opens a checkout (`serve.Handler._policy`), and for no other page.
+CHECKOUT_SOURCES = {
+    "sandbox": {
+        "script": "https://cdn.paddle.com",
+        "frame": "https://sandbox-buy.paddle.com",
+        "connect": "https://sandbox-checkout-service.paddle.com",
+    },
+    "live": {
+        "script": "https://cdn.paddle.com",
+        "frame": "https://buy.paddle.com",
+        "connect": "https://checkout-service.paddle.com",
+    },
+}
 
 #: The two places Paddle runs. Sandbox unless the deployment says live, so a key put in
 #: by mistake charges nobody.
@@ -112,30 +143,18 @@ def prices() -> dict[str, str]:
     }
 
 
-def checkout_url() -> str:
-    """The hosted checkout's link, where it is Paddle's: https, on `paddle.io` or a name
-    under it. Anything else is no link, so a typo cannot send a reader's payment to
-    somebody else's page."""
-    said = _env(CHECKOUT_URL_ENV)
-    parsed = urllib.parse.urlsplit(said)
-    host = (parsed.hostname or "").lower()
-    if parsed.scheme != "https" or not (host == "paddle.io" or host.endswith(".paddle.io")):
-        return ""
-    return said
-
-
-def checkout_origin() -> str:
-    """The hosted checkout's origin, which the page holding a pay press names in its
-    `form-action` (design.md §12, 2026-11-15): Chrome checks a form's redirect against
-    it."""
-    parsed = urllib.parse.urlsplit(checkout_url())
-    return f"{parsed.scheme}://{parsed.netloc}" if parsed.netloc else ""
+def client_token() -> str:
+    """The client-side token, but only where it is for the environment the deployment
+    names (`test_…` for sandbox, `live_…` for live): one for the other is no token."""
+    token = _env(CLIENT_TOKEN_ENV)
+    wanted = "test_" if environment() == "sandbox" else "live_"
+    return token if token.startswith(wanted) else ""
 
 
 def configured() -> bool:
     """Whether this install can take money: every setting there. Until then nothing is
     offered, and the webhook is a 404 like any address that is not there."""
-    return bool(api_key() and webhook_secret() and all(prices().values()) and checkout_url())
+    return bool(api_key() and webhook_secret() and all(prices().values()) and client_token())
 
 
 # -- the signature --------------------------------------------------------------------
@@ -423,17 +442,17 @@ def _call(method: str, path: str, body: dict[str, Any] | None = None) -> dict[st
     return data
 
 
-def checkout(price: str, *, account: int, made: int, quantity: int = 1, customer: str = "") -> str:
-    """Where to send a reader to pay: a transaction made for `price` and this account,
-    opened on Paddle's hosted checkout (`checkout_url()?transaction_id=txn_…`).
+def transaction(
+    price: str, *, account: int, made: int, quantity: int = 1, customer: str = ""
+) -> str:
+    """A Paddle transaction for `price` and this account, to open the checkout on: its id.
 
     The account rides in `custom_data` with its tag (`account_tag`, over the id and
     `made`, when the account was made), which Paddle copies onto the subscription, so
     the webhook knows whose it is and that our server said so. A reader who has paid
     before is named by their Paddle customer, so a second subscription or a top-up lands
     on the same one."""
-    page = checkout_url()
-    if not page or not price:
+    if not price or not client_token():
         raise PaddleError("not configured")
     body: dict[str, Any] = {
         "items": [{"price_id": price, "quantity": int(quantity)}],
@@ -446,11 +465,59 @@ def checkout(price: str, *, account: int, made: int, quantity: int = 1, customer
     if customer:
         body["customer_id"] = customer
     answer = _call("POST", "/transactions", body)
-    transaction = str(answer.get("id") or "")
-    if not transaction.startswith("txn_"):
+    made_id = str(answer.get("id") or "")
+    if not TRANSACTION_ID.fullmatch(made_id):
         raise PaddleError("no transaction")
-    joiner = "&" if urllib.parse.urlsplit(page).query else "?"
-    return f"{page}{joiner}{urllib.parse.urlencode({'transaction_id': transaction})}"
+    return made_id
+
+
+#: A Paddle transaction id, as Paddle writes them: `txn_` and 26 lowercase base-32 letters.
+TRANSACTION_ID = re.compile(r"txn_[a-z0-9]{26}")
+
+
+#: How long a checkout ticket opens a checkout for (qa on #1304): long enough to read the
+#: plans page and pay, short enough that a link copied out of a history or a log is dead.
+TICKET_MINUTES = 30
+
+#: What a ticket was made for: Start the plan, or a top-up.
+TICKET_KINDS = ("start", "top-up")
+
+
+def ticket(account: int, transaction_id: str, kind: str, at: float | None = None) -> str:
+    """What our server gives the reader beside a transaction it made for them, so that
+    `/plans` opens a checkout only on a transaction made for the account looking at it,
+    for what it was made for, and only for `TICKET_MINUTES`: `<kind>.<seconds>.<mac>`,
+    the kind and the moment it was made under the HMAC with the account and the id."""
+    made = int(time.time() if at is None else at)
+    return f"{kind}.{made}.{_ticket_mac(account, transaction_id, kind, made)}"
+
+
+def _ticket_mac(account: int, transaction_id: str, kind: str, made: int) -> str:
+    key = webhook_secret().encode()
+    said = f"checkout:{int(account)}:{transaction_id}:{kind}:{made}".encode()
+    return hmac.new(key, said, hashlib.sha256).hexdigest()[:32]
+
+
+def ticket_kind(account: int, transaction_id: str, given: str, at: float | None = None) -> str:
+    """What `given` was made for (`start` or `top-up`), where it is the ticket our server
+    made for this account and transaction less than `TICKET_MINUTES` ago; "" otherwise."""
+    if not webhook_secret() or not TRANSACTION_ID.fullmatch(transaction_id or ""):
+        return ""
+    kind, _, rest = (given or "").partition(".")
+    stamp, _, mac = rest.partition(".")
+    if kind not in TICKET_KINDS or not (stamp.isascii() and stamp.isdigit()):
+        return ""
+    made = int(stamp)
+    now = time.time() if at is None else at
+    if not (0 <= now - made <= TICKET_MINUTES * 60):
+        return ""
+    wanted = _ticket_mac(account, transaction_id, kind, made).encode()
+    return kind if hmac.compare_digest(wanted, mac.encode("utf-8", "replace")) else ""
+
+
+def ticket_holds(account: int, transaction_id: str, given: str) -> bool:
+    """Whether `given` is a live ticket our server made for this account and transaction."""
+    return bool(ticket_kind(account, transaction_id, given))
 
 
 def cancel(subscription: str) -> None:

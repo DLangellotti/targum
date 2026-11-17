@@ -129,6 +129,16 @@
     </section>
   </div>
 </main>
+{%- if checkout %}
+{#- The one view that opens Paddle's checkout (design.md §12, "/plans alone loads
+    Paddle's checkout script", 2026-11-17): a transaction our server made for this
+    account a moment ago. Paddle.js from Paddle's CDN, as Paddle requires, and the
+    overlay opened on that transaction by `plans-checkout.js`. No other page, and no
+    other view of this one, carries either. -#}
+<div id="paddle-checkout" hidden data-transaction="{{ checkout.transaction }}" data-token="{{ checkout.token }}" data-environment="{{ checkout.environment }}" data-failed="{{ t("plans.page.pay-failed", "The checkout didn't open. Try again in a minute.") }}"></div>
+<script src="{{ checkout.script }}"></script>
+{{ script('plans-checkout.js') }}
+{%- endif %}
 {% include '_foot.html.j2' %}
 <script>window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };</script>
 {% if strings %}<script>window.TARGUM_STRINGS = {{ strings|tojson }};</script>

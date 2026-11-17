@@ -4,7 +4,11 @@ a hosted checkout", 2026-11-15).
 Start the plan and Top up are plain form posts that our server answers with a 303 to
 Paddle's hosted checkout, after making a Paddle transaction for them. No page of ours
 loads anything of Paddle's; the plans page names Paddle's checkout origin in its
-`form-action` and nowhere else. Paddle's API is mocked: the suite is offline by force."""
+`form-action` and nowhere else. Paddle's API is mocked: the suite is offline by force.
+
+Since 2026-11-17 (David) the checkout is Paddle's overlay, opened by Paddle.js on the one
+view of `/plans` our server sends after a press: that view alone names Paddle's origins
+in its policy, and every other page, `/plans` included, names none."""
 
 from __future__ import annotations
 
@@ -26,7 +30,8 @@ from targum.accounts import Store
 from targum.render.builder import plans_page
 
 HOST = "targum.page"
-CHECKOUT = "https://sandbox-pay.paddle.io/hsc_01testcheckout"
+TOKEN = "test_0123456789abcdef0123456789a"
+TXN = "txn_01hv8wptq8987qeep44cyrewp9"
 KEY = "pdl_sdbx_apikey_01test_abcdefghijklmnopqrstuvwxyz"
 
 
@@ -38,7 +43,7 @@ def configure(monkeypatch: pytest.MonkeyPatch) -> None:
         billing.PRICE_MONTH_ENV: "pri_month",
         billing.PRICE_QUARTER_ENV: "pri_quarter",
         billing.PRICE_TOP_UP_ENV: "pri_top_up",
-        billing.CHECKOUT_URL_ENV: CHECKOUT,
+        billing.CLIENT_TOKEN_ENV: TOKEN,
     }.items():
         monkeypatch.setenv(name, value)
 
@@ -51,7 +56,7 @@ def unconfigure(monkeypatch: pytest.MonkeyPatch) -> None:
         billing.PRICE_MONTH_ENV,
         billing.PRICE_QUARTER_ENV,
         billing.PRICE_TOP_UP_ENV,
-        billing.CHECKOUT_URL_ENV,
+        billing.CLIENT_TOKEN_ENV,
     ):
         monkeypatch.delenv(name, raising=False)
 
@@ -61,7 +66,7 @@ class Paddle:
 
     def __init__(self) -> None:
         self.asked: list[Any] = []
-        self.answer: Any = {"data": {"id": "txn_01made", "status": "ready"}}
+        self.answer: Any = {"data": {"id": TXN, "status": "ready"}}
 
     def __call__(self, request: Any, timeout: float = 0) -> Any:
         self.asked.append(request)
@@ -95,7 +100,7 @@ def test_nothing_is_configured_until_every_setting_is_there(
         billing.API_KEY_ENV,
         billing.WEBHOOK_SECRET_ENV,
         billing.PRICE_TOP_UP_ENV,
-        billing.CHECKOUT_URL_ENV,
+        billing.CLIENT_TOKEN_ENV,
     ):
         configure(monkeypatch)
         monkeypatch.delenv(name)
@@ -113,27 +118,45 @@ def test_a_key_for_the_other_environment_is_no_key(monkeypatch: pytest.MonkeyPat
     assert billing.environment() == "sandbox", "sandbox unless it says live"
 
 
-@pytest.mark.parametrize(
-    "said",
-    [
-        "http://sandbox-pay.paddle.io/hsc_1",
-        "https://pay.paddle.io.example.com/hsc_1",
-        "https://example.com/hsc_1",
-        "https://evilpaddle.io/hsc_1",
-        "javascript:alert(1)",
-    ],
-)
-def test_a_checkout_link_that_is_not_paddles_is_no_link(
-    monkeypatch: pytest.MonkeyPatch, said: str
+def test_a_client_token_for_the_other_environment_is_no_token(
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     configure(monkeypatch)
-    monkeypatch.setenv(billing.CHECKOUT_URL_ENV, said)
-    assert billing.checkout_url() == "" and not billing.configured()
+    assert billing.client_token() == TOKEN
+    monkeypatch.setenv(billing.CLIENT_TOKEN_ENV, "live_0123456789abcdef")
+    assert billing.client_token() == "" and not billing.configured()
+    monkeypatch.setenv(billing.ENVIRONMENT_ENV, "live")
+    monkeypatch.setenv(billing.API_KEY_ENV, "pdl_live_apikey_01real")
+    assert billing.client_token() == "live_0123456789abcdef"
+    monkeypatch.setenv(billing.CLIENT_TOKEN_ENV, "pdl_sdbx_apikey_not_a_token")
+    assert billing.client_token() == "", "an API key is never a client token"
 
 
-def test_the_checkout_origin_is_paddles(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_a_ticket_holds_only_for_its_account_transaction_and_time(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     configure(monkeypatch)
-    assert billing.checkout_origin() == "https://sandbox-pay.paddle.io"
+    now = 2_000_000_000.0
+    ticket = billing.ticket(7, TXN, "start", at=now)
+    assert billing.ticket_kind(7, TXN, ticket, at=now + 60) == "start"
+    assert billing.ticket_kind(8, TXN, ticket, at=now) == "", "another account's"
+    other = "txn_01hv8wptq8987qeep44cyrewq0"
+    assert billing.ticket_kind(7, other, ticket, at=now) == "", "another transaction's"
+    assert billing.ticket_kind(7, TXN, "", at=now) == "", "no ticket"
+    assert billing.ticket_kind(7, "txn_short", billing.ticket(7, "txn_short", "start")) == ""
+    assert billing.ticket_kind(7, TXN, ticket + "\u00e9", at=now) == ""
+    # qa on #1304: a ticket dies after TICKET_MINUTES, and one from the future is no ticket.
+    late = now + billing.TICKET_MINUTES * 60 + 1
+    assert billing.ticket_kind(7, TXN, ticket, at=late) == "", "expired"
+    assert billing.ticket_kind(7, TXN, ticket, at=now - 5) == "", "not made yet"
+    # The kind and the time are under the MAC: changing either breaks it.
+    kind, made, mac = ticket.split(".")
+    assert billing.ticket_kind(7, TXN, f"top-up.{made}.{mac}", at=now) == ""
+    assert billing.ticket_kind(7, TXN, f"{kind}.{int(made) + 600}.{mac}", at=now + 600) == ""
+    top_up = billing.ticket(7, TXN, "top-up", at=now)
+    assert billing.ticket_kind(7, TXN, top_up, at=now) == "top-up"
+    monkeypatch.delenv(billing.WEBHOOK_SECRET_ENV)
+    assert billing.ticket_kind(7, TXN, ticket, at=now) == "", "no secret, no ticket"
 
 
 # -- the call to Paddle ---------------------------------------------------------------
@@ -143,8 +166,8 @@ def test_a_checkout_makes_a_transaction_for_the_account(
     monkeypatch: pytest.MonkeyPatch, paddle: Paddle
 ) -> None:
     configure(monkeypatch)
-    where = billing.checkout("pri_month", account=7, made=1000)
-    assert where == f"{CHECKOUT}?transaction_id=txn_01made"
+    made = billing.transaction("pri_month", account=7, made=1000)
+    assert made == TXN
     request = paddle.asked[0]
     assert request.full_url == "https://sandbox-api.paddle.com/transactions"
     assert request.get_method() == "POST"
@@ -163,7 +186,7 @@ def test_a_reader_who_paid_before_is_named_by_their_customer(
     monkeypatch: pytest.MonkeyPatch, paddle: Paddle
 ) -> None:
     configure(monkeypatch)
-    billing.checkout("pri_top_up", account=7, made=1000, quantity=3, customer="ctm_1")
+    billing.transaction("pri_top_up", account=7, made=1000, quantity=3, customer="ctm_1")
     assert paddle.body()["customer_id"] == "ctm_1"
     assert paddle.body()["items"] == [{"price_id": "pri_top_up", "quantity": 3}]
 
@@ -172,7 +195,8 @@ def test_live_calls_paddles_live_api(monkeypatch: pytest.MonkeyPatch, paddle: Pa
     configure(monkeypatch)
     monkeypatch.setenv(billing.ENVIRONMENT_ENV, "live")
     monkeypatch.setenv(billing.API_KEY_ENV, "pdl_live_apikey_01real")
-    billing.checkout("pri_month", account=7, made=1000)
+    monkeypatch.setenv(billing.CLIENT_TOKEN_ENV, "live_0123456789abcdef")
+    billing.transaction("pri_month", account=7, made=1000)
     assert paddle.asked[0].full_url == "https://api.paddle.com/transactions"
 
 
@@ -191,7 +215,7 @@ def test_a_paddle_that_does_not_answer_is_an_error(
     configure(monkeypatch)
     paddle.answer = answer
     with pytest.raises(billing.PaddleError):
-        billing.checkout("pri_month", account=7, made=1000)
+        billing.transaction("pri_month", account=7, made=1000)
 
 
 # -- the plans page -------------------------------------------------------------------
@@ -340,22 +364,137 @@ def test_unconfigured_the_plans_page_keeps_form_action_self(
     assert "Payments open soon" in page
 
 
+PADDLE_ORIGINS = ("cdn.paddle.com", "buy.paddle.com", "checkout-service.paddle.com", "paddle.io")
+
+
+def names_paddle(text: str) -> bool:
+    return any(origin in text for origin in PADDLE_ORIGINS) or "paddle.js" in text.lower()
+
+
 @pytest.mark.usefixtures("on")
-def test_configured_the_plans_page_names_paddles_checkout_and_only_it(
+def test_configured_the_plans_page_names_nothing_of_paddles_until_a_checkout(
     box: tuple[int, Path, dict[str, str]],
 ) -> None:
+    """/plans as a reader opens it: Start the plan is a form to our own server, and the
+    page and its policy carry nothing of Paddle's."""
     port, _, sessions = box
     status, headers, page = fetch(port, "/plans", sessions["free"])
+    assert status == 200 and 'action="/plans/start"' in page
+    assert not names_paddle(headers["Content-Security-Policy"]) and not names_paddle(page)
+    assert "form-action 'self';" in headers["Content-Security-Policy"]
+
+
+def fresh_checkout(port: int, sessions: dict[str, str]) -> str:
+    status, headers, _ = press(port, serve.PLANS_START, {"cadence": "month"}, sessions["free"])
+    assert status == 303
+    return headers["Location"]
+
+
+@pytest.mark.usefixtures("on")
+def test_start_comes_back_to_plans_and_only_that_view_opens_paddles_checkout(
+    box: tuple[int, Path, dict[str, str]], paddle: Paddle
+) -> None:
+    port, _, sessions = box
+    where = fresh_checkout(port, sessions)
+    assert where.startswith(f"/plans?checkout={TXN}&ticket="), "back to our own origin"
+    status, headers, page = fetch(port, where, sessions["free"])
     policy = headers["Content-Security-Policy"]
-    assert status == 200 and "form-action 'self' https://sandbox-pay.paddle.io;" in policy
-    for directive in ("script-src", "style-src", "img-src", "font-src", "connect-src"):
-        clause = next(one for one in policy.split(";") if one.strip().startswith(directive))
-        assert "paddle" not in clause, directive
-    assert "frame-src" not in policy or "paddle" not in policy.split("frame-src")[1]
-    assert 'action="/plans/start"' in page
-    # Every other page keeps `form-action 'self'`.
-    _, account, _ = fetch(port, "/account", sessions["free"])
-    assert "paddle" not in account.get("Content-Security-Policy", "")
+    assert status == 200
+    assert '<script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>' in page
+    assert f'data-transaction="{TXN}"' in page and f'data-token="{TOKEN}"' in page
+    assert 'data-environment="sandbox"' in page
+    clauses = {one.strip().split(" ")[0]: one.strip() for one in policy.split(";")}
+    assert "https://cdn.paddle.com" in clauses["script-src"]
+    assert clauses["frame-src"].endswith("https://sandbox-buy.paddle.com")
+    assert "https://sandbox-checkout-service.paddle.com" in clauses["connect-src"]
+    # Nothing broader: no wildcard, no style, font, image or form origin of Paddle's,
+    # and only the sandbox's frame and service while the deployment is sandbox.
+    assert "*" not in policy and "unsafe-inline" not in policy
+    for directive in ("style-src", "img-src", "font-src", "form-action", "default-src"):
+        if directive in clauses:
+            assert not names_paddle(clauses[directive]), directive
+    assert "https://buy.paddle.com" not in policy
+    assert " https://checkout-service.paddle.com" not in policy
+
+
+@pytest.mark.usefixtures("on")
+def test_a_checkout_link_opens_nothing_for_anyone_else(
+    box: tuple[int, Path, dict[str, str]], paddle: Paddle
+) -> None:
+    """The ticket ties the transaction to the account it was made for: the same link
+    signed in as somebody else, a forged ticket, another id or no ticket opens nothing."""
+    port, _, sessions = box
+    where = fresh_checkout(port, sessions)
+    for session, link in (
+        (sessions["paying"], where),
+        (sessions["free"], where.rsplit("=", 1)[0] + "=" + "0" * 32),
+        (sessions["free"], where.replace(TXN, "txn_01hv8wptq8987qeep44cyrewq0")),
+        (sessions["free"], f"/plans?checkout={TXN}"),
+    ):
+        status, headers, page = fetch(port, link, session)
+        assert status == 200
+        policy = headers["Content-Security-Policy"]
+        assert not names_paddle(policy) and not names_paddle(page), link
+
+
+@pytest.mark.usefixtures("on")
+def test_an_expired_ticket_or_a_start_after_subscribing_opens_nothing(
+    box: tuple[int, Path, dict[str, str]], paddle: Paddle
+) -> None:
+    """qa on #1304: a copied Start link must not open an unpaid checkout once the reader
+    has subscribed, nor any link after `TICKET_MINUTES`."""
+    port, store_path, sessions = box
+    store = Store(store_path)
+    me = store.person_by_email("free@example.com")
+    assert me is not None
+    gone = time.time() - billing.TICKET_MINUTES * 60 - 5
+    old = billing.ticket(me.id, TXN, "start", at=gone)
+    _, headers, page = fetch(port, f"/plans?checkout={TXN}&ticket={old}", sessions["free"])
+    assert not names_paddle(headers["Content-Security-Policy"]) and not names_paddle(page)
+    # The paying reader's own fresh Start ticket opens nothing: their plan holds.
+    paying = store.person_by_email("paying@example.com")
+    assert paying is not None
+    fresh = billing.ticket(paying.id, TXN, "start")
+    _, _, page = fetch(port, f"/plans?checkout={TXN}&ticket={fresh}", sessions["paying"])
+    assert not names_paddle(page), "a Start for an account already on a paid plan"
+    # A top-up ticket for the same reader does open.
+    top_up = billing.ticket(paying.id, TXN, "top-up")
+    _, _, page = fetch(port, f"/plans?checkout={TXN}&ticket={top_up}", sessions["paying"])
+    assert "cdn.paddle.com/paddle/v2/paddle.js" in page
+
+
+@pytest.mark.usefixtures("on")
+def test_no_other_page_gains_paddles_origins(
+    box: tuple[int, Path, dict[str, str]], paddle: Paddle
+) -> None:
+    port, _, sessions = box
+    fresh_checkout(port, sessions)
+    for path in ("/account", "/", "/library", "/you/saved", "/connect"):
+        _, headers, page = fetch(port, path, sessions["free"])
+        assert not names_paddle(headers.get("Content-Security-Policy", "")), path
+        assert "cdn.paddle.com" not in page, path
+
+
+def test_a_reader_still_fetches_nothing_from_any_other_site() -> None:
+    """CLAUDE.md: a reader fetches nothing from any other site. Paddle.js rides only the
+    plans page's one view, which is no reader; no other template names it, and a page's
+    policy names Paddle only when the plans page asks for it."""
+    policy = serve.Handler._policy(b"<html><body>a reader</body></html>")
+    assert not names_paddle(policy)
+    assert "https://" not in policy.split("script-src")[1].split(";")[0]
+    templates = Path(serve.__file__).parent / "render" / "templates"
+    carrying = sorted(
+        one.name
+        for one in templates.glob("*.j2")
+        if "cdn.paddle.com" in one.read_text(encoding="utf-8")
+        or "checkout.script" in one.read_text(encoding="utf-8")
+    )
+    assert carrying == ["plans.html.j2"], carrying
+    assets = Path(serve.__file__).parent / "render" / "assets"
+    loading = sorted(
+        one.name for one in assets.glob("*.js") if "cdn.paddle.com" in one.read_text("utf-8")
+    )
+    assert loading == [], "Paddle.js is named by the template alone, never by a script"
 
 
 @pytest.mark.usefixtures("on")
@@ -364,8 +503,7 @@ def test_start_sends_a_free_reader_to_paddles_checkout(
 ) -> None:
     port, store_path, sessions = box
     status, headers, _ = press(port, serve.PLANS_START, {"cadence": "quarter"}, sessions["free"])
-    assert status == 303
-    assert headers["Location"] == f"{CHECKOUT}?transaction_id=txn_01made"
+    assert status == 303 and headers["Location"].startswith(f"/plans?checkout={TXN}&ticket=")
     me = Store(store_path).person_by_email("free@example.com")
     assert me is not None
     assert paddle.body()["items"] == [{"price_id": "pri_quarter", "quantity": 1}]
@@ -393,7 +531,7 @@ def test_top_up_is_for_a_reader_on_plan(
 ) -> None:
     port, _, sessions = box
     status, headers, _ = press(port, serve.PLANS_TOP_UP, {"size": "180"}, sessions["paying"])
-    assert status == 303 and headers["Location"].startswith(CHECKOUT)
+    assert status == 303 and headers["Location"].startswith(f"/plans?checkout={TXN}&ticket=")
     assert paddle.body()["items"] == [{"price_id": "pri_top_up", "quantity": 3}]
     assert paddle.body()["customer_id"] == "ctm_paying"
     # No top-up on Free; a size that is not one of the three is no press.
