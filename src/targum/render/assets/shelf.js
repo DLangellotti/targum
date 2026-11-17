@@ -109,7 +109,7 @@
     var mine = readers.filter(function (reader) {
       return base(reader.language) === code;
     });
-    var going = building(settings.building).filter(function (job) {
+    var going = stillLeaving(building(settings.building)).filter(function (job) {
       return base(job.language) === code;
     });
     going.forEach(function (job) {
@@ -160,6 +160,31 @@
   // as settled as the server's `SETTLED` says, and drawn as "getting ready · opens when
   // it's ready" it waited at the head of Continue for good, one card per press (QA
   // 2026-10-11). Its refusal is the bell's to say.
+  /* A build that has just left the line, cancelled or stopped from its row: kept with
+     what was said about it until that has been read, and only then gone. Your targums
+     asks `/jobs` every three seconds while anything builds and redraws the shelf, which
+     dropped the row at once, so "Cancelled. Nothing was used." was never seen
+     (targum-internal#716 P2-5; Home's card does the same, #695). */
+  var LEAVING_MS = 4000;
+  var leaving = {};
+  function stillLeaving(going) {
+    var now = Date.now();
+    var there = {};
+    (going || []).forEach(function (job) {
+      there[job.id] = true;
+    });
+    var out = (going || []).slice();
+    Object.keys(leaving).forEach(function (id) {
+      var one = leaving[id];
+      if (one.until <= now) {
+        delete leaving[id];
+        return;
+      }
+      if (!there[id]) out.push(one.job);
+    });
+    return out;
+  }
+
   function building(jobs) {
     return (jobs || []).filter(function (job) {
       return job.stage !== "done" && job.stage !== "failed" && job.stage !== "blocked" && job.stage !== "cancelled" &&
@@ -250,6 +275,8 @@
   function buildingRow(job) {
     var item = document.createElement("li");
     item.className = "row is-building";
+    item.setAttribute("data-job", String(job.id));
+    var left = leaving[job.id];
     // Said aloud when it changes, because a reader watching this is waiting on it.
     item.setAttribute("role", "status");
     var box = document.createElement("span");
@@ -272,6 +299,17 @@
     what.appendChild(title);
     var line = document.createElement("span");
     line.className = "book-facts";
+    if (left) {
+      // Cancelled or stopped: what was said about it, and nothing to press.
+      var words = document.createElement("span");
+      words.className = "fact";
+      words.textContent = left.words || "";
+      line.appendChild(words);
+      what.appendChild(line);
+      box.appendChild(what);
+      item.appendChild(box);
+      return item;
+    }
     var said = [];
     if (job.behind) {
       said.push(
@@ -321,11 +359,18 @@
     var undo = window.TargumCancel
       ? window.TargumCancel.control(job, {
           host: what,
-          gone: function () {
+          gone: function (state, words) {
+            leaving[job.id] = { job: job, words: words || "", until: Date.now() + LEAVING_MS };
             setTimeout(function () {
+              // This row, and any later draw of it that the shelf's redraws made.
               if (item.parentNode) item.parentNode.removeChild(item);
+              var list = document.getElementById("library-list");
+              var drawn = list && list.querySelectorAll ? list.querySelectorAll('[data-job="' + String(job.id).replace(/"/g, "") + '"]') : [];
+              Array.prototype.forEach.call(drawn, function (one) {
+                if (one.parentNode) one.parentNode.removeChild(one);
+              });
               if (window.TargumBuilding && window.TargumBuilding.ask) window.TargumBuilding.ask();
-            }, 4000);
+            }, LEAVING_MS);
           },
         })
       : null;

@@ -361,6 +361,23 @@ def test_a_waiting_build_is_cancelled_at_one_quiet_press(place: str) -> None:
     assert said["gone"], "and it leaves the list"
 
 
+def test_a_cancelled_row_stays_through_the_next_redraw_with_its_words() -> None:
+    """targum-internal#716 P2-5: Your targums redraws its shelf from `/jobs` every three
+    seconds, and the cancelled build is not in it, so the row went before "Cancelled.
+    Nothing was used." could be read. It stays, with its words and nothing to press,
+    for about four seconds, as Home's card does (#695)."""
+    said = _drawn(
+        place="row",
+        job=WAITING,
+        press=["Cancel"],
+        answers={"/jobs/cancel": {"cancelled": True, "stopping": False}},
+        redraw=True,
+    )
+    redrawn = said["redrawn"]
+    assert "Cancelled. Nothing was used." in redrawn["words"]
+    assert "Un film" in redrawn["words"] and redrawn["presses"] == []
+
+
 @pytest.mark.parametrize("place", ["row", "card"])
 def test_a_running_build_asks_once_before_it_stops(place: str) -> None:
     asked = _drawn(place=place, job=RUNNING, press=["Cancel"])
