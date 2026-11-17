@@ -41,6 +41,8 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   B2+, and French's rows as the box has them.
 
 ### Added
+- `scripts/voice_scenes.py` gives the director 4,096 tokens of answer: 1,024 ran out near 80
+  turns, and French's A2 scenes run to 72. Only what is written is billed.
 - `scripts/voice_scenes.py` names French to the director: a scene with
   `language: fr` is briefed as French rather than falling back to Hebrew. The first
   piece of the French scene port (targum-internal `scenes/`), ahead of any French scene.
