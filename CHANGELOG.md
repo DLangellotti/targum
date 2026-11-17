@@ -41,6 +41,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   B2+, and French's rows as the box has them.
 
 ### Added
+- `story:<id>`, a short story targum wrote, read off a shelf of its own as paragraphs
+  (`ingest/fetch/story.py`): the narrative counterpart of `dialogue:`, for French's
+  generated A2 narratives (targum-internal#739). The shelf is `TARGUM_STORY_DIR`, else a
+  `stories` folder beside the dialogue shelf. Public and model-written, as `dialogue:` is:
+  `Build.PUBLIC_SOURCES`, `correct._SHARED`, `imports.MODEL_WRITTEN`, the scenes register
+  and `kinds`. Its voice is a reading attached on the recordings shelf.
 - `scripts/voice_scenes.py` names French to the director: a scene with
   `language: fr` is briefed as French rather than falling back to Hebrew. The first
   piece of the French scene port (targum-internal `scenes/`), ahead of any French scene.

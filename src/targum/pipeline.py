@@ -460,6 +460,9 @@ class Build:
         # A dialogue likewise, and more simply: its English is written with the scene,
         # so there is nothing to buy at all.
         "dialogue:",
+        # And a story targum wrote (`fetch/story.py`): one public text, its English
+        # bought once and shared.
+        "story:",
         # And a curated video, which is a dialogue's arrangement with a different
         # author: the operator bought the English once, on a laptop, and shipped it
         # beside the video. Public here so the key is the key everybody arrives at —

@@ -14,6 +14,7 @@ from .gutenberg import GutenbergFetcher
 from .published import PublishedFetcher
 from .sefaria import SefariaFetcher
 from .siddur import SiddurFetcher
+from .story import StoryFetcher
 from .storyweaver import StoryWeaverFetcher
 from .video import VideoFetcher
 from .weekly import WeeklyFetcher
@@ -46,6 +47,7 @@ FETCHERS: dict[str, Fetcher] = {
     "published": PublishedFetcher(),
     "sefaria": SefariaFetcher(),
     "siddur": SiddurFetcher(),
+    "story": StoryFetcher(),
     "storyweaver": StoryWeaverFetcher(),
     "wikisource": WikisourceFetcher(),
     "weekly": WeeklyFetcher(),

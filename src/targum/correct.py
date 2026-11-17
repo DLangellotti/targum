@@ -68,7 +68,16 @@ LONGEST = 2000
 
 #: Prefixes of sources that are everybody's, whoever's home holds a copy. `http(s)` is
 #: not among them: a link is what a reader brings, unless the catalogue names it.
-_SHARED = ("gutenberg:", "wikisource:", "sefaria:", "catalogue:", "weekly:", "dialogue:", "video:")
+_SHARED = (
+    "gutenberg:",
+    "wikisource:",
+    "sefaria:",
+    "catalogue:",
+    "weekly:",
+    "dialogue:",
+    "story:",
+    "video:",
+)
 
 
 def own_source(source: str, home: str = "") -> bool:
