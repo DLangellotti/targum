@@ -53,6 +53,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   - The antecedent question is left out until `model_lemma.ANTECEDENT_PRECISION` is
     measured, as the card's is; a test fails when it is, to bring the question in.
   - Eight new keys in English and Russian, Russian cleared by ling-ru. Nothing spends.
+- The operator's preview of plans while they are off (targum-internal#59 phase 2):
+  with `TARGUM_PLANS_PREVIEW=operators` and `TARGUM_PLANS` unset, an admin account sees
+  `/plans` and its plan on Your account as a reader would, so paying in Paddle's sandbox
+  can be tried on the box before switch day. Every other account, signed in or not, gets
+  a 404 as before, `plans.on()` stays off, and no limit or claim changes for anybody.
 - French register is practised on the Grammar tab, French's second hard-spot practice
   (design.md §12, "French register is practised as formal or informal, and who *on* is",
   2026-11-16). `stages._practices("fr")["register: ne-drop and on/nous"]` is now true.
