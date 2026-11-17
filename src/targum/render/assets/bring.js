@@ -278,7 +278,9 @@
      quote already said. "" for a recording whose length is not known: no guess. */
   function uses(job) {
     if (!job) return "";
-    if (job.audio) {
+    // A recording that uses none of the month says so: a gift, and a library text under
+    // a NonCommercial licence, which stays free to read (David, 2026-11-17; §12).
+    if (job.audio && job.metered !== false) {
       var seconds = Number(job.seconds) || 0;
       if (seconds <= 0) return "";
       var n = Math.ceil(seconds / 60 - 1e-9);

@@ -448,6 +448,30 @@ Beta, under "A practice for every hard spot" (2026-10-13) and D5's "register, no
 - **The rules are read again for the practice, never stored.** A negation said with its
   *ne* is found by the same clause rules (`ne_kept`).
 
+### A text under a NonCommercial licence stays free to read — 2026-11-17
+
+David, 2026-11-17. Finds under CC BY-NC and CC BY-NC-SA may join the shared shelf (they
+already clear `promote.clears`, which reads NoDerivatives first and lets NC through), and
+a NonCommercial text must stay readable without a plan: the licence bites on the
+offering, and reading it may not be what the plan sells. It amends "Free and Plan,
+behind a switch" (2026-10-09) and "Signup opens before payments, and the beta is comped
+to Plan" (2026-11-15).
+
+- **With plans on, building a library text whose own licence is NonCommercial never
+  needs a plan and never comes out of the month's credits**, on Free or on Plan. A library
+  text is a catalogue row, a weekly, or a find that joined the shelf, built from its own
+  source; NonCommercial is `licensing.noncommercial`, the same `verdict` that `clears`
+  reads, so CC BY-NC-ND is not one. The quote says "Uses none of your credits" for it.
+- **It is still a press, and still claimed.** The money rails and the box ceiling hold it
+  through `Library.claim` like every build, and anything paid done with the text after
+  it is open (a voice, a chat turn, meanings bought) is metered as ever.
+- **The word list is not reading.** A free reader at 300 words being learned still opens,
+  reads, hears and taps every NonCommercial text; only a 301st word is refused, as on any
+  text.
+
+What it does not overturn: an upload of the reader's own is never a library text, a gift
+is targum's and unchanged, and with plans off nothing changes for anybody.
+
 ### French gender is practised as masculine or feminine — 2026-11-16
 
 David, 2026-11-16, the first of French's seven practices toward Beta under "A practice
@@ -1114,6 +1138,7 @@ This adds a third press to "Done marks nothing; knowing them all is a choice"
 - **No key.** Neither of the other foot presses has a letter, so this one has none
   either: it is reached by Tab, and once pressed the focus moves to Next.
 - The id says what it does: `#done-stay` finishes, marks and stays.
+
 ### A course's playlist holds the whole course — 2026-11-07
 
 David, 2026-11-07 (targum-internal#652): one book, one playlist. A course book (the one that
@@ -1592,6 +1617,7 @@ page prints it" in "The arrival asks which words you know" (2026-11-01).
   than the check's.
 - **Never the rung only said.** A reader who skipped the check, or took it against lists
   this targum no longer has, or stands under aleph by it, sees the page as before.
+
 ### On a phone the AI Assistant is in the bar — 2026-11-04
 
 David, on a 390px phone (2026-11-04): the floating "AI Assistant" pill above the four
@@ -1820,6 +1846,7 @@ that disagreed with the page under it, and a Tanakh row full of Mishnah.
   own name, wherever a text's kind is named (`catalogue.shelf_of`). Every other text keeps
   its kind, and `prose` is "Prose" for a reader's own text. `/library/k/he/prose` still
   answers, with the Tanakh.
+
 ### A stranger is told the door is by invitation before they knock — 2026-11-03
 
 The beta review of 2026-11-03 (surface audit PUB-02, PUB-03, PUB-05, PUB-06, RDR-01, RDR-02,
@@ -2772,6 +2799,7 @@ floor, and news is meant to be the default.
   than a thousand items from seventeen outlets. Waiting for 1 December would leave the
   default yardstick missing for a month for no gain. After the first list, news keeps
   the monthly rule like every other register, so its v2 lands when December begins.
+
 ### What learners bring is counted in the tables, never kept — 2026-11-01
 
 David, 2026-11-01, toward "build a moat around language learning data". It reverses the
@@ -3455,6 +3483,7 @@ what you read, month by month", 2026-09-27) to days and weeks.
 What it keeps: every figure on the page is a real count or a stated conversion of one
 (§6), nothing on it spends, and the foot line's rung is the measured one, never the
 declared one.
+
 ### See all keeps one level, and the bar is not spoken — 2026-10-29
 
 From qa's review of targum#975 (targum-internal#554), with David's word of 2026-10-29.
@@ -3476,6 +3505,7 @@ From qa's review of targum#975 (targum-internal#554), with David's word of 2026-
 
 Supersedes "a `progressbar` with its name" in "Your level leads with what you can read"
 (2026-10-28), and the three menus of See all in "The Library stands on the ground".
+
 ### How much of a text you know is an exact percentage — 2026-10-29
 
 David, 2026-10-29 (targum-internal#560): "show exact percentages - as a general rule,
@@ -4825,6 +4855,7 @@ minimal", and only for a likely Russian reader.
 
 What it does not change: the language menu is still the language being learned, and Your
 account still offers every language the interface speaks.
+
 ### The first finish goes home — 2026-10-12
 
 David, 2026-10-12: "the user isn't explained what to do after completing their first
@@ -6762,6 +6793,7 @@ on asked "I know this" or "Still learning" instead.
   step. A line the conversation corrected keeps its two answers: a sentence has no stage.
   *(The fold is gone since the same day, its words gone over on the practice card and a
   corrected line answered on the record: "Your Words is one table and a practice card".)*
+
 ### Your Words is reached from Your Progress, by stage — 2026-10-09
 
 David, 2026-10-08 (calmer surfaces, boards WordsDesk, WordsPhone and Words{Ru,RuUi,Fr,It,
@@ -7521,6 +7553,7 @@ view, the highlight, the pages and the case lens as rows of ⋯. What it keeps: 
 paper not glass, the live choice quiet raised paper rather than a filled pill, panels as
 visits, the bar stepping back, print where a portion has it, and §8's 44px for every new
 press (`test_brand.py` lists the view's drawings).
+
 ### Beside, the line between the picture and the transcript moves — 2026-10-08
 
 David, 2026-10-08 (calmer surfaces, board ReaderBeside): Theatre's picture could be made
@@ -7540,6 +7573,7 @@ be made smaller" (2026-10-07) said "Beside is unchanged"; this is the change.
   the keyboard (← → a twentieth of the room, Home and End its ends) with the focus ring
   and a 44px band under a thumb. Nothing is animated.
 - Beside on a wide window only. Theatre keeps its grip; a phone has one way of standing.
+
 ### The end of a part is the end of a reading, in Theatre too — 2026-10-08
 
 David, 2026-10-08 (calmer surfaces, board ReaderTheatreEnd): Theatre gets the same end of
@@ -8190,6 +8224,7 @@ be printed" below holds; this says only what the sheet adds.
   language of the row it was met in, so an Onkelos word is Aramaic. The privacy notice
   (clause 3.6) and the account page's plain account both say so, and the record is still
   behind `TARGUM_EVENTS` and the reader's own switch.
+
 ### A link tried on the front page is built when they are let in, on targum — 2026-10-01
 
 The front page's box (targum-internal#399) lets a stranger paste a link and see what it is.
@@ -8561,6 +8596,7 @@ gets its name. The page stays as it is.
   and its sound is their clocks, first to last (`Part.phrase_spans`). Playing it on a tap,
   and lighting the phrase while it plays, is its own entry when it is built; until then
   the line is text.
+
 ### The Tanakh map is the knowledge ramp, and Aramaic is off it — 2026-09-28
 
 `/tanakh-map` draws every chapter of the Tanakh as a square (targum-internal#144), shaded
@@ -9939,6 +9975,7 @@ view") and its verb on it. The rest sit under it as they were.
 
 `test_learn_js.py` pins the two steps, the skip, the rung kept and handed back, and the
 measured rung outvoting it. targum-internal#334, #306.
+
 ### The Beit Midrash comes back, as a way of walking the one list — 2026-09-19
 
 "It is time to build the 'Beit Midrash' section," David wrote: another tab after Your
@@ -9993,6 +10030,7 @@ The tree has an address — `#bm`, `#bm/tanakh` — the first view of this page 
 so a link can land somebody on a door. targum-internal#68, the account preference that
 shows *only* these texts, is a different thing and still unbuilt; it was renamed the same
 day and will read this tab's predicate. targum-internal#340.
+
 ### There is one look, and it is light — 2026-09-19
 
 "Remove dark mode everywhere," David wrote, and it is gone: the second palette that
@@ -10094,6 +10132,7 @@ leaves the page (Dmitry, 2026-09-16: any notification is fatal), and celebration
 What is not here yet, and is the rest of the list David settled the same day: bringing your
 own, talking to targum, and "targum remembers what you're having trouble with", which
 waits for the events of targum-internal#127. targum-internal#335.
+
 ### Time and words on Your Progress, read from the account — 2026-09-20
 
 *(Amended 2026-10-30: two figures, listened and watched as one "Time listening", and the

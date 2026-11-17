@@ -1626,6 +1626,10 @@ class Job:
     # still claims against the box ceiling like everything else. Never set from a
     # request: `options` is the request's, this field is not.
     gift: bool = False
+    # Whether it builds a library text under a NonCommercial licence, which stays free to
+    # read (David, 2026-11-17; design.md §12): its seconds come out of no month. Set by
+    # `Library.prepare`, never from a request; `claim` asks `free_to_read` again itself.
+    free_read: bool = False
     # The language whoever asked for it reads the product in, so a refusal written later
     # by the thread that runs it is said in theirs (targum-internal#184). Never stored.
     ui: str = "en"
@@ -1746,7 +1750,8 @@ class Job:
             # Whether a stop of it uses credits: a recording does, and a gift recording
             # does not, since targum pays for it (targum-internal#715). Stop's question
             # is asked on this, never on `audio`.
-            "metered": self.audio and not self.gift,
+            # Nor does a library text under NonCommercial, free to read (2026-11-17).
+            "metered": self.audio and not self.gift and not self.free_read,
             "seconds": round(self.seconds, 1),
             "parts": self.parts,
             "transcription": round(self.transcription, 2),
@@ -4243,6 +4248,42 @@ class Library:
         return covers_module.ready()
 
     def prepare(self, job: Job) -> None:
+        """Ingest and segment, which costs nothing, then price the rest; and say whether
+        it is a library text under NonCommercial, free to read (`free_to_read`)."""
+        try:
+            self._prepare(job)
+        finally:
+            job.free_read = self.free_to_read(job)
+
+    def free_to_read(self, job: Job) -> bool:
+        """Whether this build reads a library text whose licence is NonCommercial: a
+        catalogue row, a weekly or a find that joined the shelf, built from its own
+        source (David, 2026-11-17; design.md §12, "A text under a NonCommercial licence
+        stays free to read").
+
+        Only while plans are on, the only time a month holds anybody to less than the
+        library's whole one: with them off nothing changes. Such a build never needs a
+        plan and never comes out of the month's credits, for Free or Plan. Everything
+        else about it is as for any build: the money rails and the box ceiling are
+        claimed through `claim` like every press, and anything paid that is done with the
+        text afterwards (a voice, a chat turn, meanings bought) is metered as ever."""
+        if not plans.on() or not job.source or job.gift:
+            return False
+        # Only the source itself: a post brought by hand (`options.post`) is read from
+        # what the reader brought, not from the address it names.
+        if (job.options or {}).get("post"):
+            return False
+        from . import catalogue as catalogue_module
+        from .licensing import noncommercial
+
+        entry = catalogue_module.matching(job.source)
+        # Its own row: a source shown beside another as one of its renderings is not
+        # that row's text, and its licence is not the row's.
+        if entry is None or not catalogue_module.same_source(entry.source, job.source):
+            return False
+        return noncommercial(entry.licence)
+
+    def _prepare(self, job: Job) -> None:
         """Ingest and segment, which costs nothing, then price the rest."""
         try:
             from urllib.parse import urlparse
@@ -5335,6 +5376,9 @@ class Library:
             # reader. The box ceiling below is not waived: that one is the runaway guard,
             # and a loop at three in the morning does not care whose account it is on.
             admin = bool(job.admin) or job.gift
+            # A library text under NonCommercial is free to read: its seconds come out
+            # of no month, and it is held to the money rails like any build (2026-11-17).
+            free_read = self.free_to_read(job)
             refused = self.store.claim(
                 job.id,
                 job.estimate,
@@ -5346,12 +5390,12 @@ class Library:
                 # Only a recording spends the hours. A text upload is any length and
                 # costs no clock time, so it is not charged against them. Nor is a
                 # gift: targum pays for it, and their eight hours are theirs (#399).
-                length=job.seconds if job.audio and not job.gift else 0.0,
+                length=job.seconds if job.audio and not job.gift and not free_read else 0.0,
                 per_month_length=None if admin else self._month_for(job),
                 gift=job.gift,
                 # A recording the reader stopped part way and started again pays only
                 # for what they have not paid for yet (David, 2026-11-13).
-                credit_from=job.source if job.audio and not job.gift else None,
+                credit_from=job.source if job.audio and not job.gift and not free_read else None,
             )
             if not refused:
                 job.credited = self._credited(job)
@@ -5395,6 +5439,7 @@ class Library:
             or job.owner is None
             or self.store is None
             or self._month_for(job) is None
+            or self.free_to_read(job)
         ):
             return
         need, left = self._month_room(job)
@@ -5437,7 +5482,14 @@ class Library:
         on_plan = self._on_plan(owner)
         if self.store is not None:
             refused, room = self.store.claim_all(
-                [(job.id, job.estimate, job.seconds if job.audio else 0.0) for job in jobs],
+                [
+                    (
+                        job.id,
+                        job.estimate,
+                        job.seconds if job.audio and not self.free_to_read(job) else 0.0,
+                    )
+                    for job in jobs
+                ],
                 self.budget,
                 self._since(),
                 owner=owner,
@@ -5446,10 +5498,10 @@ class Library:
                 per_month_length=None if admin else self.allowance(paid_plan=on_plan),
             )
             if refused == "hours" and not admin and not on_plan and plans.on():
-                need = sum(job.seconds for job in jobs)
+                need = sum(job.seconds for job in jobs if not self.free_to_read(job))
                 return self._plan_refusal(jobs[0], ui=ui, need=need), room, refused
             if refused == "hours":
-                need = sum(job.seconds for job in jobs if job.audio)
+                need = sum(job.seconds for job in jobs if job.audio and not self.free_to_read(job))
                 return self._out_of(refused, ui, need=need, left=room), room, refused
             return (self._out_of(refused, ui) if refused else ""), room, refused
         total = sum(job.estimate for job in jobs)

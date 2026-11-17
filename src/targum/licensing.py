@@ -188,6 +188,15 @@ def verdict(licence: str) -> Verdict:
     )
 
 
+def noncommercial(licence: str) -> bool:
+    """Whether this licence is NonCommercial, and allows derivatives: CC BY-NC and CC
+    BY-NC-SA, never anything ND touches. Read by `verdict`, the parsing `promote.clears`
+    uses, so a text the library may hold under NC and a text that stays free to read
+    under NC are the same texts (David, 2026-11-17; design.md §12)."""
+    call = verdict(licence)
+    return call.standing is Standing.closed and call.derivatives
+
+
 def exportable(licence: str) -> bool:
     """Whether derived data may leave targum inside a commercial offering."""
     return verdict(licence).exportable

@@ -1190,6 +1190,11 @@ def scene_series(entry_id: str) -> str:
     return (found.group(1) or "") if found else ""
 
 
+def same_source(first: str, second: str) -> bool:
+    """Whether two addresses name the same source, as `matching` compares them."""
+    return bool(_key(first)) and _key(first) == _key(second)
+
+
 def matching(source: str) -> Entry | None:
     """The catalogue entry a source is already, if it is one.
 
