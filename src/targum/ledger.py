@@ -244,9 +244,14 @@ class Disagreement:
 
 @dataclass(frozen=True)
 class Agreement:
-    """Two annotators on one text (`Ledger.agreement`). `paired` is the tokens both read
-    at the same place with the same form; `lemma`, `pos` and `features` how many of those
-    each agrees on; `unpaired` what each read that the other did not, in that order."""
+    """Two annotators on one text (`Ledger.agreement`).
+
+    `paired` is the tokens both read with the same form, paired by aligning each
+    segment's forms in order, so a word one tokenizer split and the other did not costs
+    only that word and the tokens after it still pair. For each of `lemma`, `pos` and
+    `features`, `compared` says how many pairs had a value on both sides (a value
+    missing on both is not agreement, and is not compared) and the bare name how many
+    of those agree. `unpaired` is what each read that the other did not, in that order."""
 
     document_hash: str
     first: str
@@ -255,13 +260,43 @@ class Agreement:
     lemma: int
     pos: int
     features: int
+    compared: dict[str, int]
     unpaired: tuple[int, int]
     disagreements: list[Disagreement]
 
     def share(self, field: str) -> float:
-        """The share of paired tokens agreeing on `lemma`, `pos` or `features`, 0 to 1."""
+        """The share of the pairs compared on `lemma`, `pos` or `features` that agree."""
         count = {"lemma": self.lemma, "pos": self.pos, "features": self.features}[field]
-        return count / self.paired if self.paired else 0.0
+        total = self.compared.get(field, 0)
+        return count / total if total else 0.0
+
+
+def _features(said: Any) -> str | None:
+    """A token's features in one order (`Gender=Masc|Number=Sing`), so two annotators that
+    list the same features differently agree; None for none."""
+    if said is None or said == "":
+        return None
+    if isinstance(said, Mapping):
+        return "|".join(sorted(f"{key}={value}" for key, value in said.items())) or None
+    parts = [part for part in str(said).split("|") if part]
+    return "|".join(sorted(parts)) or None
+
+
+def _aligned(
+    first: list[tuple[Any, ...]], second: list[tuple[Any, ...]]
+) -> list[tuple[tuple[Any, ...], tuple[Any, ...]]]:
+    """Pairs of tokens from one segment, aligned by their forms in order (difflib's
+    longest matching runs): a token is paired only with one of the same form."""
+    from difflib import SequenceMatcher
+
+    matcher = SequenceMatcher(
+        None, [row[0] for row in first], [row[0] for row in second], autojunk=False
+    )
+    out = []
+    for block in matcher.get_matching_blocks():
+        for k in range(block.size):
+            out.append((first[block.a + k], second[block.b + k]))
+    return out
 
 
 class Ledger:
@@ -393,15 +428,18 @@ class Ledger:
         targum-internal#162): what renaming the annotator is for, asked as one query.
 
         Each annotator's current pass over the text is read (an older pass of the same
-        name is history, not a second opinion). Tokens are paired by segment and place,
-        and a pair counts only where both read the same form there: two tokenizers that
-        split a segment differently disagree about where the words are, not what they
-        mean, and those places are counted apart (`unpaired`). None where either
-        annotator has no current pass over the text."""
+        name is history, not a second opinion). Within each segment the tokens are
+        paired by aligning their forms in order (`_aligned`), so two tokenizers that
+        split one word differently disagree about that word's place and nothing after
+        it; what cannot be paired is counted apart (`unpaired`). None where either
+        annotator has no current pass over the text. One annotator against itself is
+        refused: there is nothing to compare."""
+        if first == second:
+            raise ValueError("compare two different annotators")
         if stage not in ("tokens",) or not self.file.is_file():
             return None
         with closing(self._connect()) as db:
-            passes = {}
+            runs: dict[str, dict[str, list[tuple[Any, ...]]]] = {}
             for tool in (first, second):
                 row = db.execute(
                     "SELECT id FROM annotations WHERE stage = ? AND document_hash = ?"
@@ -410,37 +448,52 @@ class Ledger:
                 ).fetchone()
                 if row is None:
                     return None
-                passes[tool] = int(row[0])
-            pairs = db.execute(
-                "SELECT a.segment_id, a.ord, a.form, a.lemma, b.lemma, a.pos, b.pos,"
-                " a.features, b.features"
-                " FROM tokens a JOIN tokens b"
-                "  ON b.annotation_id = ? AND b.segment_id = a.segment_id AND b.ord = a.ord"
-                "  AND b.form = a.form"
-                " WHERE a.annotation_id = ? ORDER BY a.segment_ord, a.ord",
-                (passes[second], passes[first]),
-            ).fetchall()
-            sizes = [
-                int(
-                    db.execute(
-                        "SELECT COUNT(*) FROM tokens WHERE annotation_id = ?", (passes[tool],)
-                    ).fetchone()[0]
-                )
-                for tool in (first, second)
-            ]
-        differ = [
-            Disagreement(str(seg), int(place), str(form), a_lemma, b_lemma, a_pos, b_pos)
-            for seg, place, form, a_lemma, b_lemma, a_pos, b_pos, a_feats, b_feats in pairs
-            if (a_lemma, a_pos, a_feats) != (b_lemma, b_pos, b_feats)
-        ]
+                segments: dict[str, list[tuple[Any, ...]]] = {}
+                for token in db.execute(
+                    "SELECT segment_id, ord, form, lemma, pos, features FROM tokens"
+                    " WHERE annotation_id = ? ORDER BY segment_ord, ord",
+                    (int(row[0]),),
+                ):
+                    segments.setdefault(str(token[0]), []).append(
+                        # An empty lemma or tag is none: "" against "" is not agreement.
+                        (
+                            token[2],
+                            int(token[1]),
+                            token[3] or None,
+                            token[4] or None,
+                            _features(token[5]),
+                        )
+                    )
+                runs[tool] = segments
+        pairs: list[tuple[str, tuple[Any, ...], tuple[Any, ...]]] = []
+        sizes = [sum(len(one) for one in runs[tool].values()) for tool in (first, second)]
+        for segment, mine in runs[first].items():
+            theirs = runs[second].get(segment, [])
+            pairs.extend((segment, a, b) for a, b in _aligned(mine, theirs))
+        agree = {"lemma": 0, "pos": 0, "features": 0}
+        compared = {"lemma": 0, "pos": 0, "features": 0}
+        differ = []
+        for segment, a, b in pairs:
+            wrong = False
+            for field, at in (("lemma", 2), ("pos", 3), ("features", 4)):
+                if a[at] is None and b[at] is None:
+                    continue
+                compared[field] += 1
+                if a[at] == b[at]:
+                    agree[field] += 1
+                else:
+                    wrong = True
+            if wrong:
+                differ.append(Disagreement(segment, a[1], str(a[0]), a[2], b[2], a[3], b[3]))
         return Agreement(
             document_hash=document_hash,
             first=first,
             second=second,
             paired=len(pairs),
-            lemma=sum(1 for row in pairs if row[3] == row[4]),
-            pos=sum(1 for row in pairs if row[5] == row[6]),
-            features=sum(1 for row in pairs if row[7] == row[8]),
+            lemma=agree["lemma"],
+            pos=agree["pos"],
+            features=agree["features"],
+            compared=compared,
             unpaired=(sizes[0] - len(pairs), sizes[1] - len(pairs)),
             disagreements=differ,
         )

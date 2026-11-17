@@ -4970,6 +4970,8 @@ def corpus_agree(
                 "Set TARGUM_LEDGER to the ledger file, then run this again.",
             )
         )
+    if first == second:
+        fail(TargumError("That is one annotator twice.", "Name two different annotators."))
     said = ledger_module.Ledger(file).agreement(document_hash, first, second)
     if said is None:
         fail(
@@ -4978,9 +4980,12 @@ def corpus_agree(
                 f"The ledger holds no current pass of both {first} and {second} over that text.",
             )
         )
+    shares = ", ".join(
+        f"{name} {said.share(field):.1%} of {said.compared[field]}"
+        for field, name in (("lemma", "lemma"), ("pos", "part of speech"), ("features", "features"))
+    )
     console.print(
-        f"{said.paired} tokens paired; lemma {said.share('lemma'):.1%}, "
-        f"part of speech {said.share('pos'):.1%}, features {said.share('features'):.1%}; "
+        f"{said.paired} tokens paired; {shares}; "
         f"unpaired {said.unpaired[0]} ({first}) and {said.unpaired[1]} ({second})"
     )
     for one in said.disagreements[: max(0, show)]:
