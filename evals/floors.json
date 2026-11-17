@@ -1022,5 +1022,61 @@
     "system": "cheap-scorer/1+pymorphy3",
     "at_least": 0.9,
     "why": "0.9316 on 2026-11-05, against ru-local's own lemma"
+  },
+  {
+    "stage": "chat",
+    "corpus": "fr-cases",
+    "metric": "why_shown_on_correct_lines",
+    "system": "chat-contract",
+    "at_most": 0,
+    "why": "the French contract: '~ ' is 'never on a line that was right', and a reader shown a correction they did not earn cannot tell it is wrong. A ceiling of nought, as Hebrew's on tatoeba-correct, set from the contract before the first run"
+  },
+  {
+    "stage": "chat",
+    "corpus": "fr-cases",
+    "metric": "why_shown_on_register_lines",
+    "system": "chat-contract",
+    "at_most": 0,
+    "why": "design.md §12, D5 (2026-11-05): spoken French is register, not error, so je sais pas earns no '~ '. A ceiling of nought, set from the decision before the first run"
+  },
+  {
+    "stage": "chat",
+    "corpus": "fr-cases",
+    "metric": "register_lines_changed",
+    "system": "chat-contract",
+    "at_most": 0,
+    "why": "design.md §12, D5 (2026-11-05): a spoken line is right in its register, so a recast that puts the ne back (je ne sais pas for je sais pas) corrects it silently. A ceiling of nought, set from the decision before the first run (qa on #1287)"
+  },
+  {
+    "stage": "chat",
+    "corpus": "fr-cases",
+    "metric": "reader_gender_changed",
+    "system": "chat-contract",
+    "at_most": 0,
+    "why": "the French contract: 'never change the gender of the reader's own words'; a woman's line 'corrected' into the masculine is a false correction. A ceiling of nought, set before the first run"
+  },
+  {
+    "stage": "chat",
+    "corpus": "fr-cases",
+    "metric": "fixed_share",
+    "system": "chat-contract",
+    "at_least": 0.85,
+    "why": "17 of the 20 learner errors fixed in the recast; proposed by ling-fr on 2026-11-17 before the first run, for David to confirm or move with it"
+  },
+  {
+    "stage": "chat",
+    "corpus": "fr-cases",
+    "metric": "why_shown_on_errors_share",
+    "system": "chat-contract",
+    "at_least": 0.8,
+    "why": "16 of the 20 errors with a '~ ' line the reader is shown; proposed by ling-fr on 2026-11-17 before the first run, for David to confirm or move with it"
+  },
+  {
+    "stage": "chat",
+    "corpus": "fr-cases",
+    "metric": "recast_kept_share",
+    "system": "chat-contract",
+    "at_least": 0.8,
+    "why": "12 of the 15 correct lines said back as written, punctuation and case aside; proposed by ling-fr on 2026-11-17 before the first run, for David to confirm or move with it"
   }
 ]

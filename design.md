@@ -524,6 +524,39 @@ imparfait toward Beta, under "A practice for every hard spot" (2026-10-13).
 - **Hard is a verb of being, having, knowing or wanting** (*était*, *a su*), where
   English says both pasts the same way.
 
+### French chat evals are learner lines and a rubric — 2026-11-17
+
+David, 2026-11-17 (ling-fr's draft, approved as written), French's "chat evals in the
+language with floors" toward Beta, under "A badge is a promise, checked".
+
+- **What is measured is the recast**, the line of record. Forty learner lines,
+  hand-written (`evals/chat-fr-cases.jsonl`), are sent one each as the reader's turn to
+  the French contract. Fifteen are correct, five are spoken French right in its register,
+  and twenty carry an error of a kind the contract names.
+- **No model judges.** Each reply is read by the contract's own parser and held to a
+  rubric (`chat/rubric.py`). A right line is said back with no `~ ` line, and a woman's
+  agreement is kept. A spoken line (*je sais pas*) is said back as written, with no `~ `
+  line, because register is not an error (D5): putting the *ne* back is a correction
+  made silently. A wrong line is fixed in the recast, with a `~ ` line shown under it.
+  A `~ ` under any line of a two-line recast counts as shown.
+- **The floors come before the first run.** Four are ceilings of nought, taken from the
+  contract and D5: no `~ ` on a right line, none on a register line, no register line
+  changed, no woman's line turned masculine. Three are rates that ling-fr proposes for
+  David to confirm or move with the first run: 85% of errors fixed, 80% of them with a
+  `~ ` line shown, and 80% of correct lines said back as written.
+- ***Faire sens* stays a case.** It is common in speech and the press. But the Académie
+  lists it as an anglicism, written French a learner is taught says *avoir du sens*, and
+  the French contract names it as a calque not to write. A recast is the model line, so
+  it should not carry it.
+- **The stage table reads the ledger, today's ledger only.** French counts as having
+  chat evals once every floor on `fr-cases` has a row from the contract's run, and the
+  newest of each holds (`stages.CHAT_EVAL_SETS`). A row counts only where it was scored on
+  the case file as it stands (its `gold=`) and at today's chat model, so a stale run
+  cannot keep French green. Hebrew stays named by hand.
+- **The run spends**: forty calls at the chat's model, about $1.91, at most $2.26. Run
+  bare, the runner only prices it; `--spend` is what calls the model. It is not run until
+  David approves it.
+
 ### French gender is practised as masculine or feminine — 2026-11-16
 
 David, 2026-11-16, the first of French's seven practices toward Beta under "A practice

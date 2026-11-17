@@ -104,6 +104,8 @@ SCRIPTS = {
     "grading": "eval_grading.py",
     "recast": "eval_recast.py",
     "chat": "eval_why.py",
+    # French's own set: learner lines and a rubric read off the reply (#644).
+    "chat/fr-cases": "eval_chat_fr.py",
     "ask": "eval_ask.py",
     "suggest": "eval_suggest.py",
     # The estimate of the words a reader has not marked, held out and simulated (#613).
