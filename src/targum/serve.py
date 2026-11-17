@@ -6610,6 +6610,26 @@ class Library:
             self.release(job)
         self.remember(job)
 
+    def _transcript_of(self, job: Job) -> str | None:
+        """The transcript a job names, only where the server writes one: inside the job's
+        own home (the upload door's `uploads/`, the shelf round's `.tracks/`). `/prepare`
+        already keeps `transcript` out of a request (`PREPARE_FIELDS`); this is the second
+        lock, at the one place it becomes a file read, so a door written later that
+        forgets the first cannot hand `Build` somebody else's file as a text."""
+        named = job.options.get("transcript")
+        if not named:
+            return None
+        try:
+            found = Path(str(named)).resolve()
+        except (OSError, ValueError):
+            return None
+        # The job's own home, never the whole root: every reader's home is under it.
+        root = Path(job.home if job.home is not None else self.out).resolve()
+        if root in found.parents:
+            return str(found)
+        log.warning("build %s: a transcript outside its home was not read", job.id)
+        return None
+
     def _builder(self, job: Job) -> Build:
         options = job.options
 
@@ -6671,7 +6691,7 @@ class Library:
             title=entry.title if entry else "",
             # For an imported recording: the transcript that came with it, and nothing
             # else — the transcriber is the box's own choice, never the request's.
-            transcript=str(options.get("transcript")) if options.get("transcript") else None,
+            transcript=self._transcript_of(job),
         )
         # A video file the reader downloaded after its link was refused: the link they
         # pasted first is its home, so the page still says whose film it is. Taken only
