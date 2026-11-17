@@ -6,6 +6,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Changed
+- "Tell us" is "Send feedback" to readers, «Отправить отзыв» in Russian (David,
+  2026-11-17): the account menu's row, the box's title, the reader's ⋯ row and the press
+  on every fault panel, all `fault.tell-us`. Code, routes and the back office keep
+  "Tell us"; the Privacy Notice keeps its wording until David changes it.
 - The French chat contract keeps spoken French as written (version 2,
   `hebrew.FRENCH_CONTRACT_VERSION`). The first French chat eval (2026-11-17, $1.78, David's
   go) "corrected" two spoken lines in the recast, *je sais pas* and *j'ai jamais vu ça*,

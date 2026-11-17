@@ -197,7 +197,7 @@ def test_an_address_with_nothing_at_it_is_a_whole_page(browser, width: int) -> N
         "said": "There's nothing at this address.",
         "go": ["Go to the library", "/library"],
         # And Tell us, quiet, for anybody signed in (design.md §12, 2026-10-18).
-        "presses": ["Go to the library", "Tell us"],
+        "presses": ["Go to the library", "Send feedback"],
         "sideways": False,
     }
 
@@ -434,7 +434,7 @@ def test_a_page_that_could_not_load_is_the_one_panel(browser, width: int) -> Non
     assert drawn == {
         "panel": True,
         "said": "We couldn't load your progress.",
-        "presses": [["fault-go", "Try again"], ["fault-act", "Tell us"]],
+        "presses": [["fault-go", "Try again"], ["fault-act", "Send feedback"]],
         "fact": "Everything you've marked is still here.",
         "empty": False,
     }

@@ -212,7 +212,7 @@
     button.type = "button";
     button.className = "fault-act";
     button.setAttribute("data-tell-us", "");
-    button.textContent = t("fault.tell-us", "Tell us");
+    button.textContent = t("fault.tell-us", "Send feedback");
     return button;
   }
 
@@ -225,7 +225,7 @@
     var title = document.createElement("h2");
     title.id = "tell-us-title";
     title.className = "tell-us-title";
-    title.textContent = t("fault.tell-us", "Tell us");
+    title.textContent = t("fault.tell-us", "Send feedback");
     form.appendChild(title);
     var label = document.createElement("label");
     label.className = "tell-us-label";

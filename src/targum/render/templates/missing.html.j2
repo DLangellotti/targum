@@ -28,7 +28,7 @@
   <a class="fault-go" href="/library">{{ t("holding.page.go-to-the-library", "Go to the library") }}</a>
   {#- An address we sent somebody to and broke is ours to hear about (targum-internal#456).
       Signed in only: a stranger has nobody to send it as. -#}
-  {% if not stranger %}<button type="button" class="fault-act" data-tell-us>{{ t("fault.tell-us", "Tell us") }}</button>{% endif %}
+  {% if not stranger %}<button type="button" class="fault-act" data-tell-us>{{ t("fault.tell-us", "Send feedback") }}</button>{% endif %}
 </main>
 {% include '_foot.html.j2' %}
 

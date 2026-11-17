@@ -4702,6 +4702,12 @@ This departs from "Russian has a switch in the bar" (2026-10-12) on a phone only
 
 ### Tell us is a row in the menu and a press on every fault — 2026-10-18
 
+*(2026-11-17, David: the reader-facing name is now "Send feedback", «Отправить отзыв» in
+Russian, on the account menu's row, the box's title, the reader's ⋯ row and every fault
+panel's press: one key, `fault.tell-us`. "Tell us" stays the surface's name in code,
+routes, the back office and this entry. The Privacy Notice still says "Tell us"; its
+wording is David's to change.)*
+
 Batch one is in, and what they find is the backlog (David, 2026-10-14); until this the
 only way to say something went wrong was an email nobody would write. targum-internal#456
 and #457, built together because they answer one question from two sides: what a reader

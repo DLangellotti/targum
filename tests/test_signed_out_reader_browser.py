@@ -214,5 +214,5 @@ def test_tell_us_is_the_last_row_of_the_more_menu_for_a_reader_with_an_account(
     finally:
         context.close()
     assert not thrown, thrown
-    assert last == "more-tell-us" and title == "Tell us"
+    assert last == "more-tell-us" and title == "Send feedback"
     assert not signed_out_shown

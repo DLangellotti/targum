@@ -81,7 +81,7 @@ def test_tell_us_is_one_box_send_and_a_line_of_thanks(browser, width: int) -> No
         }"""
     )
     assert drawn == {
-        "title": "Tell us",
+        "title": "Send feedback",
         "label": "What happened, or what would help?",
         "focused": True,
         "dir": "auto",
