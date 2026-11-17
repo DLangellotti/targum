@@ -3336,6 +3336,7 @@ def back_office_page(
     finds: object | None = None,
     fit: list[Any] | None = None,
     withheld: Mapping[str, int] | None = None,
+    listed: object | None = None,
     section: str = "overview",
 ) -> str:
     """One of the operator's own pages, at `bo.<domain>`: `section` is which of
@@ -3351,6 +3352,9 @@ def back_office_page(
         ACCOUNT_SEARCH,
         ACCOUNT_SORTS,
         PAGES,
+        READER_ACTIVITY,
+        READER_PLANS,
+        READER_SORTS,
         WAITING_SEARCH,
         WAITING_SORTS,
         Listing,
@@ -3368,13 +3372,20 @@ def back_office_page(
     still = getattr(found, "waiting_listing", None) or Listing(sort="oldest")
     let_in = getattr(found, "let_in_listing", None) or Listing(sort="oldest")
     here: dict[str, object] = {}
-    if section == "readers":
+    if section == "readers" and listed is not None:
+        # The Readers table's settings (design's plan, 2026-11-17, PR 4), so its pages
+        # keep the search, the order and every filter.
+        table = getattr(listed, "listing", Listing(sort="seen"))
+        sift = getattr(listed, "filter", None)
         here = {
-            ACCOUNT_SEARCH: accounts.q,
-            "sort": "" if accounts.sort == next(iter(ACCOUNT_SORTS)) else accounts.sort,
-            # "Possibly fake (2+)", on either list (targum-internal#544).
-            "fake": "1" if accounts.fake else "",
-            "page": accounts.page,
+            ACCOUNT_SEARCH: table.q,
+            "sort": "" if table.sort == next(iter(READER_SORTS)) else table.sort,
+            "lang": getattr(sift, "language", ""),
+            "active": getattr(sift, "active", ""),
+            "plan": getattr(sift, "plan", ""),
+            "follow": "1" if getattr(sift, "follow", False) else "",
+            "flagged": "1" if getattr(sift, "flagged", False) else "",
+            "page": table.page,
         }
     elif section == "waitlist":
         here = {
@@ -3436,6 +3447,12 @@ def back_office_page(
             let_in_listing=let_in,
             account_sorts=ACCOUNT_SORTS,
             waiting_sorts=WAITING_SORTS,
+            # The Readers table (design's plan, 2026-11-17, PR 4): a
+            # `backoffice.ReadersPage`, typed loosely for the reason `found` is.
+            listed=listed,
+            reader_sorts=READER_SORTS,
+            reader_activity=READER_ACTIVITY,
+            reader_plans=READER_PLANS,
             bo_url=bo_url,
             # Which page this is, and the bar's (design.md §12, 2026-11-17).
             bo_page=section,

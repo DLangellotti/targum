@@ -277,7 +277,28 @@ def test_the_page_puts_the_press_beside_each_person(db: sqlite3.Connection) -> N
     assert "1 of 4" in page
     assert "%" not in page[page.index("How far readers get") : page.index("</section>")]
     assert "erator" not in page
-    assert "erator" not in back_office_page(found(db), 30, section="readers")
+    from datetime import UTC, datetime, time
+
+    from targum.backoffice import Listing, ReaderFilter, readers
+
+    noon = datetime.combine(TODAY, time(12), UTC)
+    listed = readers(
+        db, Listing(sort="seen"), ReaderFilter(), now=noon, operators=["operator@gmail.com"]
+    )
+    assert "erator" not in back_office_page(None, 30, listed=listed, section="readers")
+    # Follow-up due narrows the table to exactly whom Follow up names (design's plan, PR 4).
+    due = readers(
+        db,
+        Listing(sort="seen"),
+        ReaderFilter(follow=True),
+        now=noon,
+        operators=["operator@gmail.com"],
+    )
+    named = found(db).follow_up_due
+    assert due.rows and {row.email.lower() for row in due.rows} <= named
+    assert {row.email.lower() for row in listed.rows} & named == {
+        row.email.lower() for row in due.rows
+    }
 
 
 def test_a_week_too_young_says_so() -> None:

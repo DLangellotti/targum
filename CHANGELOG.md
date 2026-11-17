@@ -62,6 +62,21 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ### Added
 - `scripts/voice_scenes.py` gives the director 4,096 tokens of answer: 1,024 ran out near 80
   turns, and French's A2 scenes run to 72. Only what is written is billed.
+- The back office's Readers table (design's plan, 2026-11-17, PR 4). It shows every
+  account but staff (the operators, admins and test accounts).
+  - **Columns:** address, plan (Plan, "Beta until March 4" or Free), last seen (the
+    last thing that moved or the last session), a 14-day sparkline, texts, words saved
+    and learned, credits "32 of 480", spend $, languages and flags.
+  - **Order:** last seen first, or newest, words, texts, credits, spend or flags.
+  - **Search and filters:** searched as `bq`; filtered by language, active in 7 or 30
+    days or not, follow-up due, flagged (2+) and plan.
+  - **Paging and method:** fifty a page by GET, no script.
+  - **The languages column and its filter** are drawn only once the Privacy Notice's
+    clause 3.2 says the Controller may see an account's languages
+    (`backoffice.languages_shown`, read off the Notice itself).
+  - **Speed:** at 5,000 accounts every order and filter answers in well under a second.
+    Last seen is one grouped join, not four subqueries a row.
+  - It replaces the Readers page's Accounts table and its thirty-day strip.
 - `story:<id>`, a short story targum wrote, read off a shelf of its own as paragraphs
   (`ingest/fetch/story.py`): the narrative counterpart of `dialogue:`, for French's
   generated A2 narratives (targum-internal#739). The shelf is `TARGUM_STORY_DIR`, else a
