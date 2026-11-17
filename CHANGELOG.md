@@ -215,7 +215,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     track is fetched through the proxy and nothing is transcribed.
   - Each is a job of kind `grow` through `Library.prepare`, `Library.press` and so
     `Library.claim`: targum's to pay (`gift`), held to the box's daily ceiling, and before
-    each press to the month's credits off the `grow` job rows. At most three a round.
+    each press to the month's credits off the `grow` job rows, failed builds with their
+    claim kept included. At most three presses a round, and one round at a time.
+  - The round makes a side `Library` (`Library(side=True)`, new): the same press, claim
+    and worker, and none of a server's start-up recovery (`Store.interrupt_running`) or
+    sweeps, so the live server's builds are left as they are. A round's own rows left
+    working by a dead process are failed, claim kept, by the next round.
+  - `Library._prepare_video` prices a video whose job already carries a written track
+    (`options.transcript`, set only by targum's own doors) as written: no hearing quoted.
   - Built, it is curated into the video shelf and entered in `grown.json` beside it, which
     `catalogue.everything` joins as it joins the weekly, and `catalogue.collections` adds
     to its channel's collection: on the shelf with no deploy. `targum grow drop` takes one

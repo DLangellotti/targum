@@ -2169,8 +2169,15 @@ class Library:
         address: str = "",
         chat_budget: float | None = CHAT_BUDGET,
         hosted: bool = False,
+        side: bool = False,
     ) -> None:
         self.out = out
+        #: A Library made in a process beside a running server, on the same database and
+        #: the same homes (`targum grow run`, ops 2026-11-17): it builds through the same
+        #: press, claim and worker, and does none of a server's start-up. Recovery would
+        #: fail every row the live server is building (`Store.interrupt_running`), and the
+        #: sweeps (adopt, trash, purge, tokens) are the server's own to run.
+        self.side = side
         self.chat_budget = chat_budget
         #: Whether this is a box strangers read on, rather than a machine somebody runs
         #: themselves. On a box a refusal whose detail is the machine's — a status code,
@@ -2226,14 +2233,15 @@ class Library:
         self.account_budget = account_budget
         self.upload_seconds = upload_seconds
         self.store = store
-        self.adopt()
-        self._seed_ids()
-        self.empty_trash()
-        self.purge_departed()
+        if not side:
+            self.adopt()
+            self._seed_ids()
+            self.empty_trash()
+            self.purge_departed()
         # And the connector's dead rows (#80). Here for the reason `purge_departed` is
         # here: a sweep nothing calls is a sweep that never happens, which is exactly
         # what `Store.purge` was until somebody noticed.
-        if self.store is not None:
+        if self.store is not None and not side:
             self.store.sweep_tokens()
         self._committed = 0.0
         # Every job, with the builds indexed beside them; see `Jobs`. Assigned through
@@ -2253,7 +2261,7 @@ class Library:
         self._pressing = threading.Lock()
         self.queue: queue.Queue[str] = queue.Queue()
         self._workers: list[threading.Thread] = []
-        if store is not None:
+        if store is not None and not side:
             self._recover(store)
 
     # -- durability -------------------------------------------------------------
@@ -5211,6 +5219,11 @@ class Library:
             if subtitled
             else []
         )
+        # A track somebody wrote already in hand, which the build reads instead of
+        # hearing anything (`Build.transcript`): set only by targum's own doors — the
+        # shelf's round fetches the French track first (`grow`) — never by a request.
+        if job.options.get("transcript"):
+            written = ["transcript"]
         job.options["subtitles"] = bool(written)
         self._price_recording(job, transcribed=not written)
 

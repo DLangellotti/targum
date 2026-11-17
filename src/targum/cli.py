@@ -6067,7 +6067,6 @@ def grow_run(
     the shelf. Does nothing unless both are set: the box's timer runs it once a day."""
     from . import grow
     from .accounts import Store
-    from .mail import from_environment
     from .serve import Library, default_store
 
     if not grow.languages() or grow.cap() <= 0:
@@ -6077,17 +6076,10 @@ def grow_run(
         )
         return
     keeping = Store(store or default_store())
-    address = os.environ.get("TARGUM_PUBLIC_ADDRESS", "").strip().rstrip("/")
-    # The Library the server makes, with the same mail and address: making one runs the
-    # same start-up sweeps the server's does, and a departed reader is told either way.
-    library = Library(
-        out,
-        budget=budget,
-        store=keeping,
-        mailer=from_environment() if address else None,
-        address=f"{address}/" if address else "",
-        hosted=True,
-    )
+    # Beside the running server, on its database: a side Library builds through the same
+    # press, claim and worker and runs none of the server's start-up — recovery would
+    # fail every build the server has in hand, and the sweeps are the server's.
+    library = Library(out, budget=budget, store=keeping, hosted=True, side=True)
     try:
         grown = grow.grow(library, keeping)
     except TargumError as error:

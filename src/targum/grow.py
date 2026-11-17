@@ -34,6 +34,21 @@ channels lives in this repository, for the reason the catalogue does not.
    weekly's issues are: a new row appears without a deploy. The build folder is then
    deleted; the curated copy is the one the shelf reads.
 
+**Beside the server, never in its place** (qa on #1288). The round is its own process
+on the server's database, so its Library is a side one (`Library(side=True)`): the same
+press, claim and worker, and none of a server's start-up. A server's recovery fails every
+working or queued row (`Store.interrupt_running`), which run from here would fail the
+readers' builds the live server has in hand; the sweeps are the server's to run. A
+server restarted mid-round fails the round's row the same way, with its claim kept; the
+round's own worker goes on and writes it done, settled to what it spent. A round whose
+process died leaves its row working, and the next round, under the round's lock so that
+no live round's rows are among them, fails it with the claim kept (`_settle_stale`).
+
+**Held to the cap however a build ends.** The month counts every `grow` row that is
+building, built, or failed with its claim kept; a round counts presses, not videos that
+came through. One round at a time (`ROUND_LOCK`), and the index is re-read and changed
+under its own lock at every write, so a `drop` made during a round stays made.
+
 **Off until the box says so.** `TARGUM_GROW` names the languages a round runs for and
 `TARGUM_GROW_CREDITS` the month's cap; with either unset the round says what is off and
 spends nothing. A video passed over is written down with why, and never asked about again.
@@ -45,12 +60,14 @@ and filed in the catalogue. `targum grow drop <id>` takes one down.
 
 from __future__ import annotations
 
+import fcntl
 import json
 import logging
 import os
 import secrets
 import shutil
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
@@ -84,6 +101,10 @@ MAX_SECONDS = 10 * 60
 
 #: Beside the videos, in the store the shelf reads them from.
 INDEX = "grown.json"
+#: Held while the index is changed, by a round or a `drop`.
+INDEX_LOCK = ".grown.lock"
+#: Held for a whole round: two rounds at once would both pass the month's cap.
+ROUND_LOCK = ".grow-round.lock"
 
 #: Where the round's builds are made, under the Library's own root: a home nobody owns,
 #: as `shared` and `weekly` are.
@@ -148,6 +169,40 @@ def _read(path: Path) -> dict[str, Any]:
 def _write(path: Path, held: Mapping[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     write_atomic(path, json.dumps(held, ensure_ascii=False, indent=1) + "\n")
+
+
+@contextmanager
+def _locked(path: Path, *, wait: bool = True) -> Iterator[bool]:
+    """An exclusive lock on `path`, across processes: True where it was taken. With
+    `wait=False`, False at once where somebody else holds it."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a") as handle:
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | (0 if wait else fcntl.LOCK_NB))
+        except BlockingIOError:
+            yield False
+            return
+        try:
+            yield True
+        finally:
+            fcntl.flock(handle, fcntl.LOCK_UN)
+
+
+def _update(change: Callable[[dict[str, Any]], None]) -> None:
+    """Read the index afresh, change it and write it, under its lock: a `drop` made while
+    a round runs is never written over by the round's older copy."""
+    path = index_path()
+    with _locked(path.with_name(INDEX_LOCK)):
+        held = _read(path)
+        change(held)
+        _write(path, held)
+
+
+def _pass_over(identifier: str, why: str) -> None:
+    def change(held: dict[str, Any]) -> None:
+        held["passed"][identifier] = why[:200]
+
+    _update(change)
 
 
 _held: dict[Path, tuple[tuple[int, int], list[Entry], dict[str, list[str]]]] = {}
@@ -217,15 +272,31 @@ def sources(collections: list[Collection] | None = None) -> list[Source]:
 
 def credits_this_month(store: Store, month_from: int) -> int:
     """What the round has pressed this month, in credits, off its own job rows: what is
-    building and what was built. A build that failed handed its claim back."""
+    building, what was built, and what failed with its claim kept — a build that died
+    part way had very likely spent (`Store.interrupt_running`), so it counts. Only a
+    claim handed back whole (`unclaim`, to 0) does not."""
     from .accounts import SECONDS_A_CREDIT
 
     row = store.db.execute(
-        "SELECT COALESCE(SUM(seconds), 0) AS used FROM job"
-        " WHERE kind = ? AND made >= ? AND stage IN ('queued', 'working', 'done')",
+        "SELECT COALESCE(SUM(seconds), 0) AS used FROM job WHERE kind = ? AND made >= ?"
+        " AND (claimed > 0 OR stage IN ('queued', 'working', 'done'))",
         (KIND, month_from),
     ).fetchone()
     return round(float(row["used"]) / SECONDS_A_CREDIT)
+
+
+def _settle_stale(store: Store) -> int:
+    """A round's own builds an earlier round left at working or queued, because its
+    process died: failed, with their claim kept so they still count. Only ever under the
+    round's lock, so no live round's builds are among them, and only rows of kind `grow`:
+    the server's are its own (`Store.interrupt_running`, at its start)."""
+    with store.write() as db:
+        cursor = db.execute(
+            "UPDATE job SET stage = 'failed', error = 'interrupted'"
+            " WHERE kind = ? AND stage IN ('working', 'queued')",
+            (KIND,),
+        )
+        return int(cursor.rowcount or 0)
 
 
 def _credits(seconds: float) -> int:
@@ -284,11 +355,11 @@ def _uploads(source: Source, get: Fetch, api_key: str) -> list[dict[str, Any]]:
     return [found[one] for one in ids if one in found]
 
 
-def _known(identifier: str, held: Mapping[str, Any]) -> bool:
+def _known(identifier: str) -> bool:
     from . import catalogue
     from .video import store
 
-    if identifier in held["passed"] or store.folder(identifier).exists():
+    if identifier in _read(index_path())["passed"] or store.folder(identifier).exists():
         return True
     return catalogue.matching(f"video:{identifier}") is not None
 
@@ -340,31 +411,53 @@ def grow(
     most: int = ROUND,
     today: date | None = None,
 ) -> Grown:
-    """One round: for each source in a language switched on, build what is new and
-    passes, inside the month's credits, through `Library.press`. Never raises for one
-    video: it is written down and the round goes on."""
+    """One round, under the round's lock: for each source in a language switched on,
+    build what is new and passes, inside the month's credits, through `Library.press`.
+    At most `most` presses, built or not. Never raises for one video: it is written down
+    and the round goes on."""
+    report = Grown()
+    if not languages():
+        report.stopped = f"off ({FLAG} names no language)"
+        return report
+    if cap() <= 0:
+        report.stopped = f"off ({CREDITS_ENV} sets no cap)"
+        return report
+    with _locked(index_path().with_name(ROUND_LOCK), wait=False) as taken:
+        if not taken:
+            report.stopped = "another round is running"
+            return report
+        _settle_stale(store)
+        _round(
+            library, store, report, get=get, track=track, api_key=api_key, most=most, today=today
+        )
+    return report
+
+
+def _round(
+    library: Library,
+    store: Store,
+    report: Grown,
+    *,
+    get: Fetch | None,
+    track: Track | None,
+    api_key: str,
+    most: int,
+    today: date | None,
+) -> None:
     from .serve import Job
     from .video import curate, discover, youtube
 
-    report = Grown()
     on = languages()
-    if not on:
-        report.stopped = f"off ({FLAG} names no language)"
-        return report
     limit = cap()
-    if limit <= 0:
-        report.stopped = f"off ({CREDITS_ENV} sets no cap)"
-        return report
     ask = get or discover.fetch
     fetch_track = track or youtube.fetch_subtitles
     held_key = api_key or discover.key()
-    path = index_path()
-    held = _read(path)
     work = library.out / WORKSPACE
     month_from = int(library._month_from())
     started = False
+    pressed = 0
     for source in sources():
-        if source.language not in on or len(report.built) >= most:
+        if source.language not in on or pressed >= most or report.stopped:
             continue
         try:
             uploads = _uploads(source, ask, held_key)
@@ -372,16 +465,15 @@ def grow(
             report.failed.append((source.collection, str(error)))
             continue
         for item in uploads:
-            if len(report.built) >= most or report.stopped:
+            if pressed >= most or report.stopped:
                 break
             identifier = str(item.get("id") or "")
-            if not identifier or _known(identifier, held):
+            if not identifier or _known(identifier):
                 continue
             why = _gate(item, source.language)
             if why:
-                held["passed"][identifier] = why
+                _pass_over(identifier, why)
                 report.passed.append((identifier, why))
-                _write(path, held)
                 continue
             seconds = discover.seconds(str((item.get("contentDetails") or {}).get("duration")))
             used = credits_this_month(store, month_from)
@@ -395,9 +487,8 @@ def grow(
             except Exception as error:  # noqa: BLE001 - no track is the ordinary case
                 shutil.rmtree(tracks, ignore_errors=True)
                 if _no_track(error):
-                    held["passed"][identifier] = "no track anybody wrote"
+                    _pass_over(identifier, "no track anybody wrote")
                     report.passed.append((identifier, "no track anybody wrote"))
-                    _write(path, held)
                 else:
                     # The proxy or YouTube, not the video: asked again tomorrow.
                     report.failed.append((identifier, str(error)[:200]))
@@ -431,12 +522,19 @@ def grow(
                 report.failed.append((identifier, job.error or job.blocked or "not ready"))
                 shutil.rmtree(tracks, ignore_errors=True)
                 continue
+            # Held to the cap at the quote's own length as well as the feed's.
+            if used + _credits(job.seconds) > limit:
+                report.stopped = f"the month's {limit} credits ({used} used)"
+                shutil.rmtree(tracks, ignore_errors=True)
+                break
             refused = library.press(job)
             if refused:
                 # The box's day is full: tried again tomorrow, as a subscription waits.
                 report.stopped = refused
                 shutil.rmtree(tracks, ignore_errors=True)
                 break
+            # A press counts toward the round whether or not its build comes through.
+            pressed += 1
             if not started:
                 library.start_workers(1)
                 started = True
@@ -444,9 +542,8 @@ def grow(
             shutil.rmtree(tracks, ignore_errors=True)
             if job.stage != "done" or not job.reader:
                 why = job.error or job.message or job.stage
-                held["passed"][identifier] = f"build {why}"[:200]
+                _pass_over(identifier, f"build {why}")
                 report.failed.append((identifier, why))
-                _write(path, held)
                 continue
             folder = work / job.reader.split("/")[0]
             try:
@@ -459,16 +556,16 @@ def grow(
                 )
                 entry = _entry_for(folder, curated, source, item, today or date.today())
             except Exception as error:  # noqa: BLE001 - written down, the round goes on
-                held["passed"][identifier] = f"curate {error}"[:200]
+                _pass_over(identifier, f"curate {error}")
                 report.failed.append((identifier, str(error)))
-                _write(path, held)
                 continue
-            held = _read(path) | {"passed": held["passed"]}
-            held["entries"].append(entry)
-            _write(path, held)
+
+            def add(held: dict[str, Any], entry: dict[str, Any] = entry) -> None:
+                held["entries"].append(entry)
+
+            _update(add)
             shutil.rmtree(folder, ignore_errors=True)
             report.built.append(identifier)
-    return report
 
 
 def drop(identifier: str) -> bool:
@@ -476,22 +573,25 @@ def drop(identifier: str) -> bool:
     written down as passed over, so the round never builds it again."""
     from .video import store
 
-    path = index_path()
-    held = _read(path)
     name = identifier.removeprefix("video:")
-    kept = [
-        row
-        for row in held["entries"]
-        if str(row.get("source")) != f"video:{name}" and str(row.get("id")) != identifier
-    ]
-    if len(kept) == len(held["entries"]):
-        return False
-    gone = {str(row.get("source", "")).removeprefix("video:") for row in held["entries"]} - {
-        str(row.get("source", "")).removeprefix("video:") for row in kept
-    }
-    held["entries"] = kept
+    gone: set[str] = set()
+
+    def change(held: dict[str, Any]) -> None:
+        kept = [
+            row
+            for row in held["entries"]
+            if str(row.get("source")) != f"video:{name}" and str(row.get("id")) != identifier
+        ]
+        gone.update(
+            str(row.get("source", "")).removeprefix("video:")
+            for row in held["entries"]
+            if row not in kept
+        )
+        held["entries"] = kept
+        for one in gone:
+            held["passed"][one] = "taken down"
+
+    _update(change)
     for one in gone:
-        held["passed"][one] = "taken down"
         shutil.rmtree(store.folder(one), ignore_errors=True)
-    _write(path, held)
-    return True
+    return bool(gone)

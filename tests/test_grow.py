@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import re
 import shutil
+import time
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -306,3 +307,136 @@ def test_deploy_does_not_arm_it() -> None:
     """Armed by hand, once (deploy/README.md): it spends targum's money unattended."""
     script = (ROOT / "deploy" / "deploy.sh").read_text(encoding="utf-8")
     assert "targum-grow" not in script
+
+
+def test_a_round_leaves_another_process_running_rows_untouched(world: Any, tmp_path: Path) -> None:
+    """A round runs beside a live server on its database. Its Library is a side one: no
+    start-up recovery, so the server's builds in hand stay as they are."""
+    library, store, built = world
+    for stage in ("working", "queued"):
+        store.save_job(
+            {
+                "id": f"server-{stage}",
+                "owner": None,
+                "home": str(tmp_path),
+                "source": "x",
+                "options": "{}",
+                "stage": stage,
+                "kind": "build",
+                "made": int(time.time() * 1000),
+            }
+        )
+    side = Library(tmp_path / "out", store=store, budget=50.0, side=True)
+    assert side.side
+    grow.grow(side, store, get=api([]), track=track, api_key="k")
+    stages_now = {
+        row["id"]: row["stage"]
+        for row in store.db.execute("SELECT id, stage FROM job WHERE id LIKE 'server-%'")
+    }
+    assert stages_now == {"server-working": "working", "server-queued": "queued"}
+
+
+def test_a_failed_build_counts_toward_the_month_and_the_round(world: Any, monkeypatch: Any) -> None:
+    """A build that failed kept its claim: it spent, so it counts toward the month, and a
+    press counts toward the round's three whether or not its build came through."""
+    library, store, built = world
+
+    def fails(job: Job) -> None:
+        job.stage = "failed"
+        job.error = "boom"
+        library.remember(job)
+        built.append(job)
+
+    monkeypatch.setattr(library, "run", fails)
+    items = [upload(f"f{n}") for n in range(5)]
+    report = grow.grow(library, store, get=api(items), track=track, api_key="k")
+    assert len(built) == grow.ROUND and report.built == []
+    assert grow.credits_this_month(store, int(library._month_from())) == 12
+
+
+def test_a_round_left_working_by_a_dead_process_is_settled_and_counted(world: Any) -> None:
+    library, store, built = world
+    store.save_job(
+        {
+            "id": "dead",
+            "owner": None,
+            "home": "/x",
+            "source": "y",
+            "options": "{}",
+            "stage": "working",
+            "kind": grow.KIND,
+            "seconds": 300.0,
+            "made": int(time.time() * 1000),
+        }
+    )
+    with store.write() as db:
+        db.execute("UPDATE job SET claimed = 0.2 WHERE id = 'dead'")
+    grow.grow(library, store, get=api([]), track=track, api_key="k")
+    row = store.db.execute("SELECT stage FROM job WHERE id = 'dead'").fetchone()
+    assert row["stage"] == "failed"
+    assert grow.credits_this_month(store, int(library._month_from())) == 5
+
+
+def test_two_rounds_at_once_do_not_both_run(world: Any) -> None:
+    library, store, built = world
+    with grow._locked(grow.index_path().with_name(grow.ROUND_LOCK)):
+        report = grow.grow(library, store, get=api([upload("a")]), track=track, api_key="k")
+    assert report.stopped == "another round is running" and not built
+
+
+def test_a_drop_during_a_round_is_not_written_back(world: Any, monkeypatch: Any) -> None:
+    """The round re-reads the index before each write, so a video taken down while it ran
+    stays down."""
+    library, store, built = world
+    grow.grow(library, store, get=api([upload("vid1")]), track=track, api_key="k")
+    real = grow._gate
+
+    def gate(item: Any, language: str) -> str:
+        if item["id"] == "vid2":
+            assert grow.drop("vid1")
+        return real(item, language)
+
+    monkeypatch.setattr(grow, "_gate", gate)
+    grow.grow(library, store, get=api([upload("vid2"), upload("vid1")]), track=track, api_key="k")
+    assert catalogue.matching("video:vid1") is None
+    assert catalogue.matching("video:vid2") is not None
+
+
+def test_the_real_prepare_prices_the_written_track_and_measures_the_seconds(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """Through `Library.prepare` itself, for a YouTube video whose only track is French:
+    the round's own track in hand means the quote buys no hearing, the seconds the cap
+    reads are set, and the build reads that track rather than fetching or hearing one."""
+    from targum.video import youtube as youtube_module
+
+    monkeypatch.setattr(
+        youtube_module,
+        "describe",
+        lambda url: {
+            "webpage_url": url,
+            "title": "Une journée",
+            "duration": 250.0,
+            "formats": [{"acodec": "opus", "language": "fr"}],
+            "subtitles": {"fr": [{"ext": "vtt"}]},
+        },
+    )
+    monkeypatch.setattr(
+        youtube_module, "fetch", lambda *a, **k: pytest.fail("a price must not download")
+    )
+    monkeypatch.setattr(youtube_module, "ensure_reachable", lambda *a, **k: None)
+    monkeypatch.setattr("targum.video.ytdlp_available", lambda: (True, "yt-dlp"))
+    written = track("", tmp_path / "tracks", ("fr",))
+    library = Library(tmp_path / "out", side=True)
+    options = {"to": "en", "words": True, "from": "fr", "transcript": str(written)}
+    job = Job(id="g", source="https://www.youtube.com/watch?v=vid9", options=options)
+    library.prepare(job)
+    assert job.error == "" and job.stage in ("ready", "blocked")
+    assert job.audio and job.seconds == 250.0
+    assert job.transcription == 0.0 and job.options["subtitles"] is True
+    # Without the round's track, a French video is quoted a hearing: the track is what
+    # makes it free, not the video.
+    bare = Job(id="h", source="https://www.youtube.com/watch?v=vid9", options={"from": "fr"})
+    library.prepare(bare)
+    assert bare.transcription > 0.0
+    assert library._builder(job).transcript == written

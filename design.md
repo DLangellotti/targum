@@ -412,8 +412,13 @@ this spends targum's on David's.
   the box's daily ceiling. There is no second path to the rails.
 - **The cap is David's, in credits, a month.** `TARGUM_GROW_CREDITS` in targum.env, set by
   hand on the box, never by a model; the month's use is the `grow` job rows' own seconds,
-  so there is no second counter. At most three videos a day. A quote that does not fit
-  waits for next month.
+  so there is no second counter, and a build that failed with its claim kept counts. At
+  most three presses a day, built or not, and one round at a time. A quote that does not
+  fit waits for next month.
+- **Beside the server, never in its place.** The round is its own process on the
+  server's database, so it makes a side `Library`: the same press, claim and worker, none
+  of the server's start-up recovery or sweeps, which would fail the readers' builds the
+  server has in hand.
 - **Nobody reads a grown video before it is on the shelf**, as nobody reads the weekly
   before it goes out (2026-09-17). It is credited to its channel under the licence the
   field grants, and `targum grow drop` takes one down and keeps it down.
