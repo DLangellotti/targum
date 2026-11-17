@@ -604,6 +604,31 @@ each in place.
 What it does not overturn: B1, B2 and up and every written level stay as they were, and
 "short" still decides A2. Whether the 3-minute rule should is left for its own decision.
 
+### French false friends are practised as the card says them — 2026-11-17
+
+ling-fr, 2026-11-17, French's false friends toward Beta, under "A practice for every hard
+spot" (2026-10-13). It waits for David, and so does its Russian line.
+
+- **One question: "What does it mean here?"** It is asked of a word the card flags as a
+  false friend, in a line the reader finished. The two answers are the list's own: what
+  the word means (*currently, at present*), and the English word it looks like
+  (*actually*). The rule says both: "Actuellement looks like the English “actually”, but
+  means “currently, at present”."
+- **Never more than the card says.** A word is asked only where the card would flag it:
+  on targum's list, the list switched on, and, for an entry the list gates by part of
+  speech or by the word after it (*matériel* the noun, *assister à*), only where every
+  use of the word in the text passes. The card gathers those uses over its page; the
+  practice gathers them over the whole text, which is never less strict.
+- **Only into English.** The look-alikes are English words, and the card says them only
+  while a text is read into English. A reader reading into another language sees the spot
+  with one line saying why it is not offered, in place of how often it was met. It is
+  never asked.
+- **Every item is the hard kind**, because the wrong answer is always the one the word is
+  taken for. No line is shown where "the other answer is right": the French word never
+  means its look-alike.
+- **Russian line: awaiting David's pick.** The Russian of that line is a placeholder, the
+  first of three candidates in the PR, until David chooses one.
+
 ### Signup opens before payments, and the beta is comped to Plan — 2026-11-15
 
 David, 2026-11-15. Open signup no longer waits for payments (targum-internal#59). On the

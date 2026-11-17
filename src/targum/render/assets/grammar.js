@@ -22,6 +22,7 @@
       };
   var DIRECTION = { he: "rtl", yi: "rtl", arc: "rtl", ar: "rtl" };
   var NAMES = {
+    friends: ["practice.spot.friends", "False friends"],
     binyan: ["practice.spot.binyan", "Root and binyan"],
     homograph: ["practice.spot.homograph", "Vowels and look-alike words"],
     tense: ["practice.spot.tense", "Tense and person"],
@@ -157,7 +158,11 @@
       row.setAttribute("data-spot", spot.key);
       var text = el("div", "grammar-spot-text");
       text.appendChild(el("p", "grammar-spot-name", t(name[0], name[1])));
-      var met = spot.ready
+      // A spot this reader is not offered says why, in the server's words, in place of
+      // how often it was met (false friends, for a reader not reading into English).
+      var met = spot.note
+        ? String(spot.note)
+        : spot.ready
         ? t("practice.page.met", "Met in {n} lines across {texts} texts.", {
             n: spot.encounters,
             texts: spot.texts,
