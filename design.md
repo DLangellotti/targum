@@ -606,8 +606,8 @@ What it does not overturn: B1, B2 and up and every written level stay as they we
 
 ### French false friends are practised as the card says them — 2026-11-17
 
-ling-fr, 2026-11-17, French's false friends toward Beta, under "A practice for every hard
-spot" (2026-10-13). It waits for David, and so does its Russian line.
+David, 2026-11-17 (ling-fr's draft, approved as written), French's false friends toward
+Beta, under "A practice for every hard spot" (2026-10-13).
 
 - **One question: "What does it mean here?"** It is asked of a word the card flags as a
   false friend, in a line the reader finished. The two answers are the list's own: what
@@ -631,8 +631,9 @@ spot" (2026-10-13). It waits for David, and so does its Russian line.
 - **Every item is the hard kind**, because the wrong answer is always the one the word is
   taken for. No line is shown where "the other answer is right": the French word never
   means its look-alike.
-- **Russian line: awaiting David's pick.** The Russian of that line is a placeholder, the
-  first of three candidates in the PR, until David chooses one.
+- **The Russian line is David's pick** (2026-11-17, the second of three candidates): «Ложные
+  друзья здесь — французские слова, похожие на английские. Чтобы их тренировать, читайте с
+  переводом на английский.» It tells the reader how to be offered the practice.
 
 ### Signup opens before payments, and the beta is comped to Plan — 2026-11-15
 

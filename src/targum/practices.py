@@ -1004,8 +1004,7 @@ NOT_OFFERED: dict[str, str] = {"friends": "practice.page.friends-english"}
 def _not_offered(key: str, into: str, ui: str, met_here: int) -> str:
     """The line saying why a spot is not offered to this reader, or "" where it is: a
     reader reading into another language who has met no false friend in a text read into
-    English. The Russian of `practice.page.friends-english` is a placeholder: Russian line:
-    awaiting David's pick (three candidates in the PR)."""
+    English. Its Russian is David's choice of 2026-11-17."""
     from . import strings
 
     if key in NOT_OFFERED and into.split("-")[0] != "en" and not met_here:

@@ -277,8 +277,8 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   - `practices.NOT_OFFERED` and `_not_offered`: a reader reading into another language who
     has met none that way sees the spot with a `note` and is never asked. The Grammar tab
     shows the note in place of the count.
-  - Four new keys. **The Russian of `practice.page.friends-english` is a placeholder:
-    Russian line: awaiting David's pick.** The other Russian lines are cleared by ling-ru.
+  - Four new keys. The Russian of `practice.page.friends-english` is David's choice
+    (2026-11-17); the other Russian lines are cleared by ling-ru.
   - Tests in `tests/test_practice_friends.py`. Nothing spends.
 
 - The shelf grows by itself, on the box, for French (French Beta's two ops gaps, epic
