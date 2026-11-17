@@ -221,7 +221,8 @@ def test_the_first_run_is_history_and_holds_no_floor() -> None:
 
 
 def test_the_contract_keeps_spoken_french_and_names_the_visiting_calque() -> None:
-    contract = hebrew.french_contract()
+    # Read with its line breaks folded: the prompt wraps where the source does.
+    contract = " ".join(hebrew.french_contract().split())
     assert "Spoken French is right French" in contract
     assert "je sais pas" in contract and 'no "~ " line' in contract
     assert "In your own lines, write the full negation" in contract
