@@ -526,8 +526,8 @@ imparfait toward Beta, under "A practice for every hard spot" (2026-10-13).
 
 ### French chat evals are learner lines and a rubric — 2026-11-17
 
-ling-fr, 2026-11-17, French's "chat evals in the language with floors" toward Beta, under
-"A badge is a promise, checked". It waits for David.
+David, 2026-11-17 (ling-fr's draft, approved as written), French's "chat evals in the
+language with floors" toward Beta, under "A badge is a promise, checked".
 
 - **What is measured is the recast**, the line of record. Forty learner lines,
   hand-written (`evals/chat-fr-cases.jsonl`), are sent one each as the reader's turn to
