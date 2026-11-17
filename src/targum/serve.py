@@ -174,6 +174,11 @@ BACK_OFFICE = "bo."
 BACK_OFFICE_ROUTE = "/back-office"
 
 
+#: An email address in a sentence, cut out of what a back-office press says before it rides
+#: in an address the proxy logs (`Handler._back_office_go`).
+EMAIL_IN_TEXT = re.compile(r"[^\s<>\"'@]+@[^\s<>\"'@]+")
+
+
 def back_office_host(public_address: str) -> str:
     """`bo.<domain>`, or "" where there is no public name to put it in front of."""
     host = urlparse(public_address).hostname if public_address else ""
@@ -10293,32 +10298,29 @@ class Handler(BaseHTTPRequestHandler):
             return False
         return (self.headers.get("Host") or "").rsplit(":", 1)[0] == wanted
 
-    def _back_office(self) -> None:
-        """Who has an account and what they did, for whoever runs the box.
+    def _back_office(self, route: str) -> None:
+        """Who has an account and what they did, for whoever runs the box: six pages under
+        one bar, and one for each reader (design.md §12, 2026-11-17).
 
-        **An admin session is the door.** Not a password on the vhost, which is what
-        this was for a day: the session cookie is host-only — `Path=/`, no `Domain` — so
-        a session made on `targum.page` is never sent to `bo.targum.page`, and the only
-        ways to change that are to widen the cookie to `.targum.page`, which hands every
-        future subdomain every reader's session, or to serve this from the origin the
-        session already belongs to. The second is the cheap one. `bo.targum.page` stays
-        as the address a person types and redirects here.
+        **An admin session is the door, to every one of them.** Not a password on the
+        vhost, which is what this was for a day: the session cookie is host-only — `Path=/`,
+        no `Domain` — so a session made on `targum.page` is never sent to `bo.targum.page`,
+        and the only ways to change that are to widen the cookie to `.targum.page`, which
+        hands every future subdomain every reader's session, or to serve this from the
+        origin the session already belongs to. The second is the cheap one.
+        `bo.targum.page` stays as the address a person types and redirects here.
+
+        The door is checked here, once, before the address is even read: every path under
+        `/back-office` comes through this method, so a page added later cannot be added
+        without it, and an address that names no page is a 404 to an admin and the same
+        answer as any other to everybody else.
 
         A signed-in reader who is not an admin gets 404 rather than 403. 403 is an
         answer: it says there is something here. There are two accounts on this box and
         one of them is not the operator, and "you may not" is a thing to tell a stranger,
         not the person you live with.
         """
-        from . import visits
-        from .backoffice import (
-            ACCOUNT_SORTS,
-            DAYS,
-            WAITING_SORTS,
-            Listing,
-            account_id,
-            reader_store,
-            survey_store,
-        )
+        from .backoffice import PAGES, account_id, page_route
 
         person = self._person()
         if person is None:
@@ -10332,60 +10334,136 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(404, b"not found", "text/plain")
         if self.store is None:
             return self._send(503, b"no store", "text/plain")
-        # Read-only, and off the same file the service is writing to. `_send` already
-        # answers `no-store`, which is what a page listing accounts wants: not in a
-        # proxy, and not in the back button after the laptop is shut.
-        # Which page of each list, searched and ordered how (targum-internal#542): a GET
-        # form and plain links, so the page still carries no script of its own for it.
+        # `_send` answers `no-store` to every page here, which is what a page listing
+        # accounts wants: not in a proxy, and not in the back button after the laptop is
+        # shut.
         query = parse_qs(urlparse(self.path).query)
-        found = survey_store(
-            self.store.path,
-            accounts=Listing.read(query, "q", "sort", "page", ACCOUNT_SORTS, "fake"),
-            waitlist=Listing.read(query, "wq", "wsort", "wpage", WAITING_SORTS, "wfake"),
-            let_in=Listing.read(query, "wq", "wsort", "ipage", WAITING_SORTS, "wfake"),
-            # A reader's month and an admin's, which is Plan's (targum-internal#543).
-            allowance=self.library.allowance(paid_plan=False),
-            plan_allowance=self.library.allowance(paid_plan=True),
-        )
-        said = query.get("said", [""])[0][:300]
-        # One account's credits by kind, at `?who=<id>`: counts and stages, never a
-        # title or a source (clause 3.14).
-        one = None
-        asked_for = query.get("who", [""])[0]
-        if asked_for:
-            who = account_id(asked_for)
-            one = (
-                reader_store(
-                    self.store.path,
-                    who,
-                    allowance=self.library.allowance(paid_plan=False),
-                    plan_allowance=self.library.allowance(paid_plan=True),
+        rest = route[len(BACK_OFFICE_ROUTE) :].strip("/")
+        if not rest:
+            # One account's credits were `?who=<id>` on the one page there was. The
+            # address may be in a bookmark or a mail, so it goes on to the reader's page.
+            asked_for = query.get("who", [""])[0]
+            if asked_for:
+                who = account_id(asked_for)
+                return self._sent_on(
+                    f"{page_route('readers')}/{who}" if who is not None else page_route("readers")
                 )
-                if who is not None
-                else None
+            return self._back_office_page("overview", query)
+        if rest.startswith("readers/"):
+            # Digits and nothing else: `int` would also take "+5", " 5", "5_0" and "٥".
+            tail = rest.removeprefix("readers/")
+            who = account_id(tail) if tail.isascii() and tail.isdigit() else None
+            if who is None:
+                return self._send(404, b"not found", "text/plain")
+            return self._back_office_reader(who, query)
+        # The overview is the bare address and has no second one.
+        if rest == "overview" or rest not in PAGES:
+            return self._send(404, b"not found", "text/plain")
+        return self._back_office_page(rest, query)
+
+    def _back_office_page(self, section: str, query: dict[str, list[str]]) -> None:
+        """One of `backoffice.PAGES`, behind `_back_office`'s door, reading only what that
+        page shows."""
+        if not self._behind_the_door():
+            return self._send(404, b"not found", "text/plain")
+        from . import visits
+        from .backoffice import (
+            ACCOUNT_SEARCH,
+            ACCOUNT_SORTS,
+            DAYS,
+            WAITING_SEARCH,
+            WAITING_SORTS,
+            Listing,
+            survey_store,
+        )
+
+        found = None
+        if section in ("overview", "readers", "waitlist", "traffic"):
+            # Which page of each list, searched and ordered how (targum-internal#542): a
+            # GET form and plain links, so the page still carries no script of its own.
+            found = survey_store(
+                self.store.path,
+                accounts=Listing.read(query, ACCOUNT_SEARCH, "sort", "page", ACCOUNT_SORTS, "fake"),
+                waitlist=Listing.read(
+                    query, WAITING_SEARCH, "wsort", "wpage", WAITING_SORTS, "wfake"
+                ),
+                let_in=Listing.read(
+                    query, WAITING_SEARCH, "wsort", "ipage", WAITING_SORTS, "wfake"
+                ),
+                # A reader's month and an admin's, which is Plan's (targum-internal#543).
+                allowance=self.library.allowance(paid_plan=False),
+                plan_allowance=self.library.allowance(paid_plan=True),
             )
-            if one is None:
-                said = said or "There is no such account."
+        said = query.get("said", [""])[0][:300]
+        overview = section == "overview"
+        operations = section == "operations"
+        shelf = section == "shelf"
         page = back_office_page(
             found,
             DAYS,
-            proposed=self.store.proposals(),
-            joined=self.store.joined(),
-            wanted=self.store.wanted(),
+            proposed=self.store.proposals() if shelf else None,
+            joined=self.store.joined() if shelf else None,
+            wanted=self.store.wanted() if shelf else None,
             said=said,
-            incidents=incidents_module.recent(self.library.incidents),
-            balances=self.store.balances(),
+            incidents=(
+                incidents_module.recent(self.library.incidents) if overview or operations else None
+            ),
+            balances=self.store.balances() if operations else None,
             # Counted off the access log by `targum roll-visits`, beside the store.
-            visits=visits.survey(self.store.path.parent / visits.FILE, days=DAYS),
+            visits=(
+                visits.survey(self.store.path.parent / visits.FILE, days=DAYS)
+                if overview or section == "traffic"
+                else None
+            ),
             # What readers wrote to us, and what broke in their browsers (#456, #457).
-            told=self.store.told(),
-            faults=self.store.faults(),
-            reader=one,
-            finds=self._finds_survey(),
-            fit=self._fit_survey(),
-            withheld=withheld_survey(self.library.out),
+            told=self.store.told() if overview else None,
+            faults=self.store.faults() if operations else None,
+            finds=self._finds_survey() if operations else None,
+            fit=self._fit_survey() if operations else None,
+            withheld=withheld_survey(self.library.out) if operations else None,
+            section=section,
         )
         self._send(200, page.encode("utf-8"), HTML)
+
+    def _back_office_reader(self, who: int, query: dict[str, list[str]]) -> None:
+        """One account's credits by kind (targum-internal#543), behind `_back_office`'s
+        door: counts and stages, never a title or a source (clause 3.14). An id that is no
+        reader's is a 404, and so is the operator's own, which is counted nowhere."""
+        if not self._behind_the_door():
+            return self._send(404, b"not found", "text/plain")
+        from .backoffice import DAYS, reader_store
+
+        one = reader_store(
+            self.store.path,
+            who,
+            allowance=self.library.allowance(paid_plan=False),
+            plan_allowance=self.library.allowance(paid_plan=True),
+        )
+        if one is None:
+            return self._send(404, b"not found", "text/plain")
+        page = back_office_page(
+            None, DAYS, said=query.get("said", [""])[0][:300], reader=one, section="reader"
+        )
+        self._send(200, page.encode("utf-8"), HTML)
+
+    def _behind_the_door(self) -> bool:
+        """The door again, asked by each page itself as well as by `_back_office`, so a
+        page reached some other way later still opens for an admin session only."""
+        person = self._person()
+        return person is not None and person.admin and self.store is not None
+
+    def _back_office_go(self, section: str, said: str = "", anchor: str = "") -> None:
+        """Back to the page a back-office form was pressed on, with what the press said.
+
+        `said` rides in the address, and the proxy writes addresses into its log, so an
+        email address in it is cut out first: a press on a reader's row says what happened
+        without saying to whom, which the row it was pressed on already said
+        (design.md §12, 2026-11-17). `deploy/Caddyfile` deletes `said` from the log too."""
+        from .backoffice import page_route
+
+        said = EMAIL_IN_TEXT.sub("the address", said)[:300]
+        where = page_route(section) + (f"?said={quote(said)}" if said else "") + anchor
+        self._go(where)
 
     def _finds_survey(self) -> object:
         """The pool of web finds counted for the back office, read-only (#619)."""
@@ -10439,7 +10517,7 @@ class Handler(BaseHTTPRequestHandler):
                 then=self.library.build_saved_link_later,
             )
         except ValueError as error:
-            return self._go(f"{BACK_OFFICE_ROUTE}?said={quote(str(error))}#people")
+            return self._back_office_go("waitlist", str(error))
         let_in = sum(1 for row in rows if row.ok)
         failed = len(rows) - let_in
         if not rows:
@@ -10448,7 +10526,7 @@ class Handler(BaseHTTPRequestHandler):
             said = f"Let {let_in} in. {failed} could not be written to."
         else:
             said = f"Let {let_in} in."
-        self._go(f"{BACK_OFFICE_ROUTE}?said={quote(said)}#people")
+        self._back_office_go("waitlist", said)
 
     def _let_in(self, form: dict[str, str]) -> None:
         """Let one person in, pressed on their own row (David, 2026-09-28).
@@ -10472,14 +10550,15 @@ class Handler(BaseHTTPRequestHandler):
                 then=self.library.build_saved_link_later,
             )
         except ValueError as error:
-            return self._go(f"{BACK_OFFICE_ROUTE}?said={quote(str(error))}#people")
+            return self._back_office_go("waitlist", str(error))
+        # Said without the address: it rides in the address bar, which the proxy logs.
         if row is None:
-            said = f"{email} is not waiting to be let in."
+            said = "That address is not waiting to be let in."
         elif row.failed:
-            said = f"Could not write to {email}: {row.failed}"
+            said = f"Could not write to them: {row.failed}"
         else:
-            said = f"Let {email} in, and wrote to them."
-        self._go(f"{BACK_OFFICE_ROUTE}?said={quote(said[:300])}#people")
+            said = "Let them in, and wrote to them."
+        self._back_office_go("waitlist", said)
 
     def _turn_off(self, form: dict[str, str], undo: bool = False) -> None:
         """Turn a flagged address on the waitlist off, or put it back, from its row in
@@ -10493,15 +10572,15 @@ class Handler(BaseHTTPRequestHandler):
         email = (form.get("email") or "").strip()
         if undo:
             done = self.store.undo_turn_off(email)
-            said = f"Put {email} back." if done else f"{email} was not turned off here."
+            said = "Put it back." if done else "That address was not turned off here."
         else:
             done = self.store.turn_off_waiting(email)
             said = (
-                f"Turned {email} off. Undo is on its row."
+                "Turned it off. Undo is on its row."
                 if done
-                else f"{email} is not on the list, already off, or let in."
+                else "That address is not on the list, already off, or let in."
             )
-        self._go(f"{BACK_OFFICE_ROUTE}?said={quote(said[:300])}#people")
+        self._back_office_go("waitlist", said)
 
     def _resend(self, form: dict[str, str]) -> None:
         """Send the invitation again to somebody let in who never signed in, from their
@@ -10516,14 +10595,14 @@ class Handler(BaseHTTPRequestHandler):
         try:
             row = resend(self.store, self.mailer, self.address, email)
         except ValueError as error:
-            return self._go(f"{BACK_OFFICE_ROUTE}?said={quote(str(error))}#people")
+            return self._back_office_go("overview", str(error))
         if row is None:
-            said = f"{email} was not let in, or has signed in already."
+            said = "That address was not let in, or has signed in already."
         elif row.failed:
-            said = f"Could not write to {email}: {row.failed}"
+            said = f"Could not write to them: {row.failed}"
         else:
-            said = f"Sent {email} the invitation again."
-        self._go(f"{BACK_OFFICE_ROUTE}?said={quote(said[:300])}#people")
+            said = "Sent them the invitation again."
+        self._back_office_go("overview", said)
 
     def _balance(self, form: dict[str, str]) -> None:
         """Record what a service's console said was left, from the back office's form.
@@ -10542,7 +10621,7 @@ class Handler(BaseHTTPRequestHandler):
         if service not in BY_ID or not said:
             return self._send(400, b"bad request", "text/plain")
         self.store.balance_read(service, said)
-        self._go(f"{BACK_OFFICE_ROUTE}#operations")
+        self._back_office_go("operations", anchor="#services")
 
     def _promote(self, form: dict[str, str]) -> None:
         """Accept or decline a proposal, from the back office's own form.
@@ -10573,8 +10652,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(400, b"bad request", "text/plain")
         except TargumError as error:
             said = f"{error.message} {error.hint or ''}".strip()
-            return self._go(f"{BACK_OFFICE_ROUTE}?said={quote(said)}#shelf")
-        self._go(f"{BACK_OFFICE_ROUTE}#shelf")
+            return self._back_office_go("shelf", said)
+        self._back_office_go("shelf")
 
     def _take_down(self, form: dict[str, str]) -> None:
         """Take down a find that joined the library (design.md §12, 2026-11-02): its
@@ -10587,9 +10666,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(404, b"not found", "text/plain")
         entry_id = form.get("id", "")
         if not promote_module.take_down(self.library, self.store, entry_id):
-            said = quote("That one is not on the shelf.")
-            return self._go(f"{BACK_OFFICE_ROUTE}?said={said}#shelf")
-        self._go(f"{BACK_OFFICE_ROUTE}#shelf")
+            return self._back_office_go("shelf", "That one is not on the shelf.")
+        self._back_office_go("shelf")
 
     def _settle_told(self, form: dict[str, str]) -> None:
         """Mark a message a reader sent open, fixed, won't or asked, from its row in the
@@ -10605,7 +10683,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(400, b"bad request", "text/plain")
         if state not in TOLD_STATES or not self.store.settle_told(told_id, state):
             return self._send(400, b"bad request", "text/plain")
-        self._go(f"{BACK_OFFICE_ROUTE}#people")
+        self._back_office_go("overview", anchor="#told")
 
     def _fix_fault(self, form: dict[str, str]) -> None:
         """Mark what broke in browsers fixed, from its row in the back office: by its
@@ -10616,7 +10694,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(404, b"not found", "text/plain")
         if not self.store.fix_fault(form.get("message", "")):
             return self._send(400, b"bad request", "text/plain")
-        self._go(f"{BACK_OFFICE_ROUTE}#operations")
+        self._back_office_go("operations", anchor="#faults")
 
     def do_GET(self) -> None:  # noqa: N802
         self._answer(self._get)
@@ -10676,8 +10754,8 @@ class Handler(BaseHTTPRequestHandler):
         # every other route, so nothing on the product is reachable through that name.
         if self._asked_for_the_back_office():
             return self._sent_on(f"{self.address}{BACK_OFFICE_ROUTE}")
-        if route == BACK_OFFICE_ROUTE:
-            return self._back_office()
+        if route == BACK_OFFICE_ROUTE or route.startswith(BACK_OFFICE_ROUTE + "/"):
+            return self._back_office(route)
         # The browser asks for this on every page load without being told to, and it
         # carries no key, so it would otherwise answer the stale-session page and put a
         # failed request in the console each time. Answered before the key check and
@@ -15028,7 +15106,7 @@ class Handler(BaseHTTPRequestHandler):
         told_id = self.store.tell(person, said, page, build, window, language)
         sender = person.email if person is not None else "somebody signed out"
         account = f" (account {person.id})" if person is not None else ""
-        listed = f"{self.address}{BACK_OFFICE_ROUTE}#people"
+        listed = f"{self.address}{BACK_OFFICE_ROUTE}#told"
         try:
             alerts.tell(
                 f"targum: {sender} told us something",

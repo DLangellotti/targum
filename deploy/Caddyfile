@@ -47,10 +47,16 @@ targum.page {
 			mode 0640
 		}
 		# The sign-in link is a bearer token in a query string. Do not write it down.
+		# Nor a reader's address: the back office's searches are `bq` and `bwq`, and
+		# what a press there said rides back as `said` (design.md §12, 2026-11-17).
+		# `deploy.sh` does not ship this file; apply it once with the commands at the top.
 		format filter {
 			request>uri query {
 				delete t
 				delete k
+				delete bq
+				delete bwq
+				delete said
 			}
 		}
 	}
@@ -83,5 +89,16 @@ bo.targum.page {
 
 	log {
 		output file /var/log/caddy/back-office.log
+		# Everything here is sent on to targum.page, but an address typed with a query
+		# on it is written down first, so the same names are kept out of this log too.
+		format filter {
+			request>uri query {
+				delete t
+				delete k
+				delete bq
+				delete bwq
+				delete said
+			}
+		}
 	}
 }

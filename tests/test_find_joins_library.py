@@ -538,7 +538,9 @@ def test_the_back_office_lists_what_joined_and_names_no_reader(world, shelf) -> 
     job = opened(home, "story-he", find_id, owner)
     entry = promote.join_find(library, store, job, read=no_tag, render=drawn)
     assert entry is not None
-    page = back_office_page(survey(store.db, today=date(2026, 11, 2)), 30, joined=store.joined())
+    page = back_office_page(
+        survey(store.db, today=date(2026, 11, 2)), 30, joined=store.joined(), section="shelf"
+    )
     assert "Joined from finds" in page
     assert "Global Voices" in page and "CC BY 3.0" in page and "(site-wide)" in page
     assert f'name="id" value="{entry["id"]}"' in page and 'action="/back-office/take-down"' in page

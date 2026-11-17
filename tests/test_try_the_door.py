@@ -290,7 +290,7 @@ def test_the_back_office_shows_the_link(tmp_path: Path) -> None:
     store.join_waitlist("tal@example.com", "en", "/", VIDEO)
     found = survey(store.db)
     assert [who.link for who in found.waiting_list] == [VIDEO]
-    assert f'href="{VIDEO}"' in back_office_page(found, 30)
+    assert f'href="{VIDEO}"' in back_office_page(found, 30, section="waitlist")
 
 
 # -- let in, and the saved link is built (David, 2026-10-01) ---------------------------

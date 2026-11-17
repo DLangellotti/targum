@@ -125,7 +125,7 @@ def test_it_never_opens_the_store_for_writing(tmp_path: Path) -> None:
 
 def test_the_page_shows_the_counts_and_not_the_words(store: sqlite3.Connection) -> None:
     found = survey(store, today=date(2026, 9, 4))
-    page = back_office_page(found, 30)
+    page = back_office_page(found, 30, section="readers")
     assert "a@example.com" in page and "b@example.com" in page
     assert "2026-09-04" in page
     # The lemmas themselves are the thing this page must not become a window onto.
@@ -207,13 +207,14 @@ def test_the_page_lists_what_is_proposed_and_wanted(store: sqlite3.Connection) -
         ],
         wanted=[{"query": "ים", "source": "", "standing": "", "count": 3}],
         said="An owed licence needs a credit.",
+        section="shelf",
     )
     assert "Proposed for the shelf" in page and "שיעור" in page and "CC BY 4.0" in page
     assert 'name="credit"' in page, "an owed licence asks for its credit on the form"
     assert 'value="accept"' in page and 'value="decline"' in page
     assert "An owed licence needs a credit." in page
     assert "Wanted" in page and "ים" in page and ">3<" in page
-    empty = back_office_page(found, 30)
+    empty = back_office_page(found, 30, section="shelf")
     assert "Nothing waiting" in empty and 'name="credit"' not in empty
 
 
@@ -236,10 +237,11 @@ def test_the_page_lists_what_went_wrong(store: sqlite3.Connection) -> None:
                 job="j1",
             )
         ],
+        section="operations",
     )
     assert "Incidents" in page and "build:translating" in page and "RuntimeError" in page
     assert "<details" in page and "the box fell over" in page and ">j1<" in page
-    quiet = back_office_page(found, 30)
+    quiet = back_office_page(found, 30, section="operations")
     assert "Nothing has gone wrong lately." in quiet and "<details" not in quiet
 
 
@@ -257,6 +259,7 @@ def test_the_page_lists_each_service_with_its_balance_and_console(
         found,
         30,
         balances={"anthropic": {"said": "$41.20", "at": stamp(date(2026, 9, 18))}},
+        section="operations",
     )
     assert "Services" in page
     for service in SERVICES:
@@ -290,19 +293,36 @@ def test_only_an_admin_records_a_balance() -> None:
     assert 'self._send(404, b"not found"' in handler
 
 
-def test_the_page_is_four_tabs_with_the_numbers_above_them() -> None:
-    """David, 2026-09-28: "so much going on now". People, Traffic, Shelf, Operations,
-    switched in place; the address names the tab and the panel's id does not match it,
-    so the browser never scrolls past the tabs to reach it."""
-    from targum.backoffice import Survey
+def test_the_back_office_is_six_pages_under_one_bar() -> None:
+    """David, 2026-11-17: it "requires scrolling forever" (design.md §12). Six pages, one
+    desk screen each, under one bar of plain links, with the page that is open marked;
+    no script at all, and nothing of one page drawn on another."""
+    from targum.backoffice import PAGES, Survey
 
-    page = back_office_page(Survey(), 30)
-    for name in ("people", "traffic", "shelf", "operations"):
-        assert f'href="#{name}" role="tab" aria-controls="tab-{name}"' in page, name
-        assert f'<section class="tab-panel" id="tab-{name}"' in page, name
-    assert page.index('class="bo-tabs"') < page.index('id="tab-people"')
-    assert page.index("waiting to be let in") < page.index('class="bo-tabs"')
-    assert "incidents" in page[: page.index('class="bo-tabs"')]
+    assert list(PAGES) == ["overview", "readers", "waitlist", "traffic", "shelf", "operations"]
+    heads = {
+        "overview": "<h2>Follow up",
+        "readers": "<h2>Accounts",
+        "waitlist": "confirmed their email",
+        "traffic": '<h2 id="visitors">',
+        "shelf": "<h2>Proposed for the shelf",
+        "operations": '<h2 id="services">',
+    }
+    found = Survey(waiting={"pending": 0, "on": 0, "off": 0}, waiting_let_in=0)
+    for section in PAGES:
+        page = back_office_page(found, 30, section=section)
+        bar = page[page.index('<nav class="bo-tabs"') : page.index("</nav>")]
+        for other, other_name in PAGES.items():
+            route = "/back-office" if other == "overview" else f"/back-office/{other}"
+            current = ' aria-current="page"' if other == section else ""
+            assert f'<a href="{route}"{current}>{other_name}</a>' in bar, (section, other)
+        assert bar.count("aria-current") == 1
+        for other, head in heads.items():
+            assert (head in page) == (other == section), (section, other)
+        assert "backoffice.js" not in page and "role=" not in bar, "links, not tabs"
+    overview = back_office_page(Survey(), 30, section="overview")
+    assert overview.index('class="bo-tabs"') < overview.index("waiting to be let in")
+    assert "incidents" in overview[overview.index('class="bo-tabs"') :]
 
 
 def test_each_confirmed_person_has_their_own_let_in() -> None:
@@ -319,7 +339,7 @@ def test_each_confirmed_person_has_their_own_let_in() -> None:
             Waiting("c@example.com", "pending", "2026-09-28"),
         ],
     )
-    page = back_office_page(found, 30)
+    page = back_office_page(found, 30, section="waitlist")
     assert page.count('action="/back-office/let-in"') == 1, "only the confirmed, not let in"
     assert '<input type="hidden" name="email" value="a@example.com">' in page
     assert "2026-09-20" in page
@@ -368,7 +388,7 @@ def test_the_waitlist_says_which_page_each_joined_from(tmp_path: Path) -> None:
     assert pages == {"a@example.com": "/aliyah", "b@example.com": "/", "c@example.com": ""}
     assert found.waiting_by_page == {"/aliyah": 1, "/": 1, "": 1}
 
-    page = back_office_page(found, 30)
+    page = back_office_page(found, 30, section="waitlist")
     assert "<th>From</th>" in page
     assert '<td class="quiet">/aliyah</td>' in page
     assert "Joined from /aliyah 1 &middot; / 1 &middot; unknown 1" in page
@@ -389,7 +409,7 @@ def test_accounts_say_which_page_or_link_brought_them(tmp_path: Path) -> None:
     found = survey(store.db, today=date(2026, 10, 1))
     assert found.waiting_by_page == {"meta.after-duolingo": 1}
     assert found.accounts_by_came_from == {"meta.after-duolingo": 2, "": 1}
-    page = back_office_page(found, 30)
+    page = back_office_page(found, 30, section="waitlist")
     assert "Joined from meta.after-duolingo 1" in page
     assert "Accounts from meta.after-duolingo 2 &middot; unknown 1" in page
 
@@ -441,7 +461,7 @@ def test_the_page_counts_what_came_in_through_the_connector(store: sqlite3.Conne
 
     found = survey(store, today=date(2026, 9, 4))
     assert found.connector == {"quoted": 6, "pressed": 3, "finished": 1, "sets": 1}
-    page = back_office_page(found, 30)
+    page = back_office_page(found, 30, section="traffic")
     assert "Through the connector" in page and "6 texts offered" in page
 
 
@@ -464,7 +484,9 @@ def test_the_page_shows_the_last_calibration_of_each_language(
         by_language={"he": 1},
         calibrations={"ru": calibration(79, 0.006, -0.013), "he": calibration(150, 0.055, 0.011)},
     )
-    page = back_office_page(survey(store, today=date(2026, 11, 5)), 30, finds=finds)
+    page = back_office_page(
+        survey(store, today=date(2026, 11, 5)), 30, finds=finds, section="operations"
+    )
     he = page.index("Last calibration (he, 150 texts, 1000 words, 5.5% unresolved)")
     ru = page.index("Last calibration (ru, 79 texts, 1000 words, 0.6% unresolved)")
     assert he < ru, "in order of language"
@@ -520,7 +542,7 @@ def test_the_from_lines_name_ten_and_count_the_rest_as_other(tmp_path: Path) -> 
     for counted in (found.waiting_by_page, found.accounts_by_came_from):
         assert list(counted) == [f"tag-{n}" for n in range(10)] + ["other"]
         assert counted["tag-0"] == 12 and counted["other"] == 2 + 1
-    page = back_office_page(found, 30)
+    page = back_office_page(found, 30, section="waitlist")
     assert "tag-9 3 &middot; other 3</p>" in page and "tag-10" not in page
 
 

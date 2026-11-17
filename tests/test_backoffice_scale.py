@@ -18,9 +18,11 @@ import pytest
 from targum.accounts import Store
 from targum.backoffice import (
     ACCOUNT_ORDERS,
+    ACCOUNT_SEARCH,
     ACCOUNT_SORTS,
     NOT_MINE,
     PER_PAGE,
+    WAITING_SEARCH,
     WAITING_SORTS,
     Listing,
     bare,
@@ -38,7 +40,9 @@ def stamp(when: date) -> int:
 
 
 def accounts(**asked: str) -> Listing:
-    return Listing.read({k: [v] for k, v in asked.items()}, "q", "sort", "page", ACCOUNT_SORTS)
+    """A listing as the readers page reads it: `q=` here is the address's `bq=`."""
+    query = {(ACCOUNT_SEARCH if k == "q" else k): [v] for k, v in asked.items()}
+    return Listing.read(query, ACCOUNT_SEARCH, "sort", "page", ACCOUNT_SORTS)
 
 
 @pytest.fixture
@@ -83,16 +87,18 @@ def test_accounts_are_drawn_fifty_at_a_time_newest_first(five_hundred: sqlite3.C
         1,
         50,
     )
-    page = back_office_page(found, 30)
-    assert 'rel="next" href="/back-office?page=2#people"' in page
+    page = back_office_page(found, 30, section="readers")
+    assert 'rel="next" href="/back-office/readers?page=2"' in page
     assert 'rel="prev"' not in page[page.index("<h2>Accounts") :]
-    assert "500 accounts," in page, "the headline counts every account, not the page"
+    overview = back_office_page(found, 30)
+    assert "500 accounts," in overview, "the headline counts every account, not the page"
 
     second = survey(five_hundred, today=TODAY, accounts=accounts(page="2"))
     assert second.accounts[0].email == "reader051@example.com"
-    drawn = back_office_page(second, 30)[back_office_page(second, 30).index("<h2>Accounts") :]
-    assert 'rel="prev" href="/back-office#people"' in drawn, "page one is the bare address"
-    assert 'href="/back-office?page=3#people"' in drawn
+    drawn = back_office_page(second, 30, section="readers")
+    drawn = drawn[drawn.index("<h2>Accounts") :]
+    assert 'rel="prev" href="/back-office/readers"' in drawn, "page one is the bare address"
+    assert 'href="/back-office/readers?page=3"' in drawn
 
     # A page past the end is the last page, not an empty one.
     past = survey(five_hundred, today=TODAY, accounts=accounts(page="99"))
@@ -121,11 +127,13 @@ def test_accounts_are_searched_by_address_or_name(five_hundred: sqlite3.Connecti
     # The search's own wildcards are only characters.
     assert survey(five_hundred, today=TODAY, accounts=accounts(q="%")).accounts == []
     nothing = survey(five_hundred, today=TODAY, accounts=accounts(q="nobody"))
-    page = back_office_page(nothing, 30)
+    page = back_office_page(nothing, 30, section="readers")
     assert "No account matches “nobody”." in page
-    assert 'name="q" value="nobody"' in page
+    assert 'name="bq" value="nobody"' in page
     # What is typed is drawn as text.
-    odd = back_office_page(survey(five_hundred, today=TODAY, accounts=accounts(q="<b>")), 30)
+    odd = back_office_page(
+        survey(five_hundred, today=TODAY, accounts=accounts(q="<b>")), 30, section="readers"
+    )
     assert "&lt;b&gt;" in odd and 'value="<b>"' not in odd
 
 
@@ -142,9 +150,9 @@ def test_accounts_sort_by_what_is_asked(five_hundred: sqlite3.Connection) -> Non
     )
     for sort in ACCOUNT_SORTS:
         assert len(survey(five_hundred, today=TODAY, accounts=accounts(sort=sort)).accounts) == 50
-    page = back_office_page(most, 30)
+    page = back_office_page(most, 30, section="readers")
     assert '<option value="words" selected>Most words</option>' in page
-    assert 'href="/back-office?sort=words&amp;page=2#people"' in page, "the order rides along"
+    assert 'href="/back-office/readers?sort=words&amp;page=2"' in page, "the order rides along"
 
 
 def test_the_address_is_read_and_anything_odd_is_the_default() -> None:
@@ -152,7 +160,7 @@ def test_the_address_is_read_and_anything_odd_is_the_default() -> None:
     assert (read.q, read.sort, read.page) == ("a b", "joined", 1)
     assert accounts(page="two").page == 1
     assert len(accounts(q="x" * 500).q) == 100
-    waiting = Listing.read({"wsort": ["newest"]}, "wq", "wsort", "wpage", WAITING_SORTS)
+    waiting = Listing.read({"wsort": ["newest"]}, WAITING_SEARCH, "wsort", "wpage", WAITING_SORTS)
     assert waiting.sort == "newest"
 
 
@@ -164,23 +172,24 @@ def test_the_waitlist_pages_its_two_lists_apart(five_hundred: sqlite3.Connection
     assert still[0].email == "waiting060@example.com", "oldest first, the order they are let in"
     assert found.waiting_listing.matches == 60 and found.let_in_listing.matches == 60
     assert found.waiting_let_in == 60
-    page = back_office_page(found, 30)
+    page = back_office_page(found, 30, section="waitlist")
     assert "Let in (60)" in page and "60 let in" in page
-    assert 'href="/back-office?wpage=2#people"' in page
-    assert 'href="/back-office?ipage=2#people"' in page
+    assert 'href="/back-office/waitlist?wpage=2"' in page
+    assert 'href="/back-office/waitlist?ipage=2"' in page
 
-    # Paging one list keeps the accounts where they were.
+    # Each list is on its own page now, so a link carries its own list's settings only.
     later = survey(
         five_hundred,
         today=TODAY,
         accounts=accounts(q="reader1", page="2"),
-        waitlist=Listing(sort="oldest", page=2),
+        waitlist=Listing(q="waiting", sort="oldest", page=2),
     )
-    drawn = back_office_page(later, 30)
-    # The waitlist's way back keeps the accounts' search and page, and theirs its page.
-    assert 'rel="prev" href="/back-office?q=reader1&amp;page=2#people"' in drawn
-    assert 'rel="prev" href="/back-office?q=reader1&amp;wpage=2#people"' in drawn
-    assert '<input type="hidden" name="q" value="reader1">' in drawn, "the waitlist's form keeps it"
+    drawn = back_office_page(later, 30, section="waitlist")
+    assert 'rel="prev" href="/back-office/waitlist?bwq=waiting"' in drawn
+    assert "reader1" not in drawn and 'name="q"' not in drawn and 'name="wq"' not in drawn
+    readers = back_office_page(later, 30, section="readers")
+    assert 'rel="prev" href="/back-office/readers?bq=reader1"' in readers
+    assert "bwq" not in readers
 
     searched = survey(
         five_hundred,
@@ -191,7 +200,7 @@ def test_the_waitlist_pages_its_two_lists_apart(five_hundred: sqlite3.Connection
     assert {who.email for who in searched.waiting_list} == {
         f"waiting00{n}@example.com" for n in range(10)
     }
-    folded = back_office_page(searched, 30)
+    folded = back_office_page(searched, 30, section="waitlist")
     assert '<details class="let-in" open>' in folded, "the only rows found are let in"
     assert "Let in (10)" in folded
 

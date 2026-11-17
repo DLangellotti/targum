@@ -250,7 +250,7 @@ def test_the_back_office_shows_visitors(tmp_path: Path) -> None:
     )
     db.close()
     found = visits.survey(tmp_path / "visits.sqlite", today=date(2026, 9, 21))
-    page = back_office_page(Survey(), 30, visits=found)
+    page = back_office_page(Survey(), 30, visits=found, section="traffic")
     assert "Visitors" in page
     assert "linkedin.com" in page and "Israel" in page
     assert "IP Geolocation by DB-IP" in page, "CC BY asks for the credit where it is shown"
@@ -260,7 +260,7 @@ def test_the_back_office_shows_visitors(tmp_path: Path) -> None:
 def test_the_back_office_without_a_roll_up(tmp_path: Path) -> None:
     found = visits.survey(tmp_path / "nothing.sqlite")
     assert not found.any()
-    page = back_office_page(Survey(), 30, visits=found)
+    page = back_office_page(Survey(), 30, visits=found, section="traffic")
     assert "Nothing counted yet" in page
 
 

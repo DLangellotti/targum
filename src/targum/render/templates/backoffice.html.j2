@@ -65,8 +65,8 @@
   .bo .bo-tabs a { padding: 0.5rem 0 0.6rem; margin-block-end: -1px; color: var(--ink-soft);
                    font-weight: 600; text-decoration: none; border-block-end: 2px solid transparent; }
   .bo .bo-tabs a:hover { color: var(--ink); }
-  .bo .bo-tabs a[aria-selected="true"] { color: var(--ink); border-block-end-color: var(--ink); }
-  .bo .tab-panel > h2:first-child, .bo .tab-panel > p:first-child { margin-block-start: 0; }
+  .bo .bo-tabs a[aria-current="page"] { color: var(--ink); border-block-end-color: var(--ink); }
+  .bo .bo-page > h2:first-child, .bo .bo-page > p:first-child { margin-block-start: 0; }
   /* The readers' days, one row each (2026-10-15). Thirty cells fit at desk width and
      scroll in their own box on a phone, never the page. */
   .bo .strip-wrap { overflow-x: auto; }
@@ -105,32 +105,39 @@
 <body class="public">
 <main class="bo">
   <h1>back office</h1>
-  {#- The four numbers that say whether anything needs doing, above the tabs so they
-      are the first thing read whichever tab is open (2026-09-28). -#}
-  <p class="taken">{{ survey.waiting_for_a_way_in }} waiting to be let in &middot;
-    {% if visits and visits.any() %}{{ '%.1f'|format(visits.a_day()) }} visitors a day this week &middot; {% endif %}
-    {%- set account_count = survey.accounts_total or survey.accounts|length %}
-    {{ account_count }} account{{ '' if account_count == 1 else 's' }},
-    {{ survey.active() }} active in the last {{ days }} days &middot;
-    {{ told_open }} message{{ '' if told_open == 1 else 's' }} waiting on us &middot;
-    {{ incidents|length }} incident{{ '' if incidents|length == 1 else 's' }} &middot; taken {{ survey.taken }}</p>
-
-  {#- Four tabs on one page (David, 2026-09-28: "so much going on now"), switched in
-      place by the script at the foot, which also keeps the open one in the address so
-      a reload and a form's answer land where they left. Without the script the tabs
-      are links to their panels and every panel shows, which is what this page was. -#}
-  {#- What the last press said — the door's count, a decision on the shelf — above
-      the tabs, so it is read whichever one the answer opens. -#}
-  {% if said %}<p class="note said">{{ said }}</p>{% endif %}
-  <nav class="bo-tabs" role="tablist" aria-label="Back office">
-    <a href="#people" role="tab" aria-controls="tab-people">People</a>
-    <a href="#traffic" role="tab" aria-controls="tab-traffic">Traffic</a>
-    <a href="#shelf" role="tab" aria-controls="tab-shelf">Shelf</a>
-    <a href="#operations" role="tab" aria-controls="tab-operations">Operations</a>
+  {#- Six pages under one bar, one desk screen each (design.md §12, 2026-11-17): the bar is
+      plain links, so nothing on any of them needs a script. Every page is the admin
+      session's alone; `serve.py` answers anyone else before a figure is read. -#}
+  <nav class="bo-tabs" aria-label="Back office">
+    {%- for key, name in bo_pages.items() %}
+    <a href="{{ bo_route(key) }}"{% if key == bo_page or (key == 'readers' and bo_page == 'reader') %} aria-current="page"{% endif %}>{{ name }}</a>
+    {%- endfor %}
   </nav>
+  {#- What the last press said — the door's count, a decision on the shelf — under the
+      bar, so it is read on whichever page the answer opens. -#}
+  {% if said %}<p class="note said">{{ said }}</p>{% endif %}
 
-  <section class="tab-panel" id="tab-people" role="tabpanel" aria-label="People">
-  {#- One account's credits, at `?who=<id>` (targum-internal#543): this month and all
+  {#- Paging (targum-internal#542). A list draws fifty rows, and its links keep its own
+      search and order; a search starts its list from the first page. -#}
+  {%- macro pager(listing, key, label) %}
+  {%- if listing.pages() > 1 %}
+  <nav class="pager" aria-label="{{ label }}">
+    {%- if listing.page > 1 %}<a rel="prev" href="{{ bo_url(**{key: listing.page - 1}) }}">Previous</a>{% endif %}
+    <span class="quiet">{{ listing.first_row() }}–{{ listing.last_row() }} of {{ listing.matches }}</span>
+    {%- if listing.page < listing.pages() %}<a rel="next" href="{{ bo_url(**{key: listing.page + 1}) }}">Next</a>{% endif %}
+  </nav>
+  {%- endif %}
+  {%- endmacro %}
+  {#- What might make a sign-up fake (targum-internal#544): each flag a plain reason, from
+      what the store already holds. A reason to look, never a verdict. -#}
+  {%- macro flagged(reasons) %}
+    {%- if reasons %}<p class="flags"><span class="flag-count">{{ reasons|length }} flag{{ '' if reasons|length == 1 else 's' }}:</span> {{ reasons|join(' · ') }}</p>{% endif %}
+  {%- endmacro %}
+
+  {%- if bo_page == 'reader' and reader %}
+  <section class="bo-page" aria-label="Reader">
+  {#- One account's credits, at `/back-office/readers/<id>` (targum-internal#543; it was
+      `?who=<id>`, which now redirects here): this month and all
       time by kind, and the latest jobs by date, kind, credits, cost and stage. Never a
       title or a source (clause 3.14). A conversation is counted in seconds. -#}
   {%- if reader %}
@@ -138,7 +145,7 @@
   <p class="taken">Joined {{ reader.joined }} &middot;
     {{ credits(reader.used) }}{% if reader.allowance is not none %} of {{ credits(reader.allowance) }}{% endif %} credits this month &middot;
     ${{ '%.2f'|format(reader.spent) }} this month &middot;
-    <a href="{{ bo_url() }}">Back to accounts</a></p>
+    <a href="{{ bo_route('readers') }}">Back to accounts</a></p>
   {%- macro used(one) %}{% if one.kind == 'chat' %}{{ '%.0f'|format(one.seconds) }} s{% else %}{{ credits(one.seconds) }}{% endif %}{% endmacro %}
   <div class="strip-wrap"><table class="credits">
     <thead>
@@ -171,6 +178,19 @@
   <p class="quiet">No jobs yet.</p>
   {%- endif %}
   {%- endif %}
+  </section>
+  {%- endif %}
+
+  {%- if bo_page == 'overview' %}
+  <section class="bo-page" aria-label="Overview">
+  {#- The numbers that say whether anything needs doing, first (2026-09-28). -#}
+  <p class="taken">{{ survey.waiting_for_a_way_in }} waiting to be let in &middot;
+    {% if visits and visits.any() %}{{ '%.1f'|format(visits.a_day()) }} visitors a day this week &middot; {% endif %}
+    {%- set account_count = survey.accounts_total or survey.accounts|length %}
+    {{ account_count }} account{{ '' if account_count == 1 else 's' }},
+    {{ survey.active() }} active in the last {{ days }} days &middot;
+    {{ told_open }} message{{ '' if told_open == 1 else 's' }} waiting on us &middot;
+    {{ incidents|length }} incident{{ '' if incidents|length == 1 else 's' }} &middot; taken {{ survey.taken }}</p>
   {#- First what to do, then how the weeks went, then where readers get to (2026-10-15).
       The follow-up list names people, from what clause 3.2 already holds; the two
       tables below it name nobody. -#}
@@ -310,165 +330,22 @@
   </table>
   <p class="quiet note">Your own addresses are not counted anywhere on this page.</p>
   {%- endif %}
-
-  {#- The front door's list (targum-internal#69). Three numbers, no addresses: the rest
-      of this page names nobody either. `on` is the number that matters — an address
-      that answered its confirmation — and `pending` is how many have not yet. -#}
-  {%- if survey.waiting %}
-  <p class="taken">{{ survey.waiting.on }} confirmed their email &middot;
-    {{ survey.waiting.pending }} not yet confirmed &middot;
-    {{ survey.waiting.off }} left the list &middot;
-    {{ survey.waiting_let_in or survey.waiting_list|selectattr('invited')|list|length }} let in
-    {%- if survey.possibly_fake %} &middot; {{ survey.possibly_fake }} possibly fake{% endif %}</p>
-  {#- Which page each joined through (targum-internal#388): `/aliyah` beside the front
-      door is only worth keeping if somebody comes in by it. -#}
-  {%- if survey.waiting_by_page %}
-  <p class="taken">Joined from
-    {%- for page, n in survey.waiting_by_page.items() %} {{ page or 'unknown' }} {{ n }}{% if not loop.last %} &middot;{% endif %}{% endfor %}</p>
-  {%- endif %}
-  {#- And the accounts the same way (targum-internal#676): with the door open a signup
-      never waits, so its page or link tag is on the account. -#}
-  {%- if survey.accounts_by_came_from %}
-  <p class="taken">Accounts from
-    {%- for page, n in survey.accounts_by_came_from.items() %} {{ page or 'unknown' }} {{ n }}{% if not loop.last %} &middot;{% endif %}{% endfor %}</p>
-  {%- endif %}
+  </section>
   {%- endif %}
 
-  {#- Who is waiting, oldest first, which is the order they would be let in. The counts
-      above answer "how many", which is the one question the operator does not have.
-      Those already let in fold away beneath (2026-10-15): with the door open, they were
-      most of the list, and the few still waiting were the rows to find. -#}
-  {#- Paging (targum-internal#542). Each list draws fifty rows; the links keep the other
-      list's search and page, and a search starts its own list from the first page. -#}
-  {%- macro pager(listing, key, label) %}
-  {%- if listing.pages() > 1 %}
-  <nav class="pager" aria-label="{{ label }}">
-    {%- if listing.page > 1 %}<a rel="prev" href="{{ bo_url(**{key: listing.page - 1}) }}">Previous</a>{% endif %}
-    <span class="quiet">{{ listing.first_row() }}–{{ listing.last_row() }} of {{ listing.matches }}</span>
-    {%- if listing.page < listing.pages() %}<a rel="next" href="{{ bo_url(**{key: listing.page + 1}) }}">Next</a>{% endif %}
-  </nav>
-  {%- endif %}
-  {%- endmacro %}
-  {%- macro carry(names) %}
-    {%- for key, value in bo_kept() if key in names %}
-    <input type="hidden" name="{{ key }}" value="{{ value }}">
-    {%- endfor %}
-  {%- endmacro %}
-  {#- What might make a sign-up fake (targum-internal#544): each flag a plain reason, from
-      what the store already holds. A reason to look, never a verdict. -#}
-  {%- macro flagged(reasons) %}
-    {%- if reasons %}<p class="flags"><span class="flag-count">{{ reasons|length }} flag{{ '' if reasons|length == 1 else 's' }}:</span> {{ reasons|join(' · ') }}</p>{% endif %}
-  {%- endmacro %}
-  {%- macro waiting_row(who) %}
-      <tr>
-        <td>{{ who.email }}{{ flagged(who.flags) }}</td>
-        <td class="quiet">{{ who.asked }}</td>
-        <td class="quiet">{{ who.joined or '—' }}</td>
-        {#- What the state means, not what the column stores: `on` read as "let in" and it
-            only ever meant the address answered its confirmation mail (2026-09-28). -#}
-        <td class="quiet">{% if who.turned_off and who.state == 'off' %}Turned off{% else %}{{ {'on': 'Confirmed their email', 'pending': 'Not confirmed yet', 'off': 'Left the list'}.get(who.state, who.state) }}{% endif %}</td>
-        <td>
-          {%- if who.invited %}<span class="quiet">{{ who.invited }}</span>
-          {%- elif who.state == 'on' %}
-          {#- One person at a time, the operator's choice (David, 2026-09-28): the same door
-              as the batch below, for this address only (`doorway.let_in`). -#}
-          <form method="post" action="/back-office/let-in" class="decide">
-            <input type="hidden" name="email" value="{{ who.email }}">
-            <button type="submit" value="accept" aria-label="Let {{ who.email }} in">Let in</button>
-          </form>
-          {%- elif not (who.flags and who.state != 'off') and not who.turned_off %}<span class="quiet">—</span>{% endif %}
-          {#- Turn off (David, 2026-10-27): a flagged address still waiting is set off, never
-              deleted, and nobody is written to; Undo puts back the state it was in. -#}
-          {%- if who.turned_off and who.state == 'off' %}
-          <form method="post" action="/back-office/turn-on" class="decide">
-            <input type="hidden" name="email" value="{{ who.email }}">
-            <button type="submit" aria-label="Undo turning {{ who.email }} off">Undo</button>
-          </form>
-          {%- elif who.flags and not who.invited and who.state != 'off' %}
-          <form method="post" action="/back-office/turn-off" class="decide">
-            <input type="hidden" name="email" value="{{ who.email }}">
-            <button type="submit" aria-label="Turn {{ who.email }} off">Turn off</button>
-          </form>
-          {%- endif %}
-        </td>
-        <td class="quiet">{{ who.language or 'en' }}</td>
-        <td class="quiet">{{ who.page or '—' }}{% if who.link %}<br><a href="{{ who.link }}" rel="noopener noreferrer" target="_blank">{{ who.link|truncate(48, true, '…') }}</a>{% endif %}</td>
-      </tr>
-  {%- endmacro %}
-  {%- macro waiting_head() %}
-    <thead>
-      <tr><th>Address</th><th>Asked</th><th>Confirmed</th><th>State</th><th>Let in</th><th>Reads</th><th>From</th></tr>
-    </thead>
-  {%- endmacro %}
-  {%- if survey.waiting_list or waiting_listing.q or survey.waiting_let_in %}
-  {%- set still = survey.waiting_list|rejectattr('invited')|list %}
-  {%- set done = survey.waiting_list|selectattr('invited')|list %}
-  <h2>The waitlist</h2>
-  {#- With the door open nobody joins (targum-internal#477, C): the list is the history
-      of who waited, read as it stands, and Let in stays for anyone still on it. -#}
-  {%- if door_is_open() %}
-  <p class="quiet">Signup is open, so nobody new joins this list. Let in still works for anyone still waiting.</p>
-  {%- endif %}
-  <form method="get" action="/back-office#people" class="decide find" role="search">
-    <input type="search" name="wq" value="{{ waiting_listing.q }}" maxlength="100"
-           placeholder="Address" aria-label="Search the waitlist by address">
-    <select name="wsort" aria-label="Order of the waitlist">
-      {% for key, name in waiting_sorts.items() %}<option value="{{ key }}"{% if key == waiting_listing.sort %} selected{% endif %}>{{ name }}</option>{% endfor %}
-    </select>
-    <label class="fake"><input type="checkbox" name="wfake" value="1"{% if waiting_listing.fake %} checked{% endif %}> Possibly fake (2+)</label>
-    {{- carry(('q', 'sort', 'fake', 'page')) }}
-    <button type="submit">Search</button>
-  </form>
-  {%- if still %}
-  <table>
-    {{ waiting_head() }}
-    <tbody>
-      {% for who in still %}{{ waiting_row(who) }}{% endfor %}
-    </tbody>
-  </table>
-  {{ pager(waiting_listing, 'wpage', 'Waitlist pages') }}
-  {%- elif waiting_listing.q %}
-  <p class="quiet">Nobody still waiting matches “{{ waiting_listing.q }}”.</p>
-  {%- else %}
-  <p class="quiet">Everybody who joined has been let in.</p>
-  {%- endif %}
-  {%- if done %}
-  {#- Open when it is being paged through, or holds the only rows a search found. -#}
-  <details class="let-in"{% if let_in_listing.page > 1 or (waiting_listing.q and not still) %} open{% endif %}>
-    <summary>Let in ({{ let_in_listing.matches if waiting_listing.q else (survey.waiting_let_in or done|length) }})</summary>
-    <table>
-      {{ waiting_head() }}
-      <tbody>
-        {% for who in done %}{{ waiting_row(who) }}{% endfor %}
-      </tbody>
-    </table>
-    {{ pager(let_in_listing, 'ipage', 'Let in pages') }}
-  </details>
-  {%- endif %}
-  {#- The press that keeps the front door's promise (targum-internal#292): the oldest
-      confirmed addresses that have not been let in yet, each put on the guest list and
-      each written to in the language they joined in. Safe to press again — an address
-      already stamped is never picked twice. -#}
-  {%- if survey.waiting_for_a_way_in %}
-  <form method="post" action="/back-office/open-the-door" class="door">
-    <label for="count">Let in, oldest first</label>
-    <input type="number" id="count" name="count" value="5" min="1" max="25" step="1">
-    <button type="submit">Open the door</button>
-    <span class="quiet">{{ survey.waiting_for_a_way_in }} waiting who have not been let in</span>
-  </form>
-  {%- endif %}
-  {%- endif %}
-
+  {%- if bo_page == 'readers' %}
+  <section class="bo-page" aria-label="Readers">
   <h2>Accounts</h2>
   {#- Fifty at a time, newest first unless asked otherwise (targum-internal#542). -#}
-  <form method="get" action="/back-office#people" class="decide find" role="search">
-    <input type="search" name="q" value="{{ accounts_listing.q }}" maxlength="100"
+  {#- The search is `bq`, never `q`: the proxy writes every address it is asked for
+      into its log, and `deploy/Caddyfile` deletes `bq` from it by name. -#}
+  <form method="get" action="{{ bo_route('readers') }}" class="decide find" role="search">
+    <input type="search" name="bq" value="{{ accounts_listing.q }}" maxlength="100"
            placeholder="Address or name" aria-label="Search accounts by address or name">
     <select name="sort" aria-label="Order of the accounts">
       {% for key, name in account_sorts.items() %}<option value="{{ key }}"{% if key == accounts_listing.sort %} selected{% endif %}>{{ name }}</option>{% endfor %}
     </select>
     <label class="fake"><input type="checkbox" name="fake" value="1"{% if accounts_listing.fake %} checked{% endif %}> Possibly fake (2+)</label>
-    {{- carry(('wq', 'wsort', 'wfake', 'wpage', 'ipage')) }}
     <button type="submit">Search</button>
   </form>
   {%- if accounts_listing.q and not survey.accounts %}
@@ -486,7 +363,7 @@
     <tbody>
       {% for who in survey.accounts %}
       <tr>
-        <td><a href="{{ bo_url(who=who.id) }}">{{ who.email }}</a>{% if who.name %} <span class="quiet">{{ who.name }}</span>{% endif %}{{ flagged(who.flags) }}
+        <td><a href="{{ bo_route('readers') }}/{{ who.id }}">{{ who.email }}</a>{% if who.name %} <span class="quiet">{{ who.name }}</span>{% endif %}{{ flagged(who.flags) }}
           {%- if who.leaving %} <span class="quiet">leaving {{ who.leaving }}</span>{% endif %}</td>
         <td class="quiet">{{ who.joined }}</td>
         <td class="quiet">{{ who.last_active or '—' }}</td>
@@ -540,10 +417,141 @@
     </tbody>
   </table>
   </div>
-
   </section>
+  {%- endif %}
 
-  <section class="tab-panel" id="tab-traffic" role="tabpanel" aria-label="Traffic">
+  {%- if bo_page == 'waitlist' %}
+  <section class="bo-page" aria-label="Waitlist">
+  {#- The front door's list (targum-internal#69). Three numbers, no addresses: the rest
+      of this page names nobody either. `on` is the number that matters — an address
+      that answered its confirmation — and `pending` is how many have not yet. -#}
+  {%- if survey.waiting %}
+  <p class="taken">{{ survey.waiting.on }} confirmed their email &middot;
+    {{ survey.waiting.pending }} not yet confirmed &middot;
+    {{ survey.waiting.off }} left the list &middot;
+    {{ survey.waiting_let_in or survey.waiting_list|selectattr('invited')|list|length }} let in
+    {%- if survey.possibly_fake %} &middot; {{ survey.possibly_fake }} possibly fake{% endif %}</p>
+  {#- Which page each joined through (targum-internal#388): `/aliyah` beside the front
+      door is only worth keeping if somebody comes in by it. -#}
+  {%- if survey.waiting_by_page %}
+  <p class="taken">Joined from
+    {%- for page, n in survey.waiting_by_page.items() %} {{ page or 'unknown' }} {{ n }}{% if not loop.last %} &middot;{% endif %}{% endfor %}</p>
+  {%- endif %}
+  {#- And the accounts the same way (targum-internal#676): with the door open a signup
+      never waits, so its page or link tag is on the account. -#}
+  {%- if survey.accounts_by_came_from %}
+  <p class="taken">Accounts from
+    {%- for page, n in survey.accounts_by_came_from.items() %} {{ page or 'unknown' }} {{ n }}{% if not loop.last %} &middot;{% endif %}{% endfor %}</p>
+  {%- endif %}
+  {%- endif %}
+  {#- Who is waiting, oldest first, which is the order they would be let in. The counts
+      above answer "how many", which is the one question the operator does not have.
+      Those already let in fold away beneath (2026-10-15): with the door open, they were
+      most of the list, and the few still waiting were the rows to find. -#}
+  {%- macro waiting_row(who) %}
+      <tr>
+        <td>{{ who.email }}{{ flagged(who.flags) }}</td>
+        <td class="quiet">{{ who.asked }}</td>
+        <td class="quiet">{{ who.joined or '—' }}</td>
+        {#- What the state means, not what the column stores: `on` read as "let in" and it
+            only ever meant the address answered its confirmation mail (2026-09-28). -#}
+        <td class="quiet">{% if who.turned_off and who.state == 'off' %}Turned off{% else %}{{ {'on': 'Confirmed their email', 'pending': 'Not confirmed yet', 'off': 'Left the list'}.get(who.state, who.state) }}{% endif %}</td>
+        <td>
+          {%- if who.invited %}<span class="quiet">{{ who.invited }}</span>
+          {%- elif who.state == 'on' %}
+          {#- One person at a time, the operator's choice (David, 2026-09-28): the same door
+              as the batch below, for this address only (`doorway.let_in`). -#}
+          <form method="post" action="/back-office/let-in" class="decide">
+            <input type="hidden" name="email" value="{{ who.email }}">
+            <button type="submit" value="accept" aria-label="Let {{ who.email }} in">Let in</button>
+          </form>
+          {%- elif not (who.flags and who.state != 'off') and not who.turned_off %}<span class="quiet">—</span>{% endif %}
+          {#- Turn off (David, 2026-10-27): a flagged address still waiting is set off, never
+              deleted, and nobody is written to; Undo puts back the state it was in. -#}
+          {%- if who.turned_off and who.state == 'off' %}
+          <form method="post" action="/back-office/turn-on" class="decide">
+            <input type="hidden" name="email" value="{{ who.email }}">
+            <button type="submit" aria-label="Undo turning {{ who.email }} off">Undo</button>
+          </form>
+          {%- elif who.flags and not who.invited and who.state != 'off' %}
+          <form method="post" action="/back-office/turn-off" class="decide">
+            <input type="hidden" name="email" value="{{ who.email }}">
+            <button type="submit" aria-label="Turn {{ who.email }} off">Turn off</button>
+          </form>
+          {%- endif %}
+        </td>
+        <td class="quiet">{{ who.language or 'en' }}</td>
+        <td class="quiet">{{ who.page or '—' }}{% if who.link %}<br><a href="{{ who.link }}" rel="noopener noreferrer" target="_blank">{{ who.link|truncate(48, true, '…') }}</a>{% endif %}</td>
+      </tr>
+  {%- endmacro %}
+  {%- macro waiting_head() %}
+    <thead>
+      <tr><th>Address</th><th>Asked</th><th>Confirmed</th><th>State</th><th>Let in</th><th>Reads</th><th>From</th></tr>
+    </thead>
+  {%- endmacro %}
+  {%- if survey.waiting_list or waiting_listing.q or survey.waiting_let_in %}
+  {%- set still = survey.waiting_list|rejectattr('invited')|list %}
+  {%- set done = survey.waiting_list|selectattr('invited')|list %}
+  <h2>The waitlist</h2>
+  {#- With the door open nobody joins (targum-internal#477, C): the list is the history
+      of who waited, read as it stands, and Let in stays for anyone still on it. -#}
+  {%- if door_is_open() %}
+  <p class="quiet">Signup is open, so nobody new joins this list. Let in still works for anyone still waiting.</p>
+  {%- endif %}
+  {#- `bwq`, never `wq`, for the reason the accounts' search is `bq`. -#}
+  <form method="get" action="{{ bo_route('waitlist') }}" class="decide find" role="search">
+    <input type="search" name="bwq" value="{{ waiting_listing.q }}" maxlength="100"
+           placeholder="Address" aria-label="Search the waitlist by address">
+    <select name="wsort" aria-label="Order of the waitlist">
+      {% for key, name in waiting_sorts.items() %}<option value="{{ key }}"{% if key == waiting_listing.sort %} selected{% endif %}>{{ name }}</option>{% endfor %}
+    </select>
+    <label class="fake"><input type="checkbox" name="wfake" value="1"{% if waiting_listing.fake %} checked{% endif %}> Possibly fake (2+)</label>
+    <button type="submit">Search</button>
+  </form>
+  {%- if still %}
+  <table>
+    {{ waiting_head() }}
+    <tbody>
+      {% for who in still %}{{ waiting_row(who) }}{% endfor %}
+    </tbody>
+  </table>
+  {{ pager(waiting_listing, 'wpage', 'Waitlist pages') }}
+  {%- elif waiting_listing.q %}
+  <p class="quiet">Nobody still waiting matches “{{ waiting_listing.q }}”.</p>
+  {%- else %}
+  <p class="quiet">Everybody who joined has been let in.</p>
+  {%- endif %}
+  {%- if done %}
+  {#- Open when it is being paged through, or holds the only rows a search found. -#}
+  <details class="let-in"{% if let_in_listing.page > 1 or (waiting_listing.q and not still) %} open{% endif %}>
+    <summary>Let in ({{ let_in_listing.matches if waiting_listing.q else (survey.waiting_let_in or done|length) }})</summary>
+    <table>
+      {{ waiting_head() }}
+      <tbody>
+        {% for who in done %}{{ waiting_row(who) }}{% endfor %}
+      </tbody>
+    </table>
+    {{ pager(let_in_listing, 'ipage', 'Let in pages') }}
+  </details>
+  {%- endif %}
+  {#- The press that keeps the front door's promise (targum-internal#292): the oldest
+      confirmed addresses that have not been let in yet, each put on the guest list and
+      each written to in the language they joined in. Safe to press again — an address
+      already stamped is never picked twice. -#}
+  {%- if survey.waiting_for_a_way_in %}
+  <form method="post" action="/back-office/open-the-door" class="door">
+    <label for="count">Let in, oldest first</label>
+    <input type="number" id="count" name="count" value="5" min="1" max="25" step="1">
+    <button type="submit">Open the door</button>
+    <span class="quiet">{{ survey.waiting_for_a_way_in }} waiting who have not been let in</span>
+  </form>
+  {%- endif %}
+  {%- endif %}
+  </section>
+  {%- endif %}
+
+  {%- if bo_page == 'traffic' %}
+  <section class="bo-page" aria-label="Traffic">
   {#- Who came to the front door (`visits.py`): counted each hour off the proxy's
       access log by `targum roll-visits`. No script, no cookie, nothing sent anywhere.
       A visitor is an address and browser within one day, so the window's figure is a
@@ -609,10 +617,11 @@
     campaigns and countries in visitors. Campaigns are <code>?utm_source=</code> on the link. Countries:
     <a href="https://db-ip.com">IP Geolocation by DB-IP</a>, CC BY 4.0.</p>
   {%- endif %}
-
   </section>
+  {%- endif %}
 
-  <section class="tab-panel" id="tab-shelf" role="tabpanel" aria-label="Shelf">
+  {%- if bo_page == 'shelf' %}
+  <section class="bo-page" aria-label="Shelf">
   {#- A reader's build offered to the shelf. The licence has already been read by
       `promote.py` — nothing here may enter the catalogue unless its standing allows a
       public copy — so what is left for a person is the record: is this a text, is the
@@ -702,10 +711,11 @@
     </tbody>
   </table>
   {% endif %}
-
   </section>
+  {%- endif %}
 
-  <section class="tab-panel" id="tab-operations" role="tabpanel" aria-label="Operations">
+  {%- if bo_page == 'operations' %}
+  <section class="bo-page" aria-label="Operations">
   {#- The paid APIs, what each console last said was left, and the way to its billing
       page (`services.py`). The balance is typed in below, because most of these say it
       only to an admin key; the date beside it is how old the figure is, so it is never
@@ -888,13 +898,12 @@
     </tbody>
   </table>
   {% endif %}
-
   </section>
+  {%- endif %}
 
   <p class="note">Counts only. This page holds no words, no texts and no notes, save the
     messages readers write to us through Tell us. See <code>backoffice.py</code> for why
     that is a rule rather than a first version, and why those are the exception.</p>
 </main>
-{{ script('backoffice.js') }}
 </body>
 </html>
