@@ -52,8 +52,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 - A text under a NonCommercial licence stays free to read (David, 2026-11-17; design.md
   §12). With plans on, a build of a library text (catalogue row, weekly or joined find,
   from its own source) whose licence is CC BY-NC or CC BY-NC-SA takes none of the month's
-  credits and never needs a plan, on Free or Plan (`Library.free_to_read`,
-  `licensing.noncommercial`, which reads the licence as `promote.clears` does). It is
+  credits and never needs a plan, on Free or Plan (`Library.free_to_read`;
+  `licensing.noncommercial`, a Creative Commons NC deed by the words `promote.clears`
+  asks for, so an ad-hoc "NC" is not one). A web address must be the row's own,
+  exactly as written. It is
   still claimed through `Library.claim`, so the money rails and the box ceiling hold.
   The quote says "Uses none of your credits" for it (`metered: false`). With plans off
   nothing changes.

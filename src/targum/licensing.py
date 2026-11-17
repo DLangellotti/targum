@@ -189,12 +189,22 @@ def verdict(licence: str) -> Verdict:
 
 
 def noncommercial(licence: str) -> bool:
-    """Whether this licence is NonCommercial, and allows derivatives: CC BY-NC and CC
-    BY-NC-SA, never anything ND touches. Read by `verdict`, the parsing `promote.clears`
-    uses, so a text the library may hold under NC and a text that stays free to read
-    under NC are the same texts (David, 2026-11-17; design.md §12)."""
+    """Whether this licence is a Creative Commons NonCommercial deed that allows
+    derivatives: CC BY-NC or CC BY-NC-SA, never anything ND touches (David, 2026-11-17;
+    design.md §12, "A text under a NonCommercial licence stays free to read").
+
+    NonCommercial by `verdict`, and Creative Commons with Attribution by the same words
+    `promote.clears` asks for, so it is true of exactly the NC licences a find may join
+    the library on. An ad-hoc "NC" or "non-commercial use only" is not a deed: `verdict`
+    reads it as NonCommercial, and this does not."""
     call = verdict(licence)
-    return call.standing is Standing.closed and call.derivatives
+    if call.standing is not Standing.closed or not call.derivatives:
+        return False
+    words = _flat(licence).split()
+    flat = " ".join(words)
+    creative = "cc" in words or "creative commons" in flat
+    attributed = "by" in words or "attribution" in flat
+    return creative and attributed
 
 
 def exportable(licence: str) -> bool:

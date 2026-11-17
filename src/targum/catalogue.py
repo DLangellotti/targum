@@ -1191,7 +1191,13 @@ def scene_series(entry_id: str) -> str:
 
 
 def same_source(first: str, second: str) -> bool:
-    """Whether two addresses name the same source, as `matching` compares them."""
+    """Whether two sources are the same one. A web address is compared exactly, as it is
+    written (a path's case is the server's to decide, so `/Talk` and `/talk` may be two
+    pages); anything else as `matching` compares it, where case and underscores are
+    spelling (a Wikisource title, a Gutenberg id)."""
+    first, second = first.strip(), second.strip()
+    if any(one.lower().startswith(("http://", "https://")) for one in (first, second)):
+        return bool(first) and first == second
     return bool(_key(first)) and _key(first) == _key(second)
 
 

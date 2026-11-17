@@ -2283,14 +2283,23 @@ class Library:
         # is read back from its row when asked for (`Jobs.get`, targum-internal#231).
         self.jobs = Jobs(load=self._job_from_store)
         for row in store.jobs(since=now() - Jobs.HELD_MS):
-            self.jobs[str(row["id"])] = self._job_from_row(row)
+            self.jobs[str(row["id"])] = self._read_back(row)
 
     def _job_from_store(self, job_id: str) -> Job | None:
         """One job the process no longer holds, from its row, or None."""
         if self.store is None:
             return None
         row = self.store.job(job_id)
-        return self._job_from_row(row) if row is not None else None
+        return self._read_back(row) if row is not None else None
+
+    def _read_back(self, row: Mapping[str, Any]) -> Job:
+        """A job from its row, with whether it is a free read worked out again rather than
+        stored (David, 2026-11-17): a recording only, so the day of chat turns read back at
+        start-up does not each search the catalogue."""
+        job = self._job_from_row(row)
+        if job.audio:
+            job.free_read = self.free_to_read(job)
+        return job
 
     @staticmethod
     def _job_from_row(row: Mapping[str, Any]) -> Job:

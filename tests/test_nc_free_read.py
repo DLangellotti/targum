@@ -39,10 +39,39 @@ HOUR = 3600.0
         ("public domain", False),
         ("", False),
         ("all rights reserved", False),
+        # Ad-hoc terms are not a deed (qa-claude on #1298).
+        ("NC", False),
+        ("Non-commercial use only", False),
+        ("noncommercial", False),
+        ("by-nc", False),
     ],
 )
-def test_noncommercial_is_read_as_verdict_reads_it(licence: str, free: bool) -> None:
+def test_noncommercial_is_a_creative_commons_nc_deed(licence: str, free: bool) -> None:
     assert licensing.noncommercial(licence) is free
+
+
+@pytest.mark.parametrize(
+    "licence",
+    [
+        "CC BY-NC 4.0",
+        "CC BY-NC-SA 4.0",
+        "cc-by-nc-sa-3.0",
+        "Creative Commons Attribution-NonCommercial 4.0",
+    ],
+)
+def test_every_free_to_read_licence_is_one_a_find_may_join_on(licence: str) -> None:
+    from targum.promote import clears
+
+    assert licensing.noncommercial(licence) and clears(licence)
+
+
+def test_a_web_address_is_its_own_spelling() -> None:
+    """qa-claude on #1298: `matching` lower-cases, and a URL that differs in case names
+    another page, so it is not that NC row's source."""
+    assert catalogue_module.same_source(NC_VIDEO, NC_VIDEO)
+    assert not catalogue_module.same_source(NC_VIDEO, NC_VIDEO.replace("ncvideo", "NCVIDEO"))
+    assert not catalogue_module.same_source(NC_VIDEO, NC_VIDEO + "/")
+    assert catalogue_module.same_source("wikisource:Some_Title", "wikisource:some title")
 
 
 def entry(entry_id: str, source: str, licence: str) -> Entry:
@@ -247,3 +276,46 @@ def test_a_post_brought_by_hand_under_an_nc_address_is_not_a_free_read(
     brought = recording(library, me.id, NC_VIDEO, HOUR, "brought")
     brought.options = {"post": {"fetched_by": "brought", "caption": "x"}}
     assert not library.free_to_read(brought)
+
+
+@pytest.mark.usefixtures("shelf")
+def test_an_address_differing_in_case_is_not_the_nc_row(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TARGUM_PLANS", "1")
+    store = Store(tmp_path / "targum.db")
+    library = a_library(tmp_path, store)
+    me = signed_up(store, "free@example.com")
+    other = recording(library, me.id, NC_VIDEO.replace("ncvideo", "NcVideo"), 2 * HOUR, "case")
+    assert catalogue_module.matching(other.source) is not None, "matching lower-cases"
+    assert not library.free_to_read(other)
+    assert library.claim(other).act == "plan"
+
+
+@pytest.mark.usefixtures("shelf")
+def test_an_ad_hoc_nc_row_is_held_as_any_other(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TARGUM_PLANS", "1")
+    rows = [*catalogue_module.CATALOGUE, entry("adhoc", "https://example.org/adhoc", "NC")]
+    monkeypatch.setattr(catalogue_module, "CATALOGUE", rows)
+    store = Store(tmp_path / "targum.db")
+    library = a_library(tmp_path, store)
+    me = signed_up(store, "free@example.com")
+    assert not library.free_to_read(
+        recording(library, me.id, "https://example.org/adhoc", HOUR, "a")
+    )
+
+
+@pytest.mark.usefixtures("shelf")
+def test_a_job_read_back_from_its_row_still_says_free(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TARGUM_PLANS", "1")
+    store = Store(tmp_path / "targum.db")
+    library = a_library(tmp_path, store)
+    me = signed_up(store, "free@example.com")
+    recording(library, me.id, NC_VIDEO, HOUR, "kept")
+    again = a_library(tmp_path, store)
+    held = again.jobs.get("kept")
+    assert held is not None and held.free_read and held.state()["metered"] is False

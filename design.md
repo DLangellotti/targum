@@ -460,8 +460,11 @@ to Plan" (2026-11-15).
 - **With plans on, building a library text whose own licence is NonCommercial never
   needs a plan and never comes out of the month's credits**, on Free or on Plan. A library
   text is a catalogue row, a weekly, or a find that joined the shelf, built from its own
-  source; NonCommercial is `licensing.noncommercial`, the same `verdict` that `clears`
-  reads, so CC BY-NC-ND is not one. The quote says "Uses none of your credits" for it.
+  source, a web address exactly as written. NonCommercial is `licensing.noncommercial`:
+  a Creative Commons NC deed (CC BY-NC, CC BY-NC-SA) read by the same `verdict` and the
+  same words that `clears` asks for, so CC BY-NC-ND is not one and an ad-hoc "NC" or
+  "non-commercial use only" is not one either. The quote says "Uses none of your
+  credits" for it. David confirmed on 2026-11-17 that the 300-word cap stays.
 - **It is still a press, and still claimed.** The money rails and the box ceiling hold it
   through `Library.claim` like every build, and anything paid done with the text after
   it is open (a voice, a chat turn, meanings bought) is metered as ever.
