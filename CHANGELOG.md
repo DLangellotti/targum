@@ -270,8 +270,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   - `practices.friend_candidates` uses `false_friends.friend_of` with the uses gathered
     over the whole text, so a gated entry is asked only where the card would say it. The
     switch `TARGUM_FALSE_FRIENDS=0` turns it off with the card.
-  - `practices.NOT_OFFERED` and `_not_offered`: a spot this reader is not offered carries
-    a `note` and is never ready. The Grammar tab shows the note in place of the count.
+  - Each friend is asked only from a text read into English, the reader's language
+    where the text has it and its own translation otherwise (`practices.read_into`), and
+    only with the switch on (`_switched_on`, applied in `page()`, so friends cached while
+    it was on are not asked once it is off).
+  - `practices.NOT_OFFERED` and `_not_offered`: a reader reading into another language who
+    has met none that way sees the spot with a `note` and is never asked. The Grammar tab
+    shows the note in place of the count.
   - Four new keys. **The Russian of `practice.page.friends-english` is a placeholder:
     Russian line: awaiting David's pick.** The other Russian lines are cleared by ling-ru.
   - Tests in `tests/test_practice_friends.py`. Nothing spends.

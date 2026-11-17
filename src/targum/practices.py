@@ -1001,15 +1001,55 @@ def friend_candidates(
 NOT_OFFERED: dict[str, str] = {"friends": "practice.page.friends-english"}
 
 
-def _not_offered(key: str, into: str, ui: str) -> str:
-    """The line saying why a spot is not offered to this reader, or "" where it is.
-    The Russian of `practice.page.friends-english` is a placeholder: Russian line:
+def _not_offered(key: str, into: str, ui: str, met_here: int) -> str:
+    """The line saying why a spot is not offered to this reader, or "" where it is: a
+    reader reading into another language who has met no false friend in a text read into
+    English. The Russian of `practice.page.friends-english` is a placeholder: Russian line:
     awaiting David's pick (three candidates in the PR)."""
     from . import strings
 
-    if key in NOT_OFFERED and into.split("-")[0] != "en":
+    if key in NOT_OFFERED and into.split("-")[0] != "en" and not met_here:
         return strings.text(NOT_OFFERED[key], ui)
     return ""
+
+
+def _switched_on(key: str) -> bool:
+    """Whether a spot is on at all: false friends go with the card's own switch, so a
+    text counted while the list was on asks nothing once it is off (qa on #1295)."""
+    if key == "friends":
+        from .annotate.false_friends import is_on
+
+        return is_on()
+    return True
+
+
+@lru_cache(maxsize=256)
+def read_into(folder: Path, into: str) -> str:
+    """The language a text is read into: the reader's own where the text has it, and what
+    the text has where it has not, as its line on a card is chosen (`meetings._translation`).
+    "" for a text with no translation."""
+    from .models import Translation, read_artifact
+    from .translate.prompts import BESIDE
+
+    first = ""
+    for path in sorted((folder / "translations").glob("*.json")):
+        translation = read_artifact(Translation, path)
+        if translation is None or translation.target_language in BESIDE:
+            continue
+        code = translation.target_language.split("-")[0]
+        if code == into.split("-")[0]:
+            return code
+        first = first or code
+    return first
+
+
+def _asked_here(one: Met, into: str) -> bool:
+    """Whether an item may be asked of this reader. A false friend only where the spot is
+    switched on and its own text is read into English (qa on #1295): the look-alike is an
+    English word, and the card says it only beside the English."""
+    if one.candidate.spot != "friends":
+        return True
+    return _switched_on("friends") and read_into(one.folder, into) == "en"
 
 
 def text_practice(folder: Path) -> TextPractice | None:
@@ -1587,13 +1627,16 @@ def page(
     on the spot asked for or the one most due. Nothing spends; nothing is written."""
     registered = REGISTERED.get(language, {})
     found = list(met(finished, folder_for, language)) if registered else []
+    found = [one for one in found if _asked_here(one, into)]
     count = ledger(found)
     at = int(now if now is not None else time.time())
     spots: list[dict[str, Any]] = []
     for name, practice in registered.items():
         key = KEYS[name]
+        if not _switched_on(key):
+            continue
         state = state_of(rows.get(key))
-        closed = _not_offered(key, into, ui)
+        closed = _not_offered(key, into, ui, count.encounters(key))
         spots.append(
             {
                 "key": key,

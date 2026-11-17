@@ -619,10 +619,15 @@ spot" (2026-10-13). It waits for David, and so does its Russian line.
   speech or by the word after it (*matériel* the noun, *assister à*), only where every
   use of the word in the text passes. The card gathers those uses over its page; the
   practice gathers them over the whole text, which is never less strict.
-- **Only into English.** The look-alikes are English words, and the card says them only
-  while a text is read into English. A reader reading into another language sees the spot
-  with one line saying why it is not offered, in place of how often it was met. It is
+- **Only beside English, text by text.** The look-alikes are English words, and the card
+  says them only while a text is read into English. So a false friend counts, and is
+  asked, only from a text read into English. That is the reader's own language where the
+  text has a translation into it, and otherwise the translation the text has, as its card
+  chooses (qa on #1295). A reader who has met none that way, and is not reading into
+  English, sees the spot with one line saying why in place of how often it was met, and is
   never asked.
+- **Off with the card.** `TARGUM_FALSE_FRIENDS=0` takes the spot off the page, including
+  the friends already counted into a text's `practice.json` while it was on.
 - **Every item is the hard kind**, because the wrong answer is always the one the word is
   taken for. No line is shown where "the other answer is right": the French word never
   means its look-alike.

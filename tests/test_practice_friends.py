@@ -113,9 +113,14 @@ def _friends(name: str) -> list[tuple[str, list[dict[str, Any]]]]:
     ]  # fmt: skip
 
 
-def _sync(port: int, token: str, out: Path, postbox: Postbox) -> str:
+def _sync(port: int, token: str, out: Path, postbox: Postbox, *, english: bool = True) -> str:
+    """Two texts of false friends, finished; each with an English translation, as a text
+    built into English has, unless `english` is False."""
     for name in ("un", "deux"):
-        text(out / "shared" / name, {1: _friends(name)}, language="fr", content_hash=name)
+        lines = _friends(name)
+        translation = {f"s1-{n}": f"(English of line {n})" for n in range(len(lines))}
+        text(out / "shared" / name, {1: lines}, language="fr", content_hash=name,
+             translation=translation if english else None)  # fmt: skip
     cookie = sign_in(port, postbox)
     sections = [
         {"hash": name, "section": "1", "at": ms(2026, 11), "seen": ms(2026, 11)}
@@ -148,11 +153,12 @@ def test_false_friends_are_offered_reading_into_english(
         assert "looks like the English" in item["rule"]
 
 
-def test_a_reader_not_reading_into_english_is_told_why_and_asked_nothing(
+def test_each_text_is_judged_by_the_language_it_is_read_into(
     served: tuple[int, str, Path], postbox: Postbox
 ) -> None:
-    """The look-alikes are English words, so the card says them only into English, and the
-    practice is not offered otherwise. The Russian of the line waits for David's pick."""
+    """qa on #1295: not the Grammar tab's language but each text's own. A reader whose
+    page is Russian reads these texts in English, the only translation they have, so the
+    card says their false friends and the practice asks them."""
     port, token, out = served
     cookie = _sync(port, token, out, postbox)
     status, said, _ = call(
@@ -160,5 +166,42 @@ def test_a_reader_not_reading_into_english_is_told_why_and_asked_nothing(
     )
     assert status == 200, said
     spot = {one["key"]: one for one in said["spots"]}["friends"]
+    assert spot["ready"] and "note" not in spot
+    assert said["round"]["spot"] == "friends"
+
+
+def test_a_reader_not_reading_into_english_is_told_why_and_asked_nothing(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    """The look-alikes are English words, so the card says them only beside English, and
+    a text not read into English asks none. The Russian of the line waits for David's
+    pick."""
+    port, token, out = served
+    cookie = _sync(port, token, out, postbox, english=False)
+    status, said, _ = call(
+        port, "GET", f"/account/practice?language=fr&into=ru&spot=friends&k={token}", cookie=cookie
+    )
+    assert status == 200, said
+    spot = {one["key"]: one for one in said["spots"]}["friends"]
     assert not spot["ready"] and spot["note"]
+    assert said["round"] is None or said["round"]["spot"] != "friends"
+
+
+def test_the_switch_off_takes_the_spot_away_from_texts_already_counted(
+    served: tuple[int, str, Path], postbox: Postbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """qa on #1295: a text counted while the list was on keeps its friends in practice.json;
+    with the switch off the page neither lists the spot nor asks it."""
+    port, token, out = served
+    cookie = _sync(port, token, out, postbox)
+    path = f"/account/practice?language=fr&into=en&spot=friends&k={token}"
+    status, said, _ = call(port, "GET", path, cookie=cookie)
+    assert "friends" in {one["key"] for one in said["spots"]}
+    assert any(
+        "friends" in (out / "shared" / n / practices.CACHE).read_text() for n in ("un", "deux")
+    )
+    monkeypatch.setenv("TARGUM_FALSE_FRIENDS", "0")
+    status, said, _ = call(port, "GET", path, cookie=cookie)
+    assert status == 200, said
+    assert "friends" not in {one["key"] for one in said["spots"]}
     assert said["round"] is None or said["round"]["spot"] != "friends"
