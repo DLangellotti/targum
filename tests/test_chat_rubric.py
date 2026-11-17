@@ -208,16 +208,33 @@ def test_hebrew_keeps_its_chat_evals_and_a_language_with_no_set_has_none() -> No
 def test_the_first_run_is_history_and_holds_no_floor() -> None:
     """The first run (2026-11-17, David's go, $1.78) measured the French contract before
     it kept spoken French as written: two register lines were "corrected". It is kept as
-    a measurement of that contract, recorded under its name, and today's contract has not
-    been run, so French still shows the gap."""
-    rows = [row for row in evals.read(stages.LEDGER) if row.corpus == "fr-cases"]
-    assert rows and {row.system for row in rows} == {"chat-contract"}
+    a measurement of that contract, recorded under its name, and breaches no floor of the
+    contract that followed it."""
+    rows = [
+        row
+        for row in evals.read(stages.LEDGER)
+        if row.corpus == "fr-cases" and row.system == "chat-contract"
+    ]
+    assert rows
     scores = {row.metric: row.score for row in rows}
     assert scores["register_lines_changed"] == 2 and scores["why_shown_on_register_lines"] == 2
     floors = [f for f in evals.floors(stages.FLOORS) if f.corpus == "fr-cases"]
     assert floors and {f.system for f in floors} == {SYSTEM}
     assert not evals.breaches(rows, floors)
-    assert not stages.facts("fr").chat_evals
+
+
+def test_the_fixed_contract_holds_and_french_has_its_chat_evals() -> None:
+    """The fixed contract's first run (2026-11-17, David's go, $1.92) holds every floor,
+    so French's stage no longer shows the chat-evals gap."""
+    rows = [
+        row
+        for row in evals.read(stages.LEDGER)
+        if row.corpus == "fr-cases" and row.system == SYSTEM
+    ]
+    assert rows
+    floors = [f for f in evals.floors(stages.FLOORS) if f.corpus == "fr-cases"]
+    assert not evals.breaches(rows, floors)
+    assert stages.facts("fr").chat_evals
 
 
 def test_the_contract_keeps_spoken_french_and_names_the_visiting_calque() -> None:
