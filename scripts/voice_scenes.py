@@ -164,7 +164,7 @@ DIRECTION_MOST = 40
 #: What a turn is read as when the director is off or said nothing usable for it.
 NEUTRAL = "calm and natural"
 #: The language a scene is read in, by its `language` field, for the director's brief.
-LANGUAGES = {"he": "Hebrew", "ru": "Russian"}
+LANGUAGES = {"he": "Hebrew", "ru": "Russian", "fr": "French"}
 BRIEF = """You direct two voice actors reading a short everyday conversation in {language} \
 for a language-learning app. For each numbered turn write a stage direction of two to \
 six English words: the speaker's mood, how strongly, and the pace. For example: \
