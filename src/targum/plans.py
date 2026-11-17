@@ -52,6 +52,27 @@ def on() -> bool:
     return os.environ.get("TARGUM_PLANS", "").strip().lower() in {"1", "true", "yes", "on"}
 
 
+#: The operator's preview of plans while they are off (targum-internal#59 phase 2): set to
+#: `operators`, an admin account sees `/plans` and its own plan as a reader would, so
+#: paying through Paddle's sandbox can be tried on the box before switch day. Nothing
+#: else reads it: `on()` stays off, and so does every limit, for everybody.
+PREVIEW_ENV = "TARGUM_PLANS_PREVIEW"
+
+
+def previewing(person: Person | None) -> bool:
+    """Whether this account sees plans in the operator's preview: plans off, the preview
+    set to `operators`, and the account an admin. Never anybody else, and never while
+    plans are on, when everybody sees them anyway."""
+    if on() or person is None or not bool(getattr(person, "admin", False)):
+        return False
+    return os.environ.get(PREVIEW_ENV, "").strip().lower() == "operators"
+
+
+def shown(person: Person | None) -> bool:
+    """Whether the plan pages are there for this account: plans on, or its preview."""
+    return on() or previewing(person)
+
+
 def _until(person: Person | None) -> date | None:
     """The day this reader's comp ends, if they have one that reads as a day."""
     # Read leniently: a stand-in for a person that says only `admin` has no comp.
@@ -115,9 +136,19 @@ def word_cap(person: Person | None) -> int | None:
 def summary(person: Person | None, *, listed: int = 0, language: str = "en") -> dict[str, Any]:
     """What a page needs to draw the plan: whether plans are on, which plan this is, the
     month's credits, and the word cap with how many words are on the list now. A comped
-    reader's also says until when (`comp`, an ISO day, and `compSaid`, in `language`)."""
-    if not on():
+    reader's also says until when (`comp`, an ISO day, and `compSaid`, in `language`).
+
+    In the operator's preview (`previewing`) the operator is drawn as the reader they
+    would be without being the operator, so Start the plan is offered and a plan paid
+    for in the sandbox shows as it will for a reader; `preview` says so. Only the
+    drawing: what the account may spend is `paid`, which still counts the operator."""
+    preview = previewing(person)
+    if not on() and not preview:
         return {"on": False}
+    if preview and person is not None:
+        from dataclasses import replace
+
+        person = replace(person, admin=False)
     is_paid = paid(person)
     comp: dict[str, Any] = {}
     if comped(person) and person is not None:
@@ -131,4 +162,5 @@ def summary(person: Person | None, *, listed: int = 0, language: str = "en") -> 
         "words": None if is_paid else FREE_WORDS,
         "listed": listed,
         "topUps": list(TOP_UPS) if is_paid else [],
+        **({"preview": True} if preview else {}),
     }
