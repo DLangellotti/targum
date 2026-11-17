@@ -8,7 +8,7 @@ from __future__ import annotations
 import re
 from html import unescape
 
-from targum.render.builder import LEGAL_CHANGED, legal_page
+from targum.render.builder import LEGAL_CHANGED, NOTICE_ALLOWS_LANGUAGES, legal_page
 
 
 def said(markup: str) -> str:
@@ -81,3 +81,12 @@ def test_the_schedule_deletes_an_unconfirmed_address_after_thirty_days() -> None
     tell_us = page.index('A message sent by means of "Tell us".')
     entry = page.index(RETENTION)
     assert tell_us < entry < page.index("A fault report sent by a browser.")
+
+
+def test_the_languages_are_allowed_by_the_same_change_that_says_so() -> None:
+    """The back office's languages (the Readers column, the Overview's row) read this
+    switch, and it is on only where 3.2 and 3.7 say the languages are shown."""
+    page = said(legal_page("privacy"))
+    assert NOTICE_ALLOWS_LANGUAGES is True
+    assert "the languages in which it reads" in page
+    assert "active on each day and in each language" in page

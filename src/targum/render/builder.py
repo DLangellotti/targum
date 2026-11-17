@@ -3198,6 +3198,11 @@ def torah_forward_page(book: str, chapter: int, language: str = "en") -> str:
 #: The date the four legal pages say they were last changed on. One line rather than
 #: four, because the date is the sentence on those pages nobody would notice going stale.
 LEGAL_CHANGED = "18 November 2026"
+#: Whether the Privacy Notice lets the back office show the languages each reader reads
+#: (clause 3.2) and how many were active in each language (clause 3.7), as David approved
+#: on 2026-11-17. An explicit switch, set in the change that lands those words, so the
+#: Readers table and the Overview never ask whether the Notice's wording matches.
+NOTICE_ALLOWS_LANGUAGES = True
 
 #: The four pages A7 owes a reader about their own data, and what a search engine is told
 #: each one is. Keyed on the route so `serve` dispatches from this rather than from a
