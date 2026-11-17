@@ -186,7 +186,7 @@ def test_the_pooled_count_needs_ten_readers_and_a_shareable_library_text(tmp_pat
     # Nothing shareable, nothing counted.
     assert fit_counts(store.db, set()) == []
 
-    page = _said(back_office_page(_empty_survey(), 30, fit=found))
+    page = _said(back_office_page(_empty_survey(), 30, fit=found, section="operations"))
     assert "Difficulty estimate" in page
     assert "94–97% 10 1000 3.0 5.0" in page
     assert "under 80% Fewer than ten readers" in page

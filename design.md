@@ -387,6 +387,19 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### The back office is an overview, a list of readers and a page each — 2026-11-17
+
+David, 2026-11-17: the back office "requires scrolling forever" and is "super
+disorganized". This replaces "The back office is four tabs" (2026-09-28) with pages of
+one desk screen each: **Overview** (what needs doing, who is active, the funnel as "n of
+m", spend against $40 a day, languages, each figure against yesterday and the same day
+last week), **Readers** (one table, last seen first), a **page for each reader**, then
+**Waitlist**, **Traffic**, **Shelf** and **Operations**. A library text is named on a
+reader's page; a text the reader brought never is. Nothing else a reader wrote, kept or
+noted is shown, under clauses 3.2, 3.6 and 3.7 as amended the same day. Write stays a
+mailto, so nothing new is stored. An unconfirmed waitlist address is deleted after
+thirty days. Operator and test accounts are counted nowhere.
+
 ### /plans alone loads Paddle's checkout script; no reader page, and no other page, loads anything from another site — 2026-11-17
 
 David, 2026-11-17. It amends "Payments are Paddle's, by a hosted checkout" (2026-11-15),
@@ -8811,6 +8824,9 @@ leaf fill never was.
   floats at the foot of the window, a floating panel's tier (§13).
 
 ### The back office is four tabs — 2026-09-28
+
+*(Superseded on 2026-11-17 by "The back office is an overview, a list of readers and a
+page each", above.)*
 
 "The back office has so much going on now, time to organize into menus and tabs," David
 wrote, and chose the shape: **People** (the waitlist and its door, accounts, the last 30

@@ -332,11 +332,13 @@ def test_the_back_office_names_each_withheld_kind(library: Path) -> None:
 
     db = sqlite3.connect(":memory:")
     db.executescript(SCHEMA)
-    page = back_office_page(survey(db, today=date(2026, 11, 6)), 30, withheld=found)
+    page = back_office_page(
+        survey(db, today=date(2026, 11, 6)), 30, withheld=found, section="operations"
+    )
     assert "Withheld: unknown kind" in page and "novel:" in page
     assert "a file read by novel" in page
     assert str(library) not in page, "a source is never named, only its kind"
-    quiet = back_office_page(survey(db, today=date(2026, 11, 6)), 30)
+    quiet = back_office_page(survey(db, today=date(2026, 11, 6)), 30, section="operations")
     assert "Nothing is withheld." in quiet
 
 

@@ -112,10 +112,10 @@ def test_the_month_is_the_sum_the_allowance_is_held_to(store: Store) -> None:
     assert dina.allowance == 28800.0
     assert by_email["admin@example.com"].allowance == 86400.0, "an admin is on Plan"
 
-    page = back_office_page(found, 30)
+    page = back_office_page(found, 30, section="readers")
     assert '<th class="n">Credits this month</th>' in page
     assert "32 of 480" in page and "$0.97" in page
-    assert f'href="/back-office?who={dina.id}#people"' in page
+    assert f'href="/back-office/readers/{dina.id}"' in page
 
 
 def test_accounts_sort_by_the_months_credits(store: Store) -> None:
@@ -141,18 +141,19 @@ def test_a_readers_page_counts_by_kind_and_a_gift_as_targums(store: Store) -> No
     assert one.used == store.hours_used(1, month_from(TODAY)) == 1895.0
     assert [line.kind for line in one.recent][:2] == ["gift", "chat"], "newest first"
 
-    page = back_office_page(survey(store.db, today=TODAY), 30, reader=one)
-    panel = page[page.index('id="tab-people"') : page.index("<h2>Follow up")]
+    page = back_office_page(None, 30, reader=one, section="reader")
+    panel = page[page.index('aria-label="Reader"') :]
     assert "dina@example.com" in panel and "32 of 480 credits this month" in panel
     assert ">95 s<" in panel, "a conversation is counted in seconds"
     assert ">gift<" in panel and ">15<" in panel
-    assert 'href="/back-office#people">Back to accounts' in panel
+    assert 'href="/back-office/readers">Back to accounts' in panel
+    assert "<h2>Follow up" not in page, "a reader's page is that reader's alone"
 
 
 def test_a_readers_page_holds_no_title_and_no_source(store: Store) -> None:
     """Clause 3.14: counts and stages, never what they read or where it came from."""
     one = reader(store.db, 1, today=TODAY)
-    page = back_office_page(survey(store.db, today=TODAY), 30, reader=one)
+    page = back_office_page(None, 30, reader=one, section="reader")
     for secret in (SECRET_TITLE, SECRET_SOURCE, "private.example", "secret title"):
         assert secret not in page
     assert not hasattr(one.recent[0], "title") and not hasattr(one.recent[0], "source")
@@ -233,9 +234,12 @@ def test_a_typed_id_that_is_no_account_is_nobody(store: Store) -> None:
 
 
 def test_the_page_asks_through_account_id() -> None:
-    """The route turns `?who=` into an id through `account_id` and nothing else."""
+    """The routes turn an id into a number through `account_id` and nothing else: the
+    old `?who=` and `/back-office/readers/<id>`, whose part of the path is ASCII digits
+    first, since `isdigit` alone took "²" (qa on targum#956)."""
     served = Path(__file__).resolve().parent.parent / "src" / "targum" / "serve.py"
     text = served.read_text(encoding="utf-8")
-    route = text[text.index("def _back_office(") : text.index("def _open_the_door")]
+    route = text[text.index("def _back_office(") : text.index("def _back_office_page(")]
     assert "who = account_id(asked_for)" in route
-    assert "isdigit" not in route and "int(asked_for)" not in route
+    assert "account_id(tail) if tail.isascii() and tail.isdigit() else None" in route
+    assert "int(asked_for)" not in route and "int(tail)" not in route

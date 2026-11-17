@@ -266,16 +266,18 @@ def test_reach_is_counted_with_no_one_in_it(db: sqlite3.Connection) -> None:
 
 def test_the_page_puts_the_press_beside_each_person(db: sqlite3.Connection) -> None:
     page = back_office_page(found(db), 30)
-    people = page[page.index('id="tab-people"') :]
+    people = page[page.index('aria-label="Overview"') :]
     assert people.index("Follow up") < people.index("Each week's readers")
-    assert people.index("How far readers get") < people.index("<h2>Accounts")
+    assert people.index("Each week's readers") < people.index("How far readers get")
+    assert "<h2>Accounts" not in page, "the accounts are the Readers page's"
     assert 'action="/back-office/resend"' in page
     assert '<input type="hidden" name="email" value="never@example.com">' in page
     assert 'href="mailto:once%40example.com?subject=targum"' in page
     assert "2 of 2" in page and "0 of 1" in page
     assert "1 of 4" in page
-    assert "%" not in page[page.index("How far readers get") : page.index("<h2>Accounts")]
+    assert "%" not in page[page.index("How far readers get") : page.index("</section>")]
     assert "erator" not in page
+    assert "erator" not in back_office_page(found(db), 30, section="readers")
 
 
 def test_a_week_too_young_says_so() -> None:
@@ -297,6 +299,7 @@ def test_the_waitlist_folds_away_those_already_let_in() -> None:
             ],
         ),
         30,
+        section="waitlist",
     )
     folded = page[page.index('<details class="let-in">') :]
     assert "Let in (1)" in folded and "in@example.com" in folded

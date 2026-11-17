@@ -173,10 +173,12 @@ def test_possibly_fake_filters_both_lists_and_flags_sort_them(store: Store) -> N
     assert [row.email for row in found.waiting_list] == ["12345678@mailinator.com"]
     assert [who.email for who in found.accounts] == ["99887766@mailinator.com"]
     assert found.possibly_fake == 2
-    page = back_office_page(found, 30)
+    page = back_office_page(found, 30, section="waitlist")
     assert "2 possibly fake" in page
-    assert 'name="wfake" value="1" checked' in page and 'name="fake" value="1" checked' in page
+    assert 'name="wfake" value="1" checked' in page
     assert "3 flags:" in page and FLAGS["throwaway"] in page
+    readers = back_office_page(found, 30, section="readers")
+    assert 'name="fake" value="1" checked' in readers and "2 flags:" in readers
 
     assert "flags" in ACCOUNT_SORTS and "flags" in WAITING_SORTS
     ordered = survey(store.db, today=TODAY, waitlist=Listing(sort="flags"))
@@ -200,20 +202,20 @@ def test_turn_off_sets_the_row_off_and_undo_puts_it_back(store: Store) -> None:
     assert store.join_waitlist("12345678@mailinator.com") is None
     assert store.waiting_state("12345678@mailinator.com") == "off"
 
-    page = back_office_page(survey(store.db, today=TODAY), 30)
+    page = back_office_page(survey(store.db, today=TODAY), 30, section="waitlist")
     assert "Turned off" in page and 'action="/back-office/turn-on"' in page
 
     assert store.undo_turn_off("12345678@mailinator.com")
     assert store.waiting_state("12345678@mailinator.com") == "pending"
     assert not store.undo_turn_off("12345678@mailinator.com"), "once"
-    page = back_office_page(survey(store.db, today=TODAY), 30)
+    page = back_office_page(survey(store.db, today=TODAY), 30, section="waitlist")
     assert 'action="/back-office/turn-off"' in page
 
 
 def test_turn_off_is_only_for_a_row_still_waiting(store: Store) -> None:
     assert not store.turn_off_waiting("anna@example.com"), "already let in"
     assert not store.turn_off_waiting("nobody@example.com")
-    page = back_office_page(survey(store.db, today=TODAY), 30)
+    page = back_office_page(survey(store.db, today=TODAY), 30, section="waitlist")
     assert 'action="/back-office/turn-off"' not in page, "an unflagged row has no press"
 
 
@@ -245,7 +247,7 @@ def test_only_an_admin_turns_off_or_back(
     status, _, where = form(
         port, "/back-office/turn-off", {"email": "12345678@mailinator.com"}, admin
     )
-    assert status in (302, 303) and where.endswith("#people")
+    assert status in (302, 303) and where.startswith("/back-office/waitlist?said=")
     assert store.waiting_state("12345678@mailinator.com") == "off"
     status, _, _ = form(port, "/back-office/turn-on", {"email": "12345678@mailinator.com"}, reader)
     assert status == 404
@@ -253,7 +255,7 @@ def test_only_an_admin_turns_off_or_back(
     status, _, where = form(
         port, "/back-office/turn-on", {"email": "12345678@mailinator.com"}, admin
     )
-    assert status in (302, 303) and where.endswith("#people")
+    assert status in (302, 303) and where.startswith("/back-office/waitlist?said=")
     assert store.waiting_state("12345678@mailinator.com") == "pending"
 
 

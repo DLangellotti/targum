@@ -287,7 +287,7 @@ def test_only_an_admin_changes_a_messages_state(
     status, _, where = form(
         port, "/back-office/told", {"id": str(told_id), "state": "fixed"}, admin
     )
-    assert status in (302, 303) and where.endswith("#people")
+    assert status in (302, 303) and where == "/back-office#told"
     assert store.told()[0]["state"] == "fixed"
     status, _, _ = form(port, "/back-office/told", {"id": str(told_id), "state": "gone"}, admin)
     assert status == 400
@@ -307,7 +307,7 @@ def test_only_an_admin_marks_a_fault_fixed(
     store.make_admin("ops@example.com")
     admin = sign_in(port, postbox, "ops@example.com")
     status, _, where = form(port, "/back-office/fault", {"message": "TypeError: boom"}, admin)
-    assert status in (302, 303) and where.endswith("#operations")
+    assert status in (302, 303) and where == "/back-office/operations#faults"
     assert store.faults()[0]["fixed"] > 0
     status, _, _ = form(port, "/back-office/fault", {"message": "never reported"}, admin)
     assert status == 400
@@ -391,23 +391,27 @@ def test_the_back_office_lists_messages_and_counts_faults(tmp_path: Path) -> Non
     store.settle_told(closed, "fixed")
     for _ in range(3):
         store.fault(None, "TypeError: boom", "at f (/texts:1:2)", "/texts", "abc")
-    page = back_office_page(Survey(), 30, told=store.told(), faults=store.faults())
-    assert "1 message waiting on us" in page[: page.index('class="bo-tabs"')]
-    people = page[page.index('id="tab-people"') : page.index('id="tab-traffic"')]
+    people = back_office_page(Survey(), 30, told=store.told(), faults=store.faults())
+    assert "1 message waiting on us" in people
     assert '<h2 id="told">Tell us</h2>' in people and ">first<" in people
     assert "Closed (1)" in people and ">second<" in people
     assert 'action="/back-office/told"' in people
-    operations = page[page.index('id="tab-operations"') :]
+    assert "Broken in browsers" not in people, "the faults are Operations'"
+    operations = back_office_page(
+        Survey(), 30, told=store.told(), faults=store.faults(), section="operations"
+    )
+    assert ">first<" not in operations, "and the messages the overview's"
     assert "Broken in browsers" in operations
     assert "TypeError: boom" in operations and '<td class="n">3</td>' in operations
     assert 'action="/back-office/fault"' in operations and "Fixed (" not in operations
 
     store.fix_fault("TypeError: boom")
-    page = back_office_page(Survey(), 30, told=store.told(), faults=store.faults())
-    operations = page[page.index('id="tab-operations"') :]
+    operations = back_office_page(
+        Survey(), 30, told=store.told(), faults=store.faults(), section="operations"
+    )
     assert "Fixed (1)" in operations and "Nothing has broken since the last fix." in operations
     assert 'action="/back-office/fault"' not in operations
-    assert "save the\n    messages readers write to us through Tell us" in page
+    assert "save the\n    messages readers write to us through Tell us" in operations
 
 
 # -- the build ---------------------------------------------------------------------------

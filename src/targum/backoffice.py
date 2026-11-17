@@ -24,9 +24,9 @@ and there is no version of "how much are they reading" that needs it.
 **One exception: what a reader writes to us (2026-10-18, targum-internal#456).** A message
 sent through Tell us is addressed to the operator, so showing it to the operator is the
 whole of what the reader asked for; clause 3.14 of the privacy notice says so, and how
-long it is kept. It is listed under People with its page, window, language and build, and
-nothing else a reader wrote ever joins it. Fault reports from browsers (#457) are counted
-under Operations by message and page, never per reader.
+long it is kept. It is listed on the Overview with its page, window, language and build,
+and nothing else a reader wrote ever joins it. Fault reports from browsers (#457) are
+counted under Operations by message and page, never per reader.
 
 **What it is for, since the first readers came in (2026-10-15).** Three questions: who
 should I write to, did this week's people come back, and which parts of targum does
@@ -104,6 +104,34 @@ def _top_tags(counted: dict[str, int]) -> dict[str, int]:
     if rest:
         shown[OTHER_TAGS] = rest
     return shown
+
+
+#: Where the back office is served. `serve.BACK_OFFICE_ROUTE` says the same, and a test
+#: holds the two together.
+ROUTE = "/back-office"
+
+#: The back office's pages, in the bar's order, by the last part of their address
+#: (design.md §12, 2026-11-17): one desk screen each. The overview is the bare address,
+#: and a reader's own page is `readers/<id>`.
+PAGES = {
+    "overview": "Overview",
+    "readers": "Readers",
+    "waitlist": "Waitlist",
+    "traffic": "Traffic",
+    "shelf": "Shelf",
+    "operations": "Operations",
+}
+
+#: The two searches' names in an address. Never `q` or `wq`: the proxy writes every
+#: address it is asked for into `targum.log`, so a search for a reader's address put the
+#: address there, and `deploy/Caddyfile` now deletes these two from the log by name.
+ACCOUNT_SEARCH = "bq"
+WAITING_SEARCH = "bwq"
+
+
+def page_route(page: str) -> str:
+    """A back-office page's address: the overview is the bare one."""
+    return ROUTE if page == "overview" else f"{ROUTE}/{page}"
 
 
 #: How many rows a list on the page draws at once (targum-internal#542). The page drew
@@ -261,8 +289,8 @@ class Line:
 
 @dataclass
 class Reader:
-    """One account's credits (`?who=<id>`, targum-internal#543): this month and all
-    time by kind, and their latest jobs. Counts and stages only."""
+    """One account's credits (`/back-office/readers/<id>`, targum-internal#543): this
+    month and all time by kind, and their latest jobs. Counts and stages only."""
 
     id: int
     email: str
@@ -732,9 +760,10 @@ ID_MAX = 2**63 - 1
 
 
 def account_id(said: str) -> int | None:
-    """An account id typed into `?who=`, or None for anything that is not one: `int`
-    accepts "²" from `isdigit` no more than it does a 30-digit number SQLite cannot
-    bind, and either raised out of the request (qa on targum#956)."""
+    """An account id in a reader page's address (or the old `?who=`), or None for
+    anything that is not one: `int` accepts "²" from `isdigit` no more than it does a
+    30-digit number SQLite cannot bind, and either raised out of the request (qa on
+    targum#956)."""
     try:
         who = int(said.strip())
     except ValueError:

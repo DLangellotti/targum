@@ -10,6 +10,25 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   2026-11-17): the account menu's row, the box's title, the reader's ⋯ row and the press
   on every fault panel, all `fault.tell-us`. Code, routes and the back office keep
   "Tell us"; the Privacy Notice keeps its wording until David changes it.
+- The back office is six pages under one bar, Overview, Readers, Waitlist, Traffic, Shelf
+  and Operations, each at its own address under `/back-office`, with one reader's credits
+  at `/back-office/readers/<id>` (design.md §12, 2026-11-17, PR 2 of the back-office
+  plan). What each page shows is moved, not changed: Follow up, Tell us, the weeks and
+  the reach on the Overview; Accounts and the thirty days on Readers; the waitlist, its
+  counts and the door on Waitlist. The old `?who=<id>` redirects to the reader's page.
+  Every address under `/back-office` passes one door: the holding page signed out, 404
+  for a reader who is not an admin, and `no-store` on every answer. The bar is plain
+  links, so `backoffice.js` is gone.
+  - The searches are `bq` and `bwq`, not `q` and `wq`, and what a press said no longer
+    names an address: both ride in the address, which the proxy writes into
+    `targum.log`. `deploy/Caddyfile` deletes `bq`, `bwq` and `said` from both logs;
+    `deploy.sh` does not ship it, so it waits for David to apply it on the box once.
+  - Every press under `/back-office/` is refused 403 unless it comes from the same origin
+    (`Sec-Fetch-Site: same-origin`, or by `Origin` where a browser sends no
+    `Sec-Fetch-Site`). A sibling name under the domain counts as the same site, so
+    SameSite=Lax alone would have sent the admin's cookie (qa on targum#1308). When a
+    press fails, its reason goes to Incidents. The page says only that it did not go
+    through. The Caddy filters also delete the old `q` and `wq` for now.
 - The French chat contract keeps spoken French as written (version 2,
   `hebrew.FRENCH_CONTRACT_VERSION`). The first French chat eval (2026-11-17, $1.78, David's
   go) "corrected" two spoken lines in the recast, *je sais pas* and *j'ai jamais vu ça*,

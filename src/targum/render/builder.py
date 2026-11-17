@@ -3336,8 +3336,10 @@ def back_office_page(
     finds: object | None = None,
     fit: list[Any] | None = None,
     withheld: Mapping[str, int] | None = None,
+    section: str = "overview",
 ) -> str:
-    """The operator's own page, at `bo.<domain>`.
+    """One of the operator's own pages, at `bo.<domain>`: `section` is which of
+    `backoffice.PAGES`, or "reader" for one account's (design.md §12, 2026-11-17).
 
     Rendered here with everything else rather than in `backoffice.py`, so the one place
     that knows how a targum page is put together stays the one place. `found` is a
@@ -3345,41 +3347,53 @@ def back_office_page(
     in the renderer should need the store.
     """
     from ..accounts import TOLD_STATES
-    from ..backoffice import ACCOUNT_SORTS, WAITING_SORTS, Listing, credits
+    from ..backoffice import (
+        ACCOUNT_SEARCH,
+        ACCOUNT_SORTS,
+        PAGES,
+        WAITING_SEARCH,
+        WAITING_SORTS,
+        Listing,
+        credits,
+        page_route,
+    )
     from ..catalogue import Kind, Register
     from ..services import SAID_MAX, SERVICES
 
     read = balances or {}
-    # Where each list stands, so a link to the next page keeps the search and order of
-    # both lists (targum-internal#542). A default is left out of the address.
+    # Where the page's list stands, so a link to its next page keeps its search and order
+    # (targum-internal#542). A default is left out of the address. Each list is on a page
+    # of its own now, so a link carries that list's settings and no other's.
     accounts = getattr(found, "account_listing", None) or Listing(sort="joined")
     still = getattr(found, "waiting_listing", None) or Listing(sort="oldest")
     let_in = getattr(found, "let_in_listing", None) or Listing(sort="oldest")
-    here = {
-        "q": accounts.q,
-        "sort": "" if accounts.sort == next(iter(ACCOUNT_SORTS)) else accounts.sort,
-        # "Possibly fake (2+)", on either list (targum-internal#544).
-        "fake": "1" if accounts.fake else "",
-        "page": accounts.page,
-        "wq": still.q,
-        "wsort": "" if still.sort == next(iter(WAITING_SORTS)) else still.sort,
-        "wfake": "1" if still.fake else "",
-        "wpage": still.page,
-        "ipage": let_in.page,
-    }
+    here: dict[str, object] = {}
+    if section == "readers":
+        here = {
+            ACCOUNT_SEARCH: accounts.q,
+            "sort": "" if accounts.sort == next(iter(ACCOUNT_SORTS)) else accounts.sort,
+            # "Possibly fake (2+)", on either list (targum-internal#544).
+            "fake": "1" if accounts.fake else "",
+            "page": accounts.page,
+        }
+    elif section == "waitlist":
+        here = {
+            WAITING_SEARCH: still.q,
+            "wsort": "" if still.sort == next(iter(WAITING_SORTS)) else still.sort,
+            "wfake": "1" if still.fake else "",
+            "wpage": still.page,
+            "ipage": let_in.page,
+        }
 
-    def kept(**changes: object) -> list[tuple[str, str]]:
-        """The address's own settings, with `changes` made: what is default is dropped."""
+    def bo_url(**changes: object) -> str:
+        """This page's address with `changes` made: what is default is dropped."""
         merged = {**here, **changes}
-        return [
+        pairs = [
             (key, str(value))
             for key, value in merged.items()
             if value not in ("", None) and not (key.endswith("page") and int(str(value)) <= 1)
         ]
-
-    def bo_url(**changes: object) -> str:
-        pairs = kept(**changes)
-        return f"/back-office{'?' + urlencode(pairs) if pairs else ''}#people"
+        return f"{page_route(section)}{'?' + urlencode(pairs) if pairs else ''}"
 
     services = [
         {
@@ -3423,8 +3437,11 @@ def back_office_page(
             account_sorts=ACCOUNT_SORTS,
             waiting_sorts=WAITING_SORTS,
             bo_url=bo_url,
-            bo_kept=kept,
-            # One account's credits, at `?who=<id>` (targum-internal#543): a
+            # Which page this is, and the bar's (design.md §12, 2026-11-17).
+            bo_page=section,
+            bo_pages=PAGES,
+            bo_route=page_route,
+            # One account's credits, at `/back-office/readers/<id>` (targum-internal#543): a
             # `backoffice.Reader`, typed loosely for the reason `found` is.
             reader=reader,
             credits=credits,

@@ -260,7 +260,7 @@ def test_with_the_door_open_the_back_office_keeps_the_list_and_let_in(
 ) -> None:
     store = _waiting_list(tmp_path)
     _switched(monkeypatch, OPEN)
-    page = back_office_page(survey(store.db), 30)
+    page = back_office_page(survey(store.db), 30, section="waitlist")
     assert "Signup is open, so nobody new joins this list." in page
     # The history as it stands, and Let in for anyone still waiting.
     assert "first@example.com" in page and "second@example.com" in page
@@ -275,7 +275,7 @@ def test_short_of_the_open_door_the_back_office_is_as_it_was(
     store = _waiting_list(tmp_path)
     found = survey(store.db)
     _switched(monkeypatch, SHUT)
-    shut = back_office_page(found, 30)
+    shut = back_office_page(found, 30, section="waitlist")
     _switched(monkeypatch, switches)
-    assert back_office_page(found, 30) == shut
+    assert back_office_page(found, 30, section="waitlist") == shut
     assert "Signup is open" not in shut
