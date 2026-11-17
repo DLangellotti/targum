@@ -13985,10 +13985,11 @@ class Handler(BaseHTTPRequestHandler):
 
         A 404 until plans are on and Paddle is configured, like the pay presses; for a
         reader who has never paid there is no portal, and they go to `/plans`. A Paddle
-        that does not answer sends them back to Your account."""
-        if not plans.on() or not billing.configured():
-            return self._not_found()
+        that does not answer sends them back to Your account. In the operator's preview
+        (`plans.previewing`) it is there for an admin account too, and for nobody else."""
         person = self._person()
+        if not plans.shown(person) or not billing.configured():
+            return self._not_found()
         if person is None:
             return self._go("/account/signin")
         held = person.billing
@@ -14012,13 +14013,15 @@ class Handler(BaseHTTPRequestHandler):
         the keys missing both addresses are a 404 like any that is not there. A form on
         another site cannot press it for the reader. Start is for a reader with no plan
         that holds; Top up for a reader on Plan, as "No top-up on Free" says. Anything
-        else, and a Paddle that does not answer, goes back to `/plans`."""
-        if not plans.on() or not billing.configured():
+        else, and a Paddle that does not answer, goes back to `/plans`. In the operator's
+        preview (`plans.previewing`) both presses are there for an admin account too, and
+        for nobody else."""
+        person = self._person()
+        if not plans.shown(person) or not billing.configured():
             return self._not_found()
         if self._cross_site():
             self.close_connection = True
             return self._json({"error": "forbidden"}, 403)
-        person = self._person()
         if person is None or self.store is None:
             return self._go("/account/signin")
         held = person.billing
