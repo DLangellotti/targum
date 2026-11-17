@@ -257,6 +257,31 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     the webhook secret rotates, `PADDLE_WEBHOOK_SECRET_PREVIOUS` keeps tags made under
     the old one believed.
   - A `canceled` trims the subscription's paid period to Paddle's `canceled_at`.
+- The pay presses, `POST /plans/start` and `POST /plans/topup` (targum-internal#59 phase
+  2, items 7 and 10). Each makes a Paddle transaction for the press and answers a 303
+  to Paddle's hosted checkout (`PADDLE_CHECKOUT_URL?transaction_id=txn_…`). No page of
+  ours loads anything of Paddle's. Both are a 404 until plans are on and every Paddle
+  setting is there (`billing.configured()`), which nothing here sets.
+  - Start takes `cadence`, `month` or `quarter`, for a reader whose Paddle plan does not
+    already hold. Top up takes `size`, 60, 180 or 300, for a reader on Plan, as one
+    hour's price times 1, 3 or 5. The account rides in `custom_data` with its tag for
+    the webhook, and a reader who paid before is named by their Paddle customer.
+  - Closing an account asks Paddle to cancel its plan at the end of the period paid
+    for (`billing.cancel`), and the purge waits until Paddle says it is canceled. Each
+    purge sweep asks again for a plan that has not ended (a failed cancel, a paused
+    plan), and writes the try down.
+  - A press from another site is a 403. A Paddle that does not answer sends the reader
+    back with "The checkout didn't open. Try again in a minute."
+  - With Paddle configured, `/plans`'s Start the plan is a real form posting the
+    cadence its radios choose, and that page alone names Paddle's checkout origin in
+    `form-action`. Unconfigured it is greyed with "Payments open soon", as before. A
+    comped reader's stays greyed.
+  - Settings, all read from the environment: `PADDLE_API_KEY`, `PADDLE_WEBHOOK_SECRET`,
+    `PADDLE_ENVIRONMENT` (sandbox unless `live`; a key for the other one is no key),
+    `PADDLE_PRICE_MONTH`, `PADDLE_PRICE_QUARTER`, `PADDLE_PRICE_TOP_UP` (one hour) and
+    `PADDLE_CHECKOUT_URL` (https on `paddle.io` only).
+  - Top up's own press on Account and the out-of-credits panels stays greyed: where a
+    size is chosen is a design decision.
 - "A first week of Onkelos", targum's own playlist for a reader with Hebrew and no
   Aramaic (targum-internal#530, part 1). Seven rows, one a day: Genesis 1:1-5, 1:6-19,
   1:20-2:3, 2:4-14, 3:1-13, 6:9-22 and 37:1-11, each the Hebrew with the public-domain

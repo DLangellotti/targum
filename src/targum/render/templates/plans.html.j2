@@ -46,8 +46,10 @@
     </section>
 
     <section class="card plan-card plan-paid" aria-labelledby="plan-paid-name">
-      <input class="plan-every" type="radio" name="every" id="every-month" checked>
-      <input class="plan-every" type="radio" name="every" id="every-quarter">
+      {#- The cadence the pay press sends, by `form=`: the radios sit above the press so
+          the price can follow them in CSS. -#}
+      <input class="plan-every" type="radio" name="cadence" value="month" id="every-month" form="plan-start-form" checked>
+      <input class="plan-every" type="radio" name="cadence" value="quarter" id="every-quarter" form="plan-start-form">
       <div class="plan-top">
         <h2 class="plan-name" id="plan-paid-name">{{ t("plans.page.plan", "Plan") }}</h2>
         {%- if mine == 'plan' %}<span class="plan-yours">{{ t("plans.page.your-plan", "Your plan") }}</span>{% endif %}
@@ -76,8 +78,20 @@
         <li>{{ t("plans.page.plan-top-up", "Top up at ${price} an hour if you need more in a month", price=top_up_hour) }}</li>
       </ul>
       {#- A beta reader comped to Plan still sees the press they will use once payments
-          open, greyed like everybody's (targum-internal#59). -#}
-      {%- if mine != 'plan' or plan.comp %}
+          open, greyed like everybody's (targum-internal#59). Once Paddle is configured
+          (`pay`), a reader not on Plan presses it for real: a plain form that the
+          server answers with a 303 to Paddle's hosted checkout, so nothing of Paddle's
+          is on this page (design.md §12, "Payments are Paddle's, by a hosted
+          checkout", 2026-11-15). The comp keeps it greyed: that is David's to decide. -#}
+      {%- if pay and mine != 'plan' %}
+      <form class="plan-pay" id="plan-start-form" method="post" action="/plans/start">
+        <button type="submit" class="btn plan-start">{{ t("plans.page.start", "Start the plan") }}</button>
+        {%- if failed %}
+        <span class="fault-fact" role="status">{{ t("plans.page.pay-failed", "The checkout didn't open. Try again in a minute.") }}</span>
+        {%- endif %}
+        <span class="plan-cancel-any">{{ t("plans.page.cancel-any-time", "Cancel any time") }}</span>
+      </form>
+      {%- elif mine != 'plan' or plan.comp %}
       <div class="plan-pay">
         <button type="button" class="btn soon plan-start" disabled>{{ t("plans.page.start", "Start the plan") }}</button>
         <span class="fault-fact fault-soon"><svg class="fault-clock" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 2.25a5.75 5.75 0 1 0 0 11.5a5.75 5.75 0 1 0 0-11.5z"/><path d="M8 5v3.2l2 1.3"/></svg>{{ t("fault.payments-soon", "Payments open soon") }}</span>

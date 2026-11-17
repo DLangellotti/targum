@@ -20,8 +20,12 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import json
 import os
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -109,7 +113,23 @@ def prices() -> dict[str, str]:
 
 
 def checkout_url() -> str:
-    return _env(CHECKOUT_URL_ENV)
+    """The hosted checkout's link, where it is Paddle's: https, on `paddle.io` or a name
+    under it. Anything else is no link, so a typo cannot send a reader's payment to
+    somebody else's page."""
+    said = _env(CHECKOUT_URL_ENV)
+    parsed = urllib.parse.urlsplit(said)
+    host = (parsed.hostname or "").lower()
+    if parsed.scheme != "https" or not (host == "paddle.io" or host.endswith(".paddle.io")):
+        return ""
+    return said
+
+
+def checkout_origin() -> str:
+    """The hosted checkout's origin, which the page holding a pay press names in its
+    `form-action` (design.md §12, 2026-11-15): Chrome checks a form's redirect against
+    it."""
+    parsed = urllib.parse.urlsplit(checkout_url())
+    return f"{parsed.scheme}://{parsed.netloc}" if parsed.netloc else ""
 
 
 def configured() -> bool:
@@ -361,3 +381,87 @@ def handle(store: Store, event: dict[str, Any]) -> Outcome:
     if kind == "transaction.payment_failed":
         return _payment_failed(store, data, said_at)
     return Outcome("ignored", detail=kind)
+
+
+# -- talking to Paddle ------------------------------------------------------------------
+
+
+class PaddleError(Exception):
+    """Paddle did not answer as asked: unreachable, refused, or an answer without what
+    the call needs. Said to the reader as "try again", never as Paddle's words."""
+
+
+#: How long a call to Paddle may take. A reader is waiting on the press.
+TIMEOUT_SECONDS = 15
+
+
+def _call(method: str, path: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
+    """One call to Paddle's API, with the key, as JSON, answering `data`."""
+    key = api_key()
+    if not key:
+        raise PaddleError("no key")
+    request = urllib.request.Request(
+        API_BASE[environment()] + path,
+        data=json.dumps(body).encode() if body is not None else None,
+        method=method,
+        headers={
+            "Authorization": f"Bearer {key}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:  # noqa: S310 - Paddle's own https address
+            answer = json.loads(response.read() or b"{}")
+    except urllib.error.HTTPError as error:
+        raise PaddleError(f"{method} {path}: {error.code}") from error
+    except (urllib.error.URLError, OSError, ValueError) as error:
+        raise PaddleError(f"{method} {path}: {error}") from error
+    data = answer.get("data") if isinstance(answer, dict) else None
+    if not isinstance(data, dict):
+        raise PaddleError(f"{method} {path}: no data")
+    return data
+
+
+def checkout(price: str, *, account: int, made: int, quantity: int = 1, customer: str = "") -> str:
+    """Where to send a reader to pay: a transaction made for `price` and this account,
+    opened on Paddle's hosted checkout (`checkout_url()?transaction_id=txn_…`).
+
+    The account rides in `custom_data` with its tag (`account_tag`, over the id and
+    `made`, when the account was made), which Paddle copies onto the subscription, so
+    the webhook knows whose it is and that our server said so. A reader who has paid
+    before is named by their Paddle customer, so a second subscription or a top-up lands
+    on the same one."""
+    page = checkout_url()
+    if not page or not price:
+        raise PaddleError("not configured")
+    body: dict[str, Any] = {
+        "items": [{"price_id": price, "quantity": int(quantity)}],
+        "custom_data": {
+            ACCOUNT_KEY: str(int(account)),
+            TAG_KEY: account_tag(int(account), int(made)),
+        },
+        "collection_mode": "automatic",
+    }
+    if customer:
+        body["customer_id"] = customer
+    answer = _call("POST", "/transactions", body)
+    transaction = str(answer.get("id") or "")
+    if not transaction.startswith("txn_"):
+        raise PaddleError("no transaction")
+    joiner = "&" if urllib.parse.urlsplit(page).query else "?"
+    return f"{page}{joiner}{urllib.parse.urlencode({'transaction_id': transaction})}"
+
+
+def cancel(subscription: str) -> None:
+    """Ask Paddle to cancel a subscription at the end of the period already paid for:
+    what closing an account does, so a reader who leaves is not charged again. Paddle
+    says `canceled` by webhook when the period ends, and only then does the purge go
+    ahead (`Store.live_billing`)."""
+    if not subscription.startswith("sub_"):
+        raise PaddleError("no subscription")
+    _call(
+        "POST",
+        f"/subscriptions/{urllib.parse.quote(subscription)}/cancel",
+        {"effective_from": "next_billing_period"},
+    )
