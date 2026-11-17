@@ -205,3 +205,16 @@ def test_a_long_scene_is_not_called_short() -> None:
     long = scene(*[("AB"[n % 2], "Oui.") for n in range(60)])
     assert "a long everyday conversation" in script.brief(long)
     assert "a short everyday conversation" in script.brief(THREE)
+
+
+def test_the_director_has_room_for_a_long_scene(monkeypatch: pytest.MonkeyPatch) -> None:
+    sent: dict[str, Any] = {}
+
+    def fetch(request: Any, deadline: float) -> bytes:
+        sent.update(json.loads(request.data))
+        return json.dumps({"content": [{"text": "[]"}], "usage": {}}).encode()
+
+    monkeypatch.setattr(script, "fetch", fetch)
+    script.ask_director("x", "key")
+    # 72 turns of a dozen tokens each, with room to spare.
+    assert sent["max_tokens"] >= 72 * 12 * 3
