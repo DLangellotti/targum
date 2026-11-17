@@ -529,9 +529,10 @@ CHAT_EVALS: frozenset[str] = frozenset({"he"})
 
 #: A language's own chat eval set, as (stage, corpus) in the ledger: its chat evals are
 #: present once every floor on that set has a row, and the newest row holds it. French's
-#: is forty learner lines and a rubric read off the reply (`scripts/eval_chat_fr.py`,
-#: `chat/rubric.py`, targum-internal#644); its floors are in `evals/floors.json` before
-#: its first run, so recording a run that holds them is what moves French.
+#: is forty-two learner lines and a rubric read off the reply (`scripts/eval_chat_fr.py`,
+#: `chat/rubric.py`, targum-internal#644); its floors are in `evals/floors.json`, held by
+#: the French contract at its version (`chat-contract/fr2`), so a run of an older contract
+#: is history and recording a run of today's that holds them is what moves French.
 CHAT_EVAL_SETS: dict[str, tuple[str, str]] = {"fr": ("chat", "fr-cases")}
 
 #: The cases each set is scored on. A row counts only where it was scored on these bytes

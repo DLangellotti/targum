@@ -2,7 +2,7 @@
 
 French Beta asks for chat evals in the language, with floors (design.md, "A badge is a
 promise, checked"). The recast is the line of record, so this is the set that matters
-most: forty learner lines, hand-written by ling-fr (`evals/chat-fr-cases.jsonl`), sent
+most: forty-two learner lines, hand-written by ling-fr (`evals/chat-fr-cases.jsonl`), sent
 one each as the reader's turn to the French contract (`chat/hebrew.py`,
 `french_contract`), each reply read back by the contract's own parser and scored by the
 rubric in `chat/rubric.py`. No model judges anything.
@@ -11,11 +11,13 @@ rubric in `chat/rubric.py`. No model judges anything.
   woman's agreement (*je suis allée*, *contente*) kept.
 - 5 **register** lines, spoken French that is right (*je sais pas*, *on va au cinéma*):
   no `~ ` line, because register is not an error (D5, 2026-11-05).
-- 20 **error** lines of the kinds the contract names: fixed in the recast, with a `~ `
-  line under it.
+- 22 **error** lines of the kinds the contract names: fixed in the recast, with a `~ `
+  line under it. One is spoken French with a mistake of its own, and one a mixed line
+  whose fix keeps the dropped *ne* (*je suis pas resté*).
 
 Rows go to `evals/ledger.jsonl` as stage `chat`, corpus `fr-cases` (`fr-cases-ru` for a
-reader who reads Russian, `--gloss Russian`), system `chat-contract`. `stages` counts
+reader who reads Russian, `--gloss Russian`), system `chat-contract/fr<version>`, the
+French contract's own version (`hebrew.FRENCH_CONTRACT_VERSION`). `stages` counts
 French's chat evals as present once every floor on `fr-cases` has a row that holds it.
 
 **It spends, and only when told to.** One call a case at the chat's own model; nothing
@@ -52,6 +54,11 @@ TYPICAL_REPLY = 250
 #: Characters to a token, for pricing a prompt without sending it. French and a word list
 #: run nearer three than four; three keeps the estimate on the high side.
 CHARACTERS_PER_TOKEN = 3.0
+
+
+#: The system a run is recorded under: the French contract at its version, so a run of a
+#: contract since changed is history and is held to no floor.
+SYSTEM = f"chat-contract/fr{hebrew.FRENCH_CONTRACT_VERSION}"
 
 
 def corpus_for(gloss: str) -> str:
@@ -163,7 +170,7 @@ def main(argv: list[str] | None = None) -> None:
             metric=metric,
             score=float(score),
             n=summary.over[metric],
-            system="chat-contract",
+            system=SYSTEM,
             version=CHAT_MODEL,
             note=note,
         )

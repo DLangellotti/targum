@@ -13,9 +13,12 @@ from typing import Any
 import pytest
 
 from targum import evals, stages
-from targum.chat import CHAT_MODEL, rubric
+from targum.chat import CHAT_MODEL, hebrew, rubric
 
 RUNNER = Path(__file__).resolve().parents[1] / "scripts" / "eval_chat_fr.py"
+
+#: What a run of today's French contract is recorded under (`eval_chat_fr.SYSTEM`).
+SYSTEM = f"chat-contract/fr{hebrew.FRENCH_CONTRACT_VERSION}"
 
 
 def reply(recast: str, why: str = "", rest: str = "Super !") -> str:
@@ -33,7 +36,7 @@ def case(kind: str, sent: str, **more: object) -> rubric.Case:
 def test_the_french_set_is_whole_and_every_error_names_what_it_fixes() -> None:
     cases = rubric.load()
     kinds = {kind: [one for one in cases if one.kind == kind] for kind in rubric.KINDS}
-    assert (len(kinds["correct"]), len(kinds["register"]), len(kinds["error"])) == (15, 5, 20)
+    assert (len(kinds["correct"]), len(kinds["register"]), len(kinds["error"])) == (15, 5, 22)
     assert len({one.id for one in cases}) == len(cases)
     for one in kinds["error"]:
         assert one.error and rubric.says(one.sent, one.error), one
@@ -143,7 +146,7 @@ def test_the_runner_is_named_and_writes_what_the_floors_name() -> None:
 def _row(
     metric: str,
     score: float,
-    system: str = "chat-contract",
+    system: str = SYSTEM,
     version: str = CHAT_MODEL,
     gold: str | None = None,
 ) -> evals.Row:
@@ -202,12 +205,40 @@ def test_hebrew_keeps_its_chat_evals_and_a_language_with_no_set_has_none() -> No
     assert not stages._chat_evals_hold("ru", limits, _passing())
 
 
-def test_the_committed_ledger_has_no_french_run_yet() -> None:
-    """The run spends and has no approved cap: it waits for David. Until then French
-    shows the gap rather than a pass nobody measured."""
-    rows = evals.read(stages.LEDGER)
-    assert not [row for row in rows if row.corpus == "fr-cases"]
+def test_the_first_run_is_history_and_holds_no_floor() -> None:
+    """The first run (2026-11-17, David's go, $1.78) measured the French contract before
+    it kept spoken French as written: two register lines were "corrected". It is kept as
+    a measurement of that contract, recorded under its name, and today's contract has not
+    been run, so French still shows the gap."""
+    rows = [row for row in evals.read(stages.LEDGER) if row.corpus == "fr-cases"]
+    assert rows and {row.system for row in rows} == {"chat-contract"}
+    scores = {row.metric: row.score for row in rows}
+    assert scores["register_lines_changed"] == 2 and scores["why_shown_on_register_lines"] == 2
+    floors = [f for f in evals.floors(stages.FLOORS) if f.corpus == "fr-cases"]
+    assert floors and {f.system for f in floors} == {SYSTEM}
+    assert not evals.breaches(rows, floors)
     assert not stages.facts("fr").chat_evals
+
+
+def test_the_contract_keeps_spoken_french_and_names_the_visiting_calque() -> None:
+    # Read with its line breaks folded: the prompt wraps where the source does.
+    contract = " ".join(hebrew.french_contract().split())
+    assert "Spoken French is right French" in contract
+    assert "je sais pas" in contract and 'no "~ " line' in contract
+    assert "In your own lines, write the full negation" in contract
+    assert "j'ai visité mon oncle" in contract
+    # A spoken line's own mistake is still fixed, and a mixed line keeps its register.
+    assert "si j'aurais su" in contract and "j'ai pas allé becomes je suis" in contract
+    # The contract's examples are not the eval's lines: a case it spells out tests
+    # nothing (qa on #1299).
+    cases = " ".join(rubric.normal(one.sent) for one in rubric.load())
+    for example in (
+        "j'ai visité mon oncle",
+        "si j'aurais su",
+        "j'ai pas allé",
+        "il faut que je vais",
+    ):
+        assert example not in cases, example
 
 
 def test_the_case_file_is_in_the_repository() -> None:
@@ -279,5 +310,28 @@ def test_the_runner_prices_by_default_and_spends_only_when_told(
     rows = evals.read(ledger)
     assert {row.metric for row in rows} == set(rubric.summarise([]).scores)
     assert all(row.corpus == "fr-cases" and row.version == CHAT_MODEL for row in rows)
+    assert all(row.system == SYSTEM for row in rows)
     gold = evals.fingerprint([stages.CHAT_EVAL_CASES["fr"]])
     assert all(row.note.endswith(f"gold={gold}") for row in rows)
+
+
+#: The French contract's text at each version, as the first 16 hex of a sha256, for each
+#: language it glosses into (qa on #1299). A run is filed under the version it ran
+#: (`chat-contract/fr<n>`), so the version has to change whenever the words do.
+CONTRACT_PINS: dict[int, dict[str, str]] = {
+    2: {"English": "ea6ae88e7029d052", "Russian": "92d84dec08d249fa"},
+}
+
+
+@pytest.mark.parametrize("gloss", ["English", "Russian"])
+def test_the_french_contract_is_the_text_its_version_names(gloss: str) -> None:
+    import hashlib
+
+    version = hebrew.FRENCH_CONTRACT_VERSION
+    said = hashlib.sha256(hebrew.french_contract(gloss).encode("utf-8")).hexdigest()[:16]
+    assert version in CONTRACT_PINS, f"pin version {version}'s text here"
+    assert said == CONTRACT_PINS[version][gloss], (
+        f"The French contract's words changed and its version did not. Move "
+        f"hebrew.FRENCH_CONTRACT_VERSION past {version} and pin the new text here "
+        f"({gloss}: {said}): an eval run is filed under the version it ran."
+    )

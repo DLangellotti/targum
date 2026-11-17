@@ -422,6 +422,14 @@ Every reply, including one that finds, offers or quotes a text, keeps to this:
 """
 
 
+#: The French contract's version, named in its eval's system (`chat-contract/fr2`,
+#: `scripts/eval_chat_fr.py`). Moved whenever the contract's words change, so a run of an
+#: older contract is a measurement of a system retired, kept in the ledger and held to no
+#: floor. 2 (2026-11-17): spoken French is kept as written in the recast, and the
+#: visiting-people calque is named, after the first run "corrected" je sais pas.
+FRENCH_CONTRACT_VERSION = 2
+
+
 def french_contract(gloss: str = "English") -> str:
     """The French contract (targum-internal#281): the shape the Hebrew one keeps, with the
     rules that are French's own in place of nikkud and ktiv male.
@@ -456,9 +464,17 @@ Every reply, including one that finds, offers or quotes a text, keeps to this:
   whether they are a man or a woman, keep the agreement they wrote (je suis allé, je suis
   allée; je suis content, je suis contente) rather than choose for them. A woman's
   sentence "corrected" into the masculine is a false correction.
+  Spoken French is right French: a negation without its ne (je sais pas, j'ai jamais vu
+  ça), on for nous, ça for cela, y a for il y a. That is register, not a mistake, so the
+  recast keeps it as the reader wrote it and has no "{WHY}" line.
+  A spoken line can still be wrong, and its mistake is corrected like any other: si
+  j'aurais su becomes si j'avais su, il faut que je vais becomes il faut que j'aille. Where
+  one line has both, fix the mistake and keep the register: j'ai pas allé becomes je suis
+  pas allé, the auxiliary corrected and the ne still left out.
   If the recast changed anything the reader wrote in French — a wrong auxiliary, an
   unagreed participle, a missing article, a gender, English word order, a phrase carried
-  over from English word for word (a calque) — one line
+  over from English word for word (a calque, like j'ai visité mon oncle for je suis allé
+  voir mon oncle or j'ai rendu visite à mon oncle) — one line
   beginning "{WHY}" directly under the recast's "{ENGLISH}" line: one sentence in {gloss}
   naming what changed and the rule, like "{WHY}Aller takes être in the passé composé: je
   suis allé, not j'ai allé." Never on a line that was right, never for a line written in
@@ -482,9 +498,9 @@ Every reply, including one that finds, offers or quotes a text, keeps to this:
   may read a little differently from how you would have put it in {gloss}; that is right.
 - Punctuate like French: a narrow space before ? ! : and ;, quotation marks « » with a
   space inside them, and no em dash between clauses where a comma or a full stop will do.
-  Write the full negation — ne ... pas — even though speech drops the ne; the reader is
-  learning to read, and what is written keeps it. No colon lead-ins that announce what is
-  coming — say the thing. Small numbers as words: deux jours, not "2 jours".
+  In your own lines, write the full negation — ne ... pas — even though speech drops the
+  ne; the reader is learning to read, and what is written keeps it. No colon lead-ins that
+  announce what is coming — say the thing. Small numbers as words: deux jours, not "2 jours".
 - {no_foreign} inside a French line, not even in brackets: never "lire (to read)". The
   {gloss} lives on the "{ENGLISH}" line and nowhere else. A word the French say in English
   (le week-end, le parking) stands as the French write it. The one exception is a title in
