@@ -426,6 +426,7 @@ this spends targum's on David's.
   field grants, and `targum grow drop` takes one down and keeps it down.
 - **Off unless both are set.** `TARGUM_GROW` names the languages and the cap must be above
   nothing; either unset, a round says what is off and spends nothing.
+
 ### French register is practised as formal or informal, and who *on* is — 2026-11-16
 
 David, 2026-11-17 (ling-fr's draft, approved as written), French's second practice toward
