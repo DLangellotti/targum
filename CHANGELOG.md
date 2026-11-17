@@ -43,6 +43,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ### Added
 - `scripts/voice_scenes.py` gives the director 4,096 tokens of answer: 1,024 ran out near 80
   turns, and French's A2 scenes run to 72. Only what is written is billed.
+- `story:<id>`, a short story targum wrote, read off a shelf of its own as paragraphs
+  (`ingest/fetch/story.py`): the narrative counterpart of `dialogue:`, for French's
+  generated A2 narratives (targum-internal#739). The shelf is `TARGUM_STORY_DIR`, else a
+  `stories` folder beside the dialogue shelf. Public and model-written, as `dialogue:` is:
+  `Build.PUBLIC_SOURCES`, `correct._SHARED`, `imports.MODEL_WRITTEN`, the scenes register
+  and `kinds`. Its voice is a reading attached on the recordings shelf.
+- A `dialogue:` or `story:` name is lower-case letters, digits and hyphens, or it is
+  refused at the door (`fetch.addressable`) and at `load` (qa on #1306): `../outside`
+  read a JSON file off the shelf, `dialogue:` since before this release. Every one of the
+  381 dialogue ids fits. `ledger._licence_of` says "targum" for both, as for the weekly.
 - `scripts/voice_scenes.py` names French to the director: a scene with
   `language: fr` is briefed as French rather than falling back to Hebrew. The first
   piece of the French scene port (targum-internal `scenes/`), ahead of any French scene.

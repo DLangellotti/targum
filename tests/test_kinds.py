@@ -35,6 +35,7 @@ from targum.tables.store import Store
 AUDITED_KINDS = {
     "catalogue": "code: Build.PUBLIC_SOURCES, a catalogue row by id",
     "dialogue": "library 202, catalogue 381, tables 300",
+    "story": "code: ingest/fetch/story.py; none on any shelf yet (2026-11-17)",
     "globalstorybooks": "library 34, catalogue 164",
     "gutenberg": "library 3, catalogue 2",
     "http": "code: a link",

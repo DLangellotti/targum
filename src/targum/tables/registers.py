@@ -12,7 +12,7 @@ BIBLE = "bible"
 LITERATURE = "literature"
 CONVERSATION = "conversation"
 
-#: The conversations targum writes itself (`dialogue:` sources).
+#: The conversations and stories targum writes itself (`dialogue:` and `story:`).
 SCENES = "scenes"
 #: The weekly, which a model writes too, under its own name for the same reason.
 WEEKLY = "weekly"
@@ -96,7 +96,7 @@ _CONVERSATION_KINDS = frozenset({"dialogue", "talk"})
 
 def register_of(source: str) -> str:
     """The register a text's counts are filed under, from its source."""
-    if source.startswith("dialogue:"):
+    if source.startswith(("dialogue:", "story:")):
         return SCENES_COUNT_AS
     if source.startswith("weekly:"):
         return WEEKLY

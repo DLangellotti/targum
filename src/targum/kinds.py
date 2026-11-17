@@ -74,6 +74,8 @@ PUBLIC_KINDS = frozenset(
         "sefaria",
         # The siddur, read through Sefaria (`ingest/fetch/siddur.py`).
         "siddur",
+        # The stories targum writes (`ingest/fetch/story.py`, the scene loop's narratives).
+        "story",
         # StoryWeaver, CC BY (`ingest/fetch/storyweaver.py`).
         "storyweaver",
         # A curated video shipped beside its English (`video/curate.py`, `fetch/video.py`).
@@ -114,6 +116,7 @@ PUBLIC_SCHEME_INGESTERS = PUBLIC_INGESTERS | frozenset(
         "parasha",  # the parasha and the haftarah (`parasha/cut.py`)
         "published",  # `ingest/fetch/published.py`
         "sefaria",  # `sefaria/6`, the siddur's `sefaria/siddur/1`, a daf
+        "story",  # `ingest/fetch/story.py`
         "storyweaver",  # `ingest/fetch/storyweaver.py`
         "url",  # a page (`ingest/url.py`)
         "url-feed",  # a feed's item (`ingest/url.py`)
