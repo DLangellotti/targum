@@ -164,6 +164,11 @@ KEYS: dict[str, str] = {
     "object clitics, role and antecedent": "role",
     "passé composé against imparfait": "past",
 }
+# French false friends (targum-internal#644): what the word means here, against the English
+# word it looks like, as the card says it (`annotate/false_friends.py`). Registered on their
+# own lines so the other French practices' entries above stay untouched.
+REGISTERED["fr"]["false friends"] = Practice("false friends", "choice", "practice.ask.friends")
+KEYS["false friends"] = "friends"
 SPOTS: dict[str, str] = {key: name for name, key in KEYS.items()}
 
 
@@ -927,6 +932,8 @@ def _french(
     from .annotate.model_lemma import tenses_apart
 
     by_section: dict[int, list[Candidate]] = {}
+    for section, friends in friend_candidates(segmented, tokens, section_of).items():
+        by_section.setdefault(section, []).extend(friends)
     for segment in segmented.segments:
         found = by_section.setdefault(section_of.get(segment.id, 1), [])
         stored = tokens.get(segment.id) or ()
@@ -939,6 +946,109 @@ def _french(
         if tenses_apart(annotator):
             found.extend(past_candidates(segment.text, tokens.get(segment.id) or (), segment.id))
     return TextPractice(by_section=by_section)
+
+
+def friend_candidates(
+    segmented: Any, tokens: Mapping[str, Any], section_of: Mapping[str, int]
+) -> dict[int, list[Candidate]]:
+    """False friends, for a French text: every word the card would flag (targum-internal
+    #644). The card says "false friend: not *actually* — currently" for a lemma on targum's
+    list (`false_friends.friend_of`), only while the text is read into English, and only
+    where every use of a word the list gates by part of speech or by the word after it is
+    such a use. The uses are gathered over the whole text, as the card gathers them over its
+    page, so nothing is asked that the card would not say.
+
+    The answer is what the word means and the contrast the English word it looks like,
+    each carried whole for the rule: `lemma⇥looks⇥means`, and the contrast with the two
+    swapped. Every item is the hard kind: the wrong answer is the one it is taken for."""
+    from .annotate.false_friends import friend_of, is_on
+
+    out: dict[int, list[Candidate]] = {}
+    if not is_on():
+        return out
+    uses: dict[str, list[tuple[str, str]]] = {}
+    for segment in segmented.segments:
+        row = tokens.get(segment.id) or ()
+        for at, token in enumerate(row):
+            after = str(row[at + 1].get("surface") or "") if at + 1 < len(row) else ""
+            uses.setdefault(str(token.get("lemma") or ""), []).append(
+                (str(token.get("pos") or ""), after.lower())
+            )
+    for segment in segmented.segments:
+        for token in tokens.get(segment.id) or ():
+            lemma = str(token.get("lemma") or "")
+            said = friend_of(lemma, uses.get(lemma, ())) if lemma else []
+            if len(said) != 2:
+                continue
+            looks, means = said
+            out.setdefault(section_of.get(segment.id, 1), []).append(
+                Candidate(
+                    "friends",
+                    segment.id,
+                    int(token.get("start") or 0),
+                    int(token.get("end") or 0),
+                    f"{lemma}\t{looks}\t{means}",
+                    f"{lemma}\t{means}\t{looks}",
+                    True,
+                )
+            )
+    return out
+
+
+#: The spots a reader is not offered, by what the Grammar tab is read in, with the line
+#: that says why. False friends are English look-alikes, so a reader reading into
+#: anything else is not asked them, as the card does not say them.
+NOT_OFFERED: dict[str, str] = {"friends": "practice.page.friends-english"}
+
+
+def _not_offered(key: str, into: str, ui: str, met_here: int) -> str:
+    """The line saying why a spot is not offered to this reader, or "" where it is: a
+    reader reading into another language who has met no false friend in a text read into
+    English. Its Russian is David's choice of 2026-11-17."""
+    from . import strings
+
+    if key in NOT_OFFERED and into.split("-")[0] != "en" and not met_here:
+        return strings.text(NOT_OFFERED[key], ui)
+    return ""
+
+
+def _switched_on(key: str) -> bool:
+    """Whether a spot is on at all: false friends go with the card's own switch, so a
+    text counted while the list was on asks nothing once it is off (qa on #1295)."""
+    if key == "friends":
+        from .annotate.false_friends import is_on
+
+        return is_on()
+    return True
+
+
+@lru_cache(maxsize=256)
+def read_into(folder: Path, into: str) -> str:
+    """The language a text is read into: the reader's own where the text has it, and what
+    the text has where it has not, as its line on a card is chosen (`meetings._translation`).
+    "" for a text with no translation."""
+    from .models import Translation, read_artifact
+    from .translate.prompts import BESIDE
+
+    first = ""
+    for path in sorted((folder / "translations").glob("*.json")):
+        translation = read_artifact(Translation, path)
+        if translation is None or translation.target_language in BESIDE:
+            continue
+        code = translation.target_language.split("-")[0]
+        if code == into.split("-")[0]:
+            return code
+        first = first or code
+    return first
+
+
+def _asked_here(one: Met, into: str) -> bool:
+    """Whether an item may be asked of this reader. A false friend only where the spot is
+    switched on and its own text is read into English (qa on #1295): the look-alike is an
+    English word, and the card says it only beside the English."""
+    if one.candidate.spot != "friends":
+        return True
+    return _switched_on("friends") and read_into(one.folder, into) == "en"
 
 
 def text_practice(folder: Path) -> TextPractice | None:
@@ -1170,6 +1280,9 @@ def said(spot: str, code: str, ui: str, homographs: Mapping[str, str] | None = N
     def t(key: str) -> str:
         return strings.text(key, ui)
 
+    if spot == "friends":
+        # The English meaning, or the English look-alike: English whatever the page is in.
+        return code.split("\t")[2] if code.count("\t") == 2 else code
     if spot == "binyan":
         return code
     if spot == "homograph":
@@ -1269,6 +1382,9 @@ def rule(spot: str, code: str, ui: str) -> str:
     any Hebrew it names filled in: the page that draws it tags each Hebrew run."""
     from . import strings
 
+    if spot == "friends":
+        word, looks, means = (code.split("\t") + ["", "", ""])[:3]
+        return strings.text("practice.rule.friends", ui, word=word, looks=looks, means=means)
     keys = {
         "binyan": "practice.rule.binyan",
         "homograph": "practice.rule.homograph",
@@ -1510,19 +1626,24 @@ def page(
     on the spot asked for or the one most due. Nothing spends; nothing is written."""
     registered = REGISTERED.get(language, {})
     found = list(met(finished, folder_for, language)) if registered else []
+    found = [one for one in found if _asked_here(one, into)]
     count = ledger(found)
     at = int(now if now is not None else time.time())
     spots: list[dict[str, Any]] = []
     for name, practice in registered.items():
         key = KEYS[name]
+        if not _switched_on(key):
+            continue
         state = state_of(rows.get(key))
+        closed = _not_offered(key, into, ui, count.encounters(key))
         spots.append(
             {
                 "key": key,
                 "kind": practice.kind,
                 "encounters": count.encounters(key),
                 "texts": count.texts(key),
-                "ready": count.ready(key),
+                "ready": count.ready(key) and not closed,
+                **({"note": closed} if closed else {}),
                 "step": state.step,
                 "due": state.due,
                 "needs": {"encounters": ENCOUNTERS, "texts": TEXTS},
