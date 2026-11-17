@@ -247,6 +247,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     the webhook secret rotates, `PADDLE_WEBHOOK_SECRET_PREVIOUS` keeps tags made under
     the old one believed.
   - A `canceled` trims the subscription's paid period to Paddle's `canceled_at`.
+- The checkout is Paddle's overlay on `/plans`, not a hosted checkout (David,
+  2026-11-17). A pay press still makes the Paddle transaction on our server, with the
+  same `custom_data` and tag, and now answers a 303 back to
+  `/plans?checkout=txn_…&ticket=…`. The ticket is an HMAC our server makes for that
+  account and transaction, so a link opens a checkout for nobody else. That view alone
+  loads Paddle.js (`https://cdn.paddle.com/paddle/v2/paddle.js`; Paddle publishes no
+  pinned build and no integrity hash) and `plans-checkout.js`, which opens the overlay on
+  the transaction. Its policy alone adds Paddle.js's origin to `script-src`, the
+  overlay's frame to `frame-src` and Paddle's checkout service to `connect-src`, in the
+  deployment's environment, and nothing else. `/plans` before a press, and every other
+  page, name nothing of Paddle's. `PADDLE_CLIENT_TOKEN` (`test_…` or `live_…`, matching
+  `PADDLE_ENVIRONMENT`; safe in the page) replaces `PADDLE_CHECKOUT_URL`, which is gone.
 - The pay presses, `POST /plans/start` and `POST /plans/topup` (targum-internal#59 phase
   2, items 7 and 10). Each makes a Paddle transaction for the press and answers a 303
   to Paddle's hosted checkout (`PADDLE_CHECKOUT_URL?transaction_id=txn_…`). No page of

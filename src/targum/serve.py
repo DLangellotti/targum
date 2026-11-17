@@ -7671,7 +7671,7 @@ class Handler(BaseHTTPRequestHandler):
         return self._person() is not None
 
     @staticmethod
-    def _policy(body: bytes, frames: str = "", forms: str = "") -> str:
+    def _policy(body: bytes, frames: str = "", forms: str = "", paddle: str = "") -> str:
         """The content policy for one page, naming its own inline blocks by hash.
 
         A page that holds an `<iframe>` may frame its own origin — read off the page as
@@ -7714,6 +7714,21 @@ class Handler(BaseHTTPRequestHandler):
             policy = policy.replace("frame-ancestors 'none'", "frame-ancestors 'self'")
         if re.search(rb"<iframe\b", body):
             policy = policy + "; frame-src 'self'"
+        # The one view of `/plans` that opens Paddle's checkout (design.md §12,
+        # 2026-11-17): the overlay's frame and the service Paddle.js talks to, in the
+        # deployment's environment, and Paddle.js's own origin under script-src below.
+        # Never read off the page: only `_plans_page` passes it, on a checkout it made.
+        sources = billing.CHECKOUT_SOURCES.get(paddle) if paddle else None
+        if sources:
+            if "; frame-src " in policy:
+                policy = policy.replace(
+                    "; frame-src 'self'", f"; frame-src 'self' {sources['frame']}"
+                )
+            else:
+                policy = policy + f"; frame-src {sources['frame']}"
+            policy = policy.replace(
+                "connect-src 'self'", f"connect-src 'self' {sources['connect']}"
+            )
         # Your Words may call the reader's own AnkiConnect, and no other page may (design.md
         # §12, "Send to Anki talks to the Anki on your own computer", 2026-11-14). Read
         # off the page as written, like the frames: only a page holding the Send to Anki
@@ -7732,6 +7747,8 @@ class Handler(BaseHTTPRequestHandler):
             scripts = f"'self' {allowed}".rstrip()
         if re.search(rb'<link\b[^>]*\bhref="' + ASSET_ROUTE.encode() + rb"[^\"]+\"", body):
             styles = f"'self' {allowed}".rstrip()
+        if sources:
+            scripts = f"{scripts} {sources['script']}".strip()
         return f"{policy}; script-src {scripts}; style-src {styles}"
 
     # A reader page is around 180 kB, most of it the same stylesheet and script every
@@ -7766,6 +7783,7 @@ class Handler(BaseHTTPRequestHandler):
         cookie: str = "",
         forms: str = "",
         version: str = "",
+        paddle: str = "",
     ) -> None:
         if status == 404 and body == b"not found" and self._navigating():
             # ACCOUNT-12 (QA 2026-10-11): an unknown `/library/<id>` or a reader's page
@@ -7794,7 +7812,7 @@ class Handler(BaseHTTPRequestHandler):
         # Read off the page as written. The policy names this page's own inline blocks
         # by their hash, so it has to be taken before the bytes are compressed. It is
         # taken from whichever of the two pages is sent, so each is named exactly.
-        policy = self._policy(body, frames, forms) if kind.startswith("text/html") else None
+        policy = self._policy(body, frames, forms, paddle) if kind.startswith("text/html") else None
         zipped = self._worth_zipping(body, kind)
         if zipped:
             body = gzip.compress(body, 6)
@@ -13923,27 +13941,42 @@ class Handler(BaseHTTPRequestHandler):
             return self._go("/account/signin")
         language = self._page_language()
         pay = billing.configured()
+        asked = parse_qs(urlparse(self.path).query)
+        # The one view that opens a checkout (design.md §12, 2026-11-17): a transaction
+        # our server made for this account, with the ticket that says so. Any other id,
+        # or one made for somebody else, opens nothing and loads nothing of Paddle's.
+        opening = asked.get("checkout", [""])[0]
+        if not (pay and billing.ticket_holds(person.id, opening, asked.get("ticket", [""])[0])):
+            opening = ""
         page = plans_page(
             plans.summary(person, language=language),
             language=language,
             token=self._key_if_given(),
             pay=pay,
-            failed=parse_qs(urlparse(self.path).query).get("pay", [""])[0] == "failed",
+            failed=asked.get("pay", [""])[0] == "failed",
+            checkout=(
+                {
+                    "transaction": opening,
+                    "token": billing.client_token(),
+                    "environment": billing.environment(),
+                    "script": billing.PADDLE_JS,
+                }
+                if opening
+                else None
+            ),
         )
-        # The one policy change payments make (design.md §12, 2026-11-15): this page's
-        # pay press is answered with a redirect to Paddle's checkout, and Chrome checks a
-        # form's redirect against `form-action`, so the page names that origin and only
-        # it. Every other page keeps `form-action 'self'`.
-        forms = billing.checkout_origin() if pay else ""
-        self._send(200, page.encode("utf-8"), HTML, forms=forms)
+        # Only this view names Paddle in its policy, and only the checkout's own origins
+        # (`billing.CHECKOUT_SOURCES`): Paddle.js, the overlay's frame and its service.
+        self._send(200, page.encode("utf-8"), HTML, paddle=billing.environment() if opening else "")
 
     def _pay(self, route: str, form: dict[str, str]) -> None:
-        """A pay press: make a Paddle transaction for it and send the reader to Paddle's
-        hosted checkout, which sends them back to `/plans` (design.md §12, "Payments are
-        Paddle's, by a hosted checkout", 2026-11-15).
+        """A pay press: make a Paddle transaction for it and send the reader back to
+        `/plans` holding its id and a ticket only this server makes, where Paddle's
+        overlay opens on it (design.md §12, "/plans alone loads Paddle's checkout
+        script", 2026-11-17).
 
-        No page of ours loads anything of Paddle's: this answers a 303, and the browser
-        leaves. Refused unless plans are on and every Paddle setting is there, so with
+        This answers a 303 to our own origin. Refused unless plans are on and every Paddle
+        setting is there, so with
         the keys missing both addresses are a 404 like any that is not there. A form on
         another site cannot press it for the reader. Start is for a reader with no plan
         that holds; Top up for a reader on Plan, as "No top-up on Free" says. Anything
@@ -13975,7 +14008,7 @@ class Handler(BaseHTTPRequestHandler):
         made = self.store.db.execute("SELECT made FROM person WHERE id = ?", (person.id,))
         row = made.fetchone()
         try:
-            where = billing.checkout(
+            made_id = billing.transaction(
                 price,
                 account=person.id,
                 made=int(row[0]) if row else 0,
@@ -13985,7 +14018,8 @@ class Handler(BaseHTTPRequestHandler):
         except billing.PaddleError as error:
             print(f"billing: checkout not made ({error})")
             return self._go(f"{back}?pay=failed")
-        self._go(where)
+        held_ticket = billing.ticket(person.id, made_id)
+        self._go(f"/plans?{urlencode({'checkout': made_id, 'ticket': held_ticket})}")
 
     def _subscribe_post(self, form: dict[str, str]) -> None:
         """The press: read the source again, check the plan, write the subscription with
