@@ -646,3 +646,21 @@ def test_a_webhook_is_seen_once_and_can_be_forgotten(tmp_path: Path) -> None:
     assert not store.billing_seen("evt_1", "subscription.created")
     store.billing_unseen("evt_1")
     assert store.billing_seen("evt_1", "subscription.created")
+
+
+def test_the_box_takes_paddles_sandbox_settings_and_never_the_plans_switch() -> None:
+    """deploy/box.env.op names Paddle's sandbox (2026-11-17, David's 1Password items) and
+    never TARGUM_PLANS: plans stay off for readers until switch day."""
+    said = (Path(__file__).resolve().parents[1] / "deploy" / "box.env.op").read_text("utf-8")
+    lines = {
+        line.split("=", 1)[0]: line.split("=", 1)[1]
+        for line in said.splitlines()
+        if line and not line.startswith("#") and "=" in line
+    }
+    assert lines["PADDLE_ENVIRONMENT"] == "sandbox"
+    for name in ("PADDLE_API_KEY", "PADDLE_WEBHOOK_SECRET", "PADDLE_CLIENT_TOKEN"):
+        assert lines[name].startswith("op://targum/Paddle sandbox"), name
+    for name in ("PADDLE_PRICE_MONTH", "PADDLE_PRICE_QUARTER", "PADDLE_PRICE_TOP_UP"):
+        assert lines[name].startswith("pri_"), name
+    assert "TARGUM_PLANS" not in lines and "TARGUM_PLANS_PREVIEW" not in lines
+    assert all(" #" not in value for value in lines.values()), "no comment after a value"

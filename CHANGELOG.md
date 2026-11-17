@@ -174,6 +174,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   - Privacy Notice clause 3.2 carries David's line word for word, "If you follow the
     weekly portion, we keep whether you read Israel's calendar or the diaspora's, so the
     mail names your portion."; `LEGAL_CHANGED` is 16 November 2026.
+- `deploy/box.env.op` names Paddle's sandbox: the API key, the webhook secret and the
+  client-side token as `op://targum/Paddle sandbox…` references (the items David made
+  on 2026-11-17), and the three price ids and `PADDLE_ENVIRONMENT=sandbox` as plain
+  values. `TARGUM_PLANS` is not set, so plans stay off for readers. All three references
+  resolve with the read-only `targum-box` service account (checked 2026-11-17).
 - The Privacy Notice and the Data Retention Schedule say how paying through Paddle
   works, in David's words, approved word for word on 2026-11-17 (targum-internal#59).
   They cover:
