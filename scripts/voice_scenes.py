@@ -165,7 +165,9 @@ DIRECTION_MOST = 40
 NEUTRAL = "calm and natural"
 #: The language a scene is read in, by its `language` field, for the director's brief.
 LANGUAGES = {"he": "Hebrew", "ru": "Russian", "fr": "French"}
-BRIEF = """You direct two voice actors reading a short everyday conversation in {language} \
+#: More turns than this and the director is told the conversation is long.
+LONG_SCENE = 20
+BRIEF = """You direct two voice actors reading {kind} in {language} \
 for a language-learning app. For each numbered turn write a stage direction of two to \
 six English words: the speaker's mood, how strongly, and the pace. For example: \
 "calm, a little tired", "warm, unhurried", "mildly annoyed, brisk", "relaxed, friendly".
@@ -616,6 +618,10 @@ def brief(scene: dict[str, Any]) -> str:
         english = f" ({turn['english']})" if turn.get("english") else ""
         lines.append(f"{n + 1}. {name}, a {gender}: {POINTS.sub('', turn['text'])}{english}")
     return BRIEF.format(
+        # French's A2 scenes run to 56-72 turns (targum-internal#739): not "short".
+        kind="a short everyday conversation"
+        if len(scene["turns"]) <= LONG_SCENE
+        else "a long everyday conversation",
         language=LANGUAGES.get(scene.get("language") or "he", "Hebrew"),
         count=len(scene["turns"]),
         title=scene.get("english") or scene.get("title", ""),

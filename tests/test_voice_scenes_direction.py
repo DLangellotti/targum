@@ -199,3 +199,9 @@ def test_the_director_is_told_the_language_the_scene_is_in(code: str, name: str)
     said = json.loads(json.dumps(THREE))
     said["language"] = code
     assert f"conversation in {name} for" in script.brief(said)
+
+
+def test_a_long_scene_is_not_called_short() -> None:
+    long = scene(*[("AB"[n % 2], "Oui.") for n in range(60)])
+    assert "a long everyday conversation" in script.brief(long)
+    assert "a short everyday conversation" in script.brief(THREE)
