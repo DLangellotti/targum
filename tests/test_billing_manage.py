@@ -34,7 +34,7 @@ def configure(monkeypatch: pytest.MonkeyPatch) -> None:
         billing.PRICE_MONTH_ENV: "pri_month",
         billing.PRICE_QUARTER_ENV: "pri_quarter",
         billing.PRICE_TOP_UP_ENV: "pri_top_up",
-        billing.CHECKOUT_URL_ENV: "https://sandbox-pay.paddle.io/hsc_01test",
+        billing.CLIENT_TOKEN_ENV: "test_0123456789abcdef0123456789a",
     }.items():
         monkeypatch.setenv(name, value)
 
@@ -248,7 +248,7 @@ def test_unconfigured_or_with_plans_off_manage_is_not_there(
 ) -> None:
     port, sessions = box
     monkeypatch.setenv("TARGUM_PLANS", "1")
-    for name in (billing.API_KEY_ENV, billing.CHECKOUT_URL_ENV):
+    for name in (billing.API_KEY_ENV, billing.CLIENT_TOKEN_ENV):
         monkeypatch.delenv(name, raising=False)
     assert fetch(port, serve.PLANS_MANAGE, sessions["paying"])[0] == 404
     configure(monkeypatch)
