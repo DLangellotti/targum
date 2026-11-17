@@ -192,3 +192,16 @@ def test_one_loud_peak_does_not_hold_a_quiet_line_down() -> None:
     levelled = script.level(bytes(spiky))
     assert len(levelled) == len(spiky)
     assert abs(script.loudness(levelled)[0] - script.LOUDNESS) < 1.0
+
+
+@pytest.mark.parametrize(("code", "name"), [("he", "Hebrew"), ("ru", "Russian"), ("fr", "French")])
+def test_the_director_is_told_the_language_the_scene_is_in(code: str, name: str) -> None:
+    said = json.loads(json.dumps(THREE))
+    said["language"] = code
+    assert f"conversation in {name} for" in script.brief(said)
+
+
+def test_a_long_scene_is_not_called_short() -> None:
+    long = scene(*[("AB"[n % 2], "Oui.") for n in range(60)])
+    assert "a long everyday conversation" in script.brief(long)
+    assert "a short everyday conversation" in script.brief(THREE)
