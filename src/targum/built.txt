@@ -5,6 +5,11 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-11-16
+French nouns can be practised as masculine or feminine on the Grammar tab, in lines you have read.
+A Russian verb's card says what its prefix adds, as вы- · out, where the prefix keeps its meaning.
+The weekly portion in the daily mail follows your calendar, Israel or the Diaspora.
+
 2026-11-15
 Your Progress can keep a daily goal, in words read or minutes listening, and shows the days it was met.
 A word can be marked known by ear, apart from known when read, and only by your own press.
