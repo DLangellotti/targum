@@ -556,6 +556,16 @@ language with floors" toward Beta, under "A badge is a promise, checked".
 - **The run spends**: forty calls at the chat's model, about $1.91, at most $2.26. Run
   bare, the runner only prices it; `--spend` is what calls the model. It is not run until
   David approves it.
+- **The first run, 2026-11-17** ($1.78, David's go). Two of the five spoken lines came back
+  "corrected", with a `~ ` line: *je sais pas* as *je ne sais pas*, and *j'ai jamais vu ça*
+  as *je n'ai jamais vu ça*. Every other line held: no correction on a right line, no
+  woman's line turned masculine, 19 of 20 errors fixed (*j'ai visité mes parents* was kept).
+  The contract now says spoken French is register, kept as written, and that the full
+  negation is for its own lines, and it names the visiting-people calque (version 2,
+  `hebrew.FRENCH_CONTRACT_VERSION`). Runs are recorded under the contract's version
+  (`chat-contract/fr2`) and the floors hold it, so the first run is kept as a measurement
+  of the contract before and held to no floor. French has its chat evals once version 2 is
+  run, which waits for David.
 
 ### French gender is practised as masculine or feminine — 2026-11-16
 

@@ -15,7 +15,8 @@ rubric in `chat/rubric.py`. No model judges anything.
   line under it.
 
 Rows go to `evals/ledger.jsonl` as stage `chat`, corpus `fr-cases` (`fr-cases-ru` for a
-reader who reads Russian, `--gloss Russian`), system `chat-contract`. `stages` counts
+reader who reads Russian, `--gloss Russian`), system `chat-contract/fr<version>`, the
+French contract's own version (`hebrew.FRENCH_CONTRACT_VERSION`). `stages` counts
 French's chat evals as present once every floor on `fr-cases` has a row that holds it.
 
 **It spends, and only when told to.** One call a case at the chat's own model; nothing
@@ -52,6 +53,11 @@ TYPICAL_REPLY = 250
 #: Characters to a token, for pricing a prompt without sending it. French and a word list
 #: run nearer three than four; three keeps the estimate on the high side.
 CHARACTERS_PER_TOKEN = 3.0
+
+
+#: The system a run is recorded under: the French contract at its version, so a run of a
+#: contract since changed is history and is held to no floor.
+SYSTEM = f"chat-contract/fr{hebrew.FRENCH_CONTRACT_VERSION}"
 
 
 def corpus_for(gloss: str) -> str:
@@ -163,7 +169,7 @@ def main(argv: list[str] | None = None) -> None:
             metric=metric,
             score=float(score),
             n=summary.over[metric],
-            system="chat-contract",
+            system=SYSTEM,
             version=CHAT_MODEL,
             note=note,
         )

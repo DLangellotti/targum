@@ -6,6 +6,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Changed
+- The French chat contract keeps spoken French as written (version 2,
+  `hebrew.FRENCH_CONTRACT_VERSION`). The first French chat eval (2026-11-17, $1.78, David's
+  go) "corrected" two spoken lines in the recast, *je sais pas* and *j'ai jamais vu ça*,
+  each with a `~ ` line, against D5. The contract now calls a negation without *ne*,
+  *on* for *nous*, *ça* and *y a* register, kept in the recast with no `~ ` line, and
+  says the full negation is for its own lines only. It also names the visiting-people
+  calque (*j'ai visité mes parents*), the one error of twenty the run kept.
+  - The run's seven rows are committed, recorded as `chat-contract`: the contract before.
+    `scripts/eval_chat_fr.py` now records under `chat-contract/fr2`, and the seven
+    `fr-cases` floors hold that system. So the first run is history and breaches nothing,
+    and French counts its chat evals once version 2 is run (not run; it waits for David).
 - The practice cache (`practice.json`) records the spots it was counted for
   (`practices.spots_key`), and a file counted before a spot was registered is counted
   again on its next read (qa on targum#1295). Every text built before a new practice

@@ -13,9 +13,12 @@ from typing import Any
 import pytest
 
 from targum import evals, stages
-from targum.chat import CHAT_MODEL, rubric
+from targum.chat import CHAT_MODEL, hebrew, rubric
 
 RUNNER = Path(__file__).resolve().parents[1] / "scripts" / "eval_chat_fr.py"
+
+#: What a run of today's French contract is recorded under (`eval_chat_fr.SYSTEM`).
+SYSTEM = f"chat-contract/fr{hebrew.FRENCH_CONTRACT_VERSION}"
 
 
 def reply(recast: str, why: str = "", rest: str = "Super !") -> str:
@@ -143,7 +146,7 @@ def test_the_runner_is_named_and_writes_what_the_floors_name() -> None:
 def _row(
     metric: str,
     score: float,
-    system: str = "chat-contract",
+    system: str = SYSTEM,
     version: str = CHAT_MODEL,
     gold: str | None = None,
 ) -> evals.Row:
@@ -202,12 +205,27 @@ def test_hebrew_keeps_its_chat_evals_and_a_language_with_no_set_has_none() -> No
     assert not stages._chat_evals_hold("ru", limits, _passing())
 
 
-def test_the_committed_ledger_has_no_french_run_yet() -> None:
-    """The run spends and has no approved cap: it waits for David. Until then French
-    shows the gap rather than a pass nobody measured."""
-    rows = evals.read(stages.LEDGER)
-    assert not [row for row in rows if row.corpus == "fr-cases"]
+def test_the_first_run_is_history_and_holds_no_floor() -> None:
+    """The first run (2026-11-17, David's go, $1.78) measured the French contract before
+    it kept spoken French as written: two register lines were "corrected". It is kept as
+    a measurement of that contract, recorded under its name, and today's contract has not
+    been run, so French still shows the gap."""
+    rows = [row for row in evals.read(stages.LEDGER) if row.corpus == "fr-cases"]
+    assert rows and {row.system for row in rows} == {"chat-contract"}
+    scores = {row.metric: row.score for row in rows}
+    assert scores["register_lines_changed"] == 2 and scores["why_shown_on_register_lines"] == 2
+    floors = [f for f in evals.floors(stages.FLOORS) if f.corpus == "fr-cases"]
+    assert floors and {f.system for f in floors} == {SYSTEM}
+    assert not evals.breaches(rows, floors)
     assert not stages.facts("fr").chat_evals
+
+
+def test_the_contract_keeps_spoken_french_and_names_the_visiting_calque() -> None:
+    contract = hebrew.french_contract()
+    assert "Spoken French is right French" in contract
+    assert "je sais pas" in contract and 'no "~ " line' in contract
+    assert "In your own lines, write the full negation" in contract
+    assert "j'ai visité mes parents" in contract
 
 
 def test_the_case_file_is_in_the_repository() -> None:
@@ -279,5 +297,6 @@ def test_the_runner_prices_by_default_and_spends_only_when_told(
     rows = evals.read(ledger)
     assert {row.metric for row in rows} == set(rubric.summarise([]).scores)
     assert all(row.corpus == "fr-cases" and row.version == CHAT_MODEL for row in rows)
+    assert all(row.system == SYSTEM for row in rows)
     gold = evals.fingerprint([stages.CHAT_EVAL_CASES["fr"]])
     assert all(row.note.endswith(f"gold={gold}") for row in rows)
