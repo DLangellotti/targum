@@ -75,7 +75,7 @@ finds_app = typer.Typer(
 app.add_typer(finds_app, name="finds")
 grow_app = typer.Typer(
     no_args_is_help=True,
-    help="What grows a language's shelf by itself, on the box (design.md §12, draft).",
+    help="What grows a language's shelf by itself, on the box (design.md §12, 2026-11-17).",
 )
 app.add_typer(grow_app, name="grow")
 

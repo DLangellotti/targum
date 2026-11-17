@@ -205,7 +205,7 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 
 - The shelf grows by itself, on the box, for French (French Beta's two ops gaps, epic
   targum-internal#628; design.md §12, "The shelf grows by itself, inside a month's
-  credits", drafted by ops for David). Disarmed: deploy.sh does not install
+  credits", drafted by ops, approved by David 2026-11-17). Disarmed: deploy.sh does not install
   `deploy/targum-grow.service` or its timer, and the command does nothing until
   `TARGUM_GROW` and `TARGUM_GROW_CREDITS` are both in targum.env.
   - `targum grow run`, once a day as targum: each catalogue collection that names a

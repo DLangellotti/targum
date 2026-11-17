@@ -511,7 +511,7 @@ class Collection:
     channel: str = ""
     #: Whether its channel grows the shelf by itself: a new upload that passes is built on
     #: the box, inside the month's credits, and joins this collection (`grow`; design.md
-    #: §12, "The shelf grows by itself", draft 2026-11-17). `"grows": true` in the file,
+    #: §12, "The shelf grows by itself", 2026-11-17). `"grows": true` in the file,
     #: and only with a `channel`.
     grows: bool = False
 

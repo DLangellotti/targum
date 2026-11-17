@@ -4,7 +4,7 @@
 # "The shelf grows by itself".
 #
 # One round of the shelf growing by itself (design.md §12, "The shelf grows by itself,
-# inside a month's credits", draft): each catalogue collection whose `channel` says
+# inside a month's credits", approved by David 2026-11-17): each catalogue collection whose `channel` says
 # `"grows": true`, in a language TARGUM_GROW names, has its newest uploads asked through
 # the Data API (free inside the quota). One that is Creative Commons by its own licence
 # field, has a track somebody wrote in the language, runs ten minutes or less and passes the

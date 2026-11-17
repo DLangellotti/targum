@@ -1,7 +1,7 @@
 """What grows a language's shelf by itself, on the box, with no laptop in the loop.
 
-design.md §12, "The shelf grows by itself, inside a month's credits" (draft, ops,
-2026-11-17). The standard asks two things of a Beta language that a person doing the work
+design.md §12, "The shelf grows by itself, inside a month's credits" (ops, approved by
+David 2026-11-17). The standard asks two things of a Beta language that a person doing the work
 by hand cannot be (`stages.GROWING`, `stages.BUILDS_UNATTENDED`): a feed that grows the
 shelf by itself, and the box building a new text with no laptop in the loop. Hebrew has
 the weekly, the portion and the daily. Until this, every French video on the shelf was

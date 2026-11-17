@@ -387,11 +387,13 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
-### The shelf grows by itself, inside a month's credits — 2026-11-17 (draft)
+### The shelf grows by itself, inside a month's credits — 2026-11-17
 
-**Drafted by ops for David, not yet his.** Until he approves it, the code below exists
-and is armed nowhere (`deploy/targum-grow.service` is not installed by deploy.sh). It
-closes French Beta's two ops gaps (`stages.GROWING`, `stages.BUILDS_UNATTENDED`): every
+**Approved by David on 2026-11-17** (drafted by ops): the channels Wandering French and
+Nathalie FLE, a cap of 120 credits a month, and the timer enabled at a deploy. The code
+is armed by hand there (`deploy/README.md`, "The shelf grows by itself"): deploy.sh does
+not install `deploy/targum-grow.service`, and the round does nothing until targum.env
+names the language and the cap. It closes French Beta's two ops gaps (`stages.GROWING`, `stages.BUILDS_UNATTENDED`): every
 French video on the shelf was found by hand and built on the box by somebody running
 `systemd-run` as targum.
 
