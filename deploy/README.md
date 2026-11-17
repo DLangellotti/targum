@@ -261,6 +261,43 @@ ssh root@targum.page 'apt-get update -qq && apt-get install -y --no-install-reco
 Without it the service still starts, and Download PDF answers "The PDF can't be made right
 now" with the reason in the log.
 
+## The shelf grows by itself
+
+`targum-grow.timer` runs `targum grow run` once a day at 05:30 UTC, as targum (design.md
+§12, "The shelf grows by itself, inside a month's credits"). Each catalogue collection
+that names a YouTube `channel` and says `"grows": true` has its new uploads looked at.
+One that is CC BY by its own licence field, has a track somebody wrote in the language,
+runs ten minutes or less and passes the screen is built through `Library.press` and
+`Library.claim`, curated into `/var/lib/targum/videos`, and joins the shelf through
+`grown.json` there, with no restart. At most three a day, and never past
+`TARGUM_GROW_CREDITS` for the month (a credit is a minute of video), counted off the
+`grow` job rows.
+
+**deploy.sh does not install it, and nothing arms it.** It spends targum's money with
+nobody pressing, so it is armed by hand, once, after two things:
+
+1. The collections that grow say so in `~/.targum/catalogue.json`, which every deploy
+   carries: `"channel": "https://www.youtube.com/channel/UC…"` and `"grows": true` on
+   each. A collection with a channel also offers readers Subscribe.
+2. A deploy that carries both the catalogue and this code.
+
+Then, from the main checkout:
+
+```sh
+scp deploy/targum-grow.service deploy/targum-grow.timer root@targum.page:/etc/systemd/system/ && ssh root@targum.page 'printf "TARGUM_GROW=fr\nTARGUM_GROW_CREDITS=120\n" >> /etc/targum/targum.env && systemctl daemon-reload && systemctl enable --now targum-grow.timer'
+```
+
+You should see `systemctl list-timers targum-grow.timer` name the next 05:30. To see a
+round now, `systemctl start targum-grow && journalctl -u targum-grow -n 20`: the last line
+is `Grown: N built, N passed over, N failed`. To take one video down, as targum:
+
+```sh
+ssh root@targum.page 'cd /srv/targum && runuser -u targum -- env TARGUM_VIDEO_DIR=/var/lib/targum/videos /usr/local/bin/targum grow drop <video id>'
+```
+
+To disarm, `systemctl disable --now targum-grow.timer`, or take `TARGUM_GROW` out of
+targum.env. Nothing grown leaves the shelf when it stops.
+
 ## A test account
 
 An account for trying targum as a new reader meets it, as often as you like: signing

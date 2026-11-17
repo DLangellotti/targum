@@ -387,6 +387,39 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### The shelf grows by itself, inside a month's credits — 2026-11-17 (draft)
+
+**Drafted by ops for David, not yet his.** Until he approves it, the code below exists
+and is armed nowhere (`deploy/targum-grow.service` is not installed by deploy.sh). It
+closes French Beta's two ops gaps (`stages.GROWING`, `stages.BUILDS_UNATTENDED`): every
+French video on the shelf was found by hand and built on the box by somebody running
+`systemd-run` as targum.
+
+This is the third press that is not a reader's, after the scope (2026-09-22) and a
+subscription's monthly cap (2026-10-09), and it follows the cap's shape. The difference
+is whose money: a subscription spends the reader's credits on the reader's consent, and
+this spends targum's on David's.
+
+- **The sources are the catalogue's.** A collection in the private catalogue that names a
+  YouTube `channel` and says `"grows": true` is a source, in its members' language.
+  Choosing a channel is the read: nothing about which channels is in this repository, and
+  the model never chooses one.
+- **Only what the channel's own licence field says is Creative Commons**, with a track
+  somebody wrote in the language, ten minutes or less, so one part, not music and
+  past the screen. Nothing is transcribed: no track, no build.
+- **Every build is one job through `Library.claim`.** A job of kind `grow`, quoted by
+  `Library.prepare` and pressed through `Library.press`: targum's to pay (`gift`), held to
+  the box's daily ceiling. There is no second path to the rails.
+- **The cap is David's, in credits, a month.** `TARGUM_GROW_CREDITS` in targum.env, set by
+  hand on the box, never by a model; the month's use is the `grow` job rows' own seconds,
+  so there is no second counter. At most three videos a day. A quote that does not fit
+  waits for next month.
+- **Nobody reads a grown video before it is on the shelf**, as nobody reads the weekly
+  before it goes out (2026-09-17). It is credited to its channel under the licence the
+  field grants, and `targum grow drop` takes one down and keeps it down.
+- **Off unless both are set.** `TARGUM_GROW` names the languages and the cap must be above
+  nothing; either unset, a round says what is off and spends nothing.
+
 ### French gender is practised as masculine or feminine — 2026-11-16
 
 David, 2026-11-16, the first of French's seven practices toward Beta under "A practice

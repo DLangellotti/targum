@@ -1,0 +1,49 @@
+# /etc/systemd/system/targum-grow.service — started once a day by targum-grow.timer.
+# **Not installed by deploy.sh, and not armed** (ops, 2026-11-17): it spends targum's
+# money with nobody pressing, so David arms it by hand, once. See deploy/README.md,
+# "The shelf grows by itself".
+#
+# One round of the shelf growing by itself (design.md §12, "The shelf grows by itself,
+# inside a month's credits", draft): each catalogue collection whose `channel` says
+# `"grows": true`, in a language TARGUM_GROW names, has its newest uploads asked through
+# the Data API (free inside the quota). One that is Creative Commons by its own licence
+# field, has a track somebody wrote in the language, runs ten minutes or less and passes the
+# screen is built — the track fetched through the residential proxy, nothing transcribed
+# — as a job of kind `grow` through Library.press and Library.claim: targum's to pay,
+# held to the box's daily ceiling (--budget, as targum.service has it) and, before each
+# press, to TARGUM_GROW_CREDITS for the month, counted off the `grow` job rows. At most
+# three a round. Each one built is curated into /var/lib/targum/videos and joins the
+# shelf through grown.json there, with no restart. A video passed over is written down
+# and never asked about again.
+#
+# It does nothing until TARGUM_GROW (the languages, "fr") and TARGUM_GROW_CREDITS (the
+# month's cap in credits, a credit a minute of video) are both in targum.env.
+#
+#   systemctl start targum-grow      # one round now, by hand
+#   journalctl -u targum-grow -n 20
+#   runuser -u targum -- env $(grep -v '^#' /etc/targum/targum.env | xargs) \
+#     /usr/local/bin/targum grow drop <video id>      # take one down
+
+[Unit]
+Description=targum shelf grows by itself, daily
+After=network-online.target targum.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# As targum, never as root: a root-owned targum.db or __pycache__ breaks the service.
+User=targum
+Group=targum
+Environment=HOME=/srv/targum
+WorkingDirectory=/srv/targum
+EnvironmentFile=/etc/targum/targum.env
+ExecStart=/usr/local/bin/targum grow run --store /var/lib/targum/targum.db --out /var/lib/targum/targums --budget 50
+Nice=10
+MemoryHigh=1200M
+MemoryMax=1800M
+TimeoutStartSec=2h
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/targum
