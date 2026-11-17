@@ -63,13 +63,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   - `evals/chat-fr-cases.jsonl`: 15 correct, 5 register and 20 error lines,
     hand-written by ling-fr.
   - `chat/rubric.py` scores a reply with the contract's own parser and no judge.
-  - `scripts/eval_chat_fr.py` (`targum eval chat/fr-cases`) sends each line to the
-    French contract and records stage `chat`, corpus `fr-cases`. `--dry-run` prices it
-    at about $1.91, at most $2.26.
-  - Six floors on `fr-cases` in `evals/floors.json`: three ceilings of nought from the
-    contract and D5, and three proposed rates.
+  - `scripts/eval_chat_fr.py` (`targum eval chat/fr-cases`) prices the run when run
+    bare, at about $1.91 and at most $2.26, and calls nothing. With `--spend` it sends
+    each line to the French contract and records stage `chat`, corpus `fr-cases`.
+  - Seven floors on `fr-cases` in `evals/floors.json`: four ceilings of nought from the
+    contract and D5 (a register line changed is one), and three proposed rates.
   - `stages.CHAT_EVAL_SETS`: French's chat evals are present once every one of those
-    floors has a run's row that holds it. Until then French still shows the gap.
+    floors has a run's row that holds it, scored on today's case file (`gold=`) at
+    today's chat model (`CHAT_EVAL_CASES`). Until then French still shows the gap.
 - French gender is practised on the Grammar tab, the first of French's seven hard-spot
   practices toward Beta (targum-internal#644; design.md §12, "French gender is practised
   as masculine or feminine", 2026-11-16). "Masculine or feminine?" of a French noun in a

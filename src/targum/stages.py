@@ -534,6 +534,14 @@ CHAT_EVALS: frozenset[str] = frozenset({"he"})
 #: its first run, so recording a run that holds them is what moves French.
 CHAT_EVAL_SETS: dict[str, tuple[str, str]] = {"fr": ("chat", "fr-cases")}
 
+#: The cases each set is scored on. A row counts only where it was scored on these bytes
+#: (its note's `gold=`) and at the chat's model of today (its version): a run on cases
+#: since changed, or on a model since replaced, says nothing about the chat now (qa on
+#: #1287).
+CHAT_EVAL_CASES: dict[str, Path] = {
+    "fr": Path(__file__).resolve().parent.parent.parent / "evals" / "chat-fr-cases.jsonl"
+}
+
 #: What grows a language's shelf without anybody's hand: the parasha, the daily and the
 #: weekly for Hebrew; the weekly's Russian edition for Russian; for French, the catalogue's
 #: growing channels, built on the box inside a month's credits (`grow`, 2026-11-17).
@@ -630,12 +638,31 @@ def _chat_evals_hold(language: str, floors: list[Any], rows: list[Any]) -> bool:
     mine = [floor for floor in floors if (floor.stage, floor.corpus) == named]
     if not mine:
         return False
+    rows = _current(rows, named, CHAT_EVAL_CASES.get(language))
     for floor in mine:
         if not any(
             row.key() == floor.key() and row.system.startswith(floor.system) for row in rows
         ):
             return False
     return not evals.breaches(rows, mine)
+
+
+def _current(rows: list[Any], named: tuple[str, str], cases: Path | None) -> list[Any]:
+    """The set's rows scored on its case file as it stands and at today's chat model."""
+    from . import evals
+    from .chat import CHAT_MODEL
+
+    if cases is None:
+        return []
+    gold = f"gold={evals.fingerprint([cases])}"
+    return [
+        row
+        for row in rows
+        if (row.stage, row.corpus) == named
+        and row.version == CHAT_MODEL
+        # `evals.marked` always puts the pin last.
+        and str(row.note or "").endswith(gold)
+    ]
 
 
 def _covered(spot: HardSpot, floors: Iterable[Any]) -> bool:

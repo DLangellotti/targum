@@ -13,7 +13,8 @@ Three kinds of case:
   line back unchanged, and where the line says the reader is a woman (*je suis allée*,
   *contente*), must keep it: "never change the gender of the reader's own words".
 - **register**: spoken French that is right in its register, *je sais pas*, *on va au
-  cinéma* (design.md §12, D5, 2026-11-05: register, not error). No `~ ` line.
+  cinéma* (design.md §12, D5, 2026-11-05: register, not error). No `~ ` line, and said
+  back as written: a recast that puts the *ne* back is a correction too, made silently.
 - **error**: a learner's mistake of a kind the contract names (the auxiliary, the
   participle's agreement, an adjective's gender, an article, elision, an accent, a calque,
   English word order). Fixed means the recast no longer says the error and, where the
@@ -103,10 +104,11 @@ def score(case: Case, reply: str, language: str = "fr") -> Verdict:
     """One reply against its case, read by the contract's own parser."""
     from . import hebrew
 
-    pairs = hebrew.pairs(reply, language)
-    first = next((pair for pair in pairs if pair.recast), None)
-    recast = first.hebrew if first is not None else ""
-    why_shown = bool(first is not None and first.why)
+    # The recast may run to two lines ("one clean sentence or two"), and a `~ ` the parser
+    # keeps under any of them is one the reader is shown.
+    recasts = [pair for pair in hebrew.pairs(reply, language) if pair.recast]
+    recast = " ".join(pair.hebrew for pair in recasts)
+    why_shown = any(pair.why for pair in recasts)
     kept = bool(recast) and normal(recast) == normal(case.sent)
     fixed = False
     if case.kind == "error" and recast:
@@ -129,10 +131,11 @@ def summarise(verdicts: Iterable[Verdict]) -> Summary:
     """The metrics of a run.
 
     `why_shown_on_correct_lines` and `why_shown_on_register_lines` are counts, each wanting
-    a ceiling of nought: the contract says "never on a line that was right". So is
-    `reader_gender_changed`. `fixed_share` and `why_shown_on_errors_share` are shares of
-    the error cases; `recast_kept_share` is the share of correct lines said back as they
-    were written."""
+    a ceiling of nought: the contract says "never on a line that was right". So are
+    `reader_gender_changed` and `register_lines_changed`, a spoken line said back in
+    another register (*je ne sais pas* for *je sais pas*). `fixed_share` and
+    `why_shown_on_errors_share` are shares of the error cases; `recast_kept_share` is the
+    share of correct lines said back as they were written."""
     by_kind: dict[str, list[Verdict]] = {kind: [] for kind in KINDS}
     for one in verdicts:
         by_kind[one.case.kind].append(one)
@@ -145,6 +148,7 @@ def summarise(verdicts: Iterable[Verdict]) -> Summary:
 
     put("why_shown_on_correct_lines", sum(one.why_shown for one in correct), len(correct))
     put("why_shown_on_register_lines", sum(one.why_shown for one in register), len(register))
+    put("register_lines_changed", sum(not one.kept for one in register), len(register))
     gendered = [one for one in correct if one.case.keep]
     put("reader_gender_changed", sum(one.gender_changed for one in gendered), len(gendered))
     put("recast_kept_share", _share([one.kept for one in correct]), len(correct))

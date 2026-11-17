@@ -18,12 +18,13 @@ Rows go to `evals/ledger.jsonl` as stage `chat`, corpus `fr-cases` (`fr-cases-ru
 reader who reads Russian, `--gloss Russian`), system `chat-contract`. `stages` counts
 French's chat evals as present once every floor on `fr-cases` has a row that holds it.
 
-**It spends.** One call a case at the chat's own model; nothing is cached, because the
-question is what the model does today. `--dry-run` prices it from the prompt it would
-send and calls nothing.
+**It spends, and only when told to.** One call a case at the chat's own model; nothing
+is cached, because the question is what the model does today. Run bare, it prices the
+run from the prompt it would send and calls nothing; `--spend` is what calls the model
+(qa on #1287). `--dry-run` is accepted and is the same as running it bare.
 
-    .venv/bin/python scripts/eval_chat_fr.py --dry-run
-    op run --env-file op.env -- .venv/bin/python scripts/eval_chat_fr.py --keep replies.json
+    .venv/bin/python scripts/eval_chat_fr.py
+    op run --env-file op.env -- .venv/bin/python scripts/eval_chat_fr.py --spend --keep replies.json
 """
 
 from __future__ import annotations
@@ -57,16 +58,23 @@ def corpus_for(gloss: str) -> str:
     return "fr-cases" if gloss == "English" else f"fr-cases-{gloss[:2].lower()}"
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=(__doc__ or "").split("\n\n")[0])
     parser.add_argument("--cases", type=Path, default=rubric.FRENCH_CASES)
     parser.add_argument("--known", type=int, default=300)
     parser.add_argument("--gloss", default="English", choices=("English", "Russian"))
     parser.add_argument("--ledger", type=Path, default=evals.DEFAULT)
     parser.add_argument("--keep", type=Path, help="write every reply out, to read by hand")
-    parser.add_argument("--dry-run", action="store_true", help="price it and call nothing")
+    parser.add_argument(
+        "--spend", action="store_true", help="call the model and record the run; it costs"
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true", help="price it and call nothing (the default)"
+    )
     parser.add_argument("--note", default="")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
+    if args.spend and args.dry_run:
+        sys.exit("--spend and --dry-run ask for opposite things; name one")
 
     cases = rubric.load(args.cases)
     common = hebrew.common_words(language="fr")
@@ -77,7 +85,7 @@ def main() -> None:
     contract = hebrew.contract_for("fr", args.gloss)
     system = prompts.SYSTEM + "\n\n" + contract
 
-    if args.dry_run:
+    if not args.spend:
         counts = {kind: sum(1 for one in cases if one.kind == kind) for kind in rubric.KINDS}
         sent = sum(len(one.sent) for one in cases)
         prompt = round((len(system) + len(ledger)) / CHARACTERS_PER_TOKEN)
@@ -95,7 +103,7 @@ def main() -> None:
             f"Estimate: ${typical.cost():.2f} at {TYPICAL_REPLY} output tokens a reply, "
             f"${ceiling.cost():.2f} if every reply ran to the {MAX_REPLY}-token ceiling."
         )
-        print("Nothing was called. Drop --dry-run to run it.")
+        print("Nothing was called. --spend runs it.")
         return
 
     import anthropic

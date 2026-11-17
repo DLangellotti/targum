@@ -1042,6 +1042,14 @@
   {
     "stage": "chat",
     "corpus": "fr-cases",
+    "metric": "register_lines_changed",
+    "system": "chat-contract",
+    "at_most": 0,
+    "why": "design.md §12, D5 (2026-11-05): a spoken line is right in its register, so a recast that puts the ne back (je ne sais pas for je sais pas) corrects it silently. A ceiling of nought, set from the decision before the first run (qa on #1287)"
+  },
+  {
+    "stage": "chat",
+    "corpus": "fr-cases",
     "metric": "reader_gender_changed",
     "system": "chat-contract",
     "at_most": 0,
