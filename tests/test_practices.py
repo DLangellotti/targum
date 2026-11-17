@@ -694,3 +694,136 @@ def test_french_register_is_offered_with_its_own_question_per_item(
         assert item["options"][item["answer"]] == item["said"]
         assert item["said"] != "people in general, or “we” in speech", "an open on is not asked"
         assert item["contrast"] and item["contrast"]["said"] in options - {item["said"]}
+
+
+# -- French object pronouns --------------------------------------------------------------
+
+
+def clitic(surface: str, role: str) -> dict[str, Any]:
+    return {
+        "surface": surface,
+        "lemma": surface.rstrip("'").lower(),
+        "pos": "PRON",
+        "feats": f"UPOS=PRON|Person=3|Role={role}",
+    }
+
+
+def _roles(token: dict[str, Any]) -> list[tuple[str, str, bool]]:
+    found = practices.role_candidates({"start": 0, "end": 1, **token}, "s")
+    return [(c.answer, c.contrast, c.hard) for c in found]
+
+
+def test_french_object_pronouns_are_registered_for_their_role_alone() -> None:
+    """The antecedent waits for its measure, as the card's does (targum-internal#264)."""
+    from targum.annotate import model_lemma
+
+    assert stages._practices("fr")["object clitics, role and antecedent"] is True
+    assert practices.KEYS["object clitics, role and antecedent"] == "role"
+    assert model_lemma.ANTECEDENT_PRECISION is None, (
+        "the antecedent is measured now: it is this practice's second question"
+    )
+
+
+def test_an_object_pronoun_is_asked_its_role_and_its_form_decides_the_kind() -> None:
+    assert _roles(clitic("le", "Obj")) == [("Obj", "Iobj", False)]
+    assert _roles(clitic("l’", "Obj")) == [("Obj", "Iobj", False)]
+    assert _roles(clitic("-la", "Obj")) == [("Obj", "Iobj", False)]
+    assert _roles(clitic("lui", "Iobj")) == [("Iobj", "Obj", False)]
+    assert _roles(clitic("en", "En")) == [("En", "Y", False)]
+    assert _roles(clitic("y", "Y")) == [("Y", "En", False)]
+    # Only the verb tells me, te, nous, vous apart: the hard kind.
+    assert _roles(clitic("me", "Obj")) == [("Obj:verb", "Iobj", True)]
+    assert _roles(clitic("vous", "Iobj")) == [("Iobj:verb", "Obj", True)]
+    # A reflexive, a subject, or a role the form rules out asks nothing.
+    assert _roles(clitic("se", "Refl")) == []
+    assert _roles(clitic("me", "Refl")) == []
+    assert _roles({**clitic("nous", "Obj"), "feats": "UPOS=PRON|Person=1"}) == []
+    assert _roles(clitic("le", "Iobj")) == []
+    assert _roles(clitic("lui", "Obj")) == []
+    assert _roles(clitic("me", "En")) == []
+
+
+@pytest.mark.parametrize(
+    "line, form, role",
+    [
+        ("Je me lève tôt.", "me", "Obj"),
+        ("Je me demande pourquoi.", "me", "Iobj"),
+        ("Tu te souviens de lui ?", "te", "Obj"),
+        ("Nous nous voyons demain.", "nous", "Obj"),
+        ("Vous vous parlez souvent.", "vous", "Iobj"),
+        ("Je m'appelle Paul.", "m'", "Obj"),
+    ],
+)
+def test_a_pronoun_of_the_subjects_own_person_is_reflexive_and_not_asked(
+    line: str, form: str, role: str
+) -> None:
+    """qa on #1284: *je me*, *tu te*, *nous nous*, *vous vous* are reflexive whatever role
+    the tagger gave them, and a reflexive is never asked."""
+    from targum.annotate.french_register import words_of
+
+    stored = [
+        {"start": w.start, "end": w.end, "surface": w.surface, "feats": ""} for w in words_of(line)
+    ]
+    at = [n for n, one in enumerate(stored) if one["surface"].lower() == form][-1]
+    stored[at] = {**stored[at], **clitic(form, role), "surface": stored[at]["surface"]}
+    before = practices.clauses_before(line, stored)[at]
+    assert list(practices.role_candidates(stored[at], "s", before)) == []
+    # The same pronoun after another subject is asked: *il me voit*.
+    assert list(practices.role_candidates(stored[at], "s", ("il",)))
+
+
+@pytest.mark.parametrize("ui", ["en", "ru"])
+def test_a_role_is_said_as_the_card_says_it(ui: str) -> None:
+    from targum import strings
+
+    for code, key in (
+        ("Obj", "reader.grammar.direct-object"),
+        ("Iobj:verb", "reader.grammar.indirect-object"),
+        ("En", "reader.grammar.of-it"),
+        ("Y", "reader.grammar.there"),
+    ):
+        assert practices.said("role", code, ui) == strings.text(key, ui)
+    rules = {
+        code: practices.rule("role", code, ui)
+        for code in ("Obj", "Iobj", "En", "Y", "Obj:verb", "Iobj:verb")
+    }
+    assert len(set(rules.values())) == len(rules), "each answer has its own rule"
+    assert all(said and "{" not in said for said in rules.values())
+
+
+def _pronouns(name: str) -> list[tuple[str, list[dict[str, Any]]]]:
+    return [
+        (f"Je le vois, {name}.", [clitic("le", "Obj")]),
+        (f"Je lui parle, {name}.", [clitic("lui", "Iobj")]),
+        (f"Il me regarde, {name}.", [clitic("me", "Obj")]),
+        (f"Il me répond, {name}.", [clitic("me", "Iobj")]),
+    ]
+
+
+def test_french_object_pronouns_are_offered_on_the_grammar_tab(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    port, token, out = served
+    for name in ("un", "deux"):
+        text(out / "shared" / name, {1: _pronouns(name)}, language="fr", content_hash=name)
+    cookie = sign_in(port, postbox)
+    sections = [
+        {"hash": name, "section": "1", "at": ms(2026, 11), "seen": ms(2026, 11)}
+        for name in ("un", "deux")
+    ]
+    status, answer, _ = call(
+        port, "POST", f"/sync?k={token}", {"sections": sections}, cookie=cookie
+    )
+    assert status == 200, answer
+    status, said, _ = call(
+        port, "GET", f"/account/practice?language=fr&spot=role&k={token}", cookie=cookie
+    )
+    assert status == 200, said
+    assert {one["key"]: one for one in said["spots"]}["role"]["ready"]
+    items = said["round"]["items"]
+    assert said["round"]["spot"] == "role" and len(items) == practices.ROUND + 1
+    for item in items:
+        assert item["ask"] == "What is it to the verb?"
+        assert sorted(item["options"]) == ["direct object", "indirect object"]
+        assert item["options"][item["answer"]] == item["said"]
+        assert item["contrast"] and item["contrast"]["said"] != item["said"]

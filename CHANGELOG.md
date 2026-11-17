@@ -19,6 +19,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   B2+, and French's rows as the box has them.
 
 ### Added
+- French object pronouns are practised by their role on the Grammar tab, French's third
+  hard-spot practice (design.md §12, "French object pronouns are practised by their
+  role, and the antecedent waits", 2026-11-16).
+  `stages._practices("fr")["object clitics, role and antecedent"]` is now true.
+  - `practices.role_candidates`: a pronoun with `Role=Obj|Iobj|En|Y`. Easy where the
+    form says the role (*le*, *lui*, *en*, *y*). Hard for *me*, *te*, *nous* and *vous*,
+    whose answer carries `:verb`. A role the form rules out is not asked, and neither
+    is *me*, *te*, *nous* or *vous* after a subject of the same person in its clause
+    (`practices.clauses_before`, `SAME_PERSON`), which is reflexive.
+  - The antecedent question is left out until `model_lemma.ANTECEDENT_PRECISION` is
+    measured, as the card's is; a test fails when it is, to bring the question in.
+  - Eight new keys in English and Russian, Russian cleared by ling-ru. Nothing spends.
 - French register is practised on the Grammar tab, French's second hard-spot practice
   (design.md §12, "French register is practised as formal or informal, and who *on* is",
   2026-11-16). `stages._practices("fr")["register: ne-drop and on/nous"]` is now true.
