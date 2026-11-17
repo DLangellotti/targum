@@ -3844,6 +3844,7 @@ def approve_page(
     email: str = "",
     left: int | None = None,
     back: str = "",
+    already: bool = False,
 ) -> str:
     """Where a reader grants a connector its scopes (targum-internal#80).
 
@@ -3867,6 +3868,9 @@ def approve_page(
     back, from the same month boundary the claim counts from: with none left the well
     says they are used and when they return, never "0 credits, about 0 min" (§12, "A
     spending press says what it spends", 2026-11-03; targum-internal#721).
+
+    `already` is whether this reader has this app connected now, so the page says that
+    connecting again replaces what it may do (#721 P2-3; §12, 2026-11-14).
     """
     parsed = urlparse(redirect)
     host = parsed.netloc or redirect
@@ -3881,6 +3885,7 @@ def approve_page(
             email=email,
             left=left,
             back=back,
+            already=already,
             clock=_clock(left or 0, language),
             client=client,
             scopes=scopes,
