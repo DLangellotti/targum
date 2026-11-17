@@ -53,7 +53,7 @@ class ShelfFile:
 
     def __init__(self, locate: Callable[[], Path]) -> None:
         self._locate = locate
-        self._held: dict[Path, tuple[tuple[int, int], list[Entry], list[dict[str, Any]]]] = {}
+        self._held: dict[Path, tuple[tuple[int, int, int], list[Entry], list[dict[str, Any]]]] = {}
 
     def path(self) -> Path:
         return self._locate()
@@ -79,7 +79,9 @@ class ShelfFile:
             stat = path.stat()
         except OSError:
             return [], []
-        stamp = (stat.st_mtime_ns, stat.st_size)
+        # The inode too: every write is a rename onto the path (`write_atomic`), so a new
+        # file of the same size inside one clock tick is still a new file.
+        stamp = (stat.st_ino, stat.st_mtime_ns, stat.st_size)
         held = self._held.get(path)
         if held is not None and held[0] == stamp:
             return held[1], held[2]

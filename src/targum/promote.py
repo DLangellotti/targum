@@ -32,6 +32,7 @@ verdict cannot place.
 from __future__ import annotations
 
 import json
+import logging
 import secrets
 from dataclasses import asdict, dataclass
 from datetime import date
@@ -46,6 +47,8 @@ from .licensing import Standing, verdict
 from .models import Annotation, Document, Translation, is_biblical, read_artifact
 from .paths import write_atomic
 from .shelf_file import JOINED
+
+log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from .accounts import Store
@@ -762,7 +765,12 @@ def take_down(library: Library, store: Store, entry_id: str) -> bool:
         return False
     if not JOINED.remove(entry_id):
         # A find that joined before #738 went into the catalogue file, where one could.
-        remove_from_catalogue(entry_id)
+        # On the box that file is not the service's to write, and a refusal there must
+        # not stop the take-down being recorded below.
+        try:
+            remove_from_catalogue(entry_id)
+        except OSError as error:
+            log.warning("take down %s: the catalogue file was not changed: %s", entry_id, error)
     shelf = library.shared / entry_id
     if entry_id.startswith("find-") and shelf.is_dir():
         shutil.rmtree(shelf, ignore_errors=True)

@@ -561,3 +561,28 @@ def test_a_government_release_joins_credited_on_its_recorded_terms(world, shelf)
     )
     assert entry is not None
     assert (entry["credit"], entry["licence"]) == ("Government of Israel", terms)
+
+
+def test_take_down_is_recorded_when_the_catalogue_file_refuses(
+    world, shelf, monkeypatch: Any
+) -> None:
+    """A row not in joined.json falls back to the catalogue file, which on the box the
+    service may not write. The refusal is logged, and the take-down is still recorded:
+    the copy goes and the same original never joins again."""
+    library, store, home, owner = world
+    find_id = a_find(store, licence="CC BY 3.0", licence_from="publisher")
+    built(home, "story-he", URL)
+    job = opened(home, "story-he", find_id, owner)
+    entry = promote.join_find(library, store, job, read=no_tag, render=drawn)
+    assert entry is not None
+    # As a find that joined before #738 would stand: in the catalogue, not joined.json.
+    assert JOINED.remove(entry["id"])
+
+    def refused(entry_id: str) -> bool:
+        raise OSError(30, "Read-only file system")
+
+    monkeypatch.setattr(promote, "remove_from_catalogue", refused)
+    assert promote.take_down(library, store, entry["id"])
+    assert not (library.shared / entry["id"]).exists()
+    assert [row["state"] for row in store.joined("removed")] == ["removed"]
+    assert promote.join_find(library, store, job, read=no_tag, render=drawn) is None
