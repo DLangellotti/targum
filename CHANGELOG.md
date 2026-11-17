@@ -36,6 +36,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   already connected. Connecting again replaces what it may do." (targum-internal#721
   P2-3; design.md §12, "Connecting an app again replaces its older grant", 2026-11-14).
   A first approval reads as before. Russian line for ling-ru.
+- `targum corpus agree <document> <first> <second>` and `Ledger.agreement`: how far two
+  annotators agree on one text, token by token (targum-internal#162, criterion 2). Each
+  annotator's current pass is read; within a segment the tokens pair by the longest
+  common subsequence of their forms, so a word one tokenizer split costs only that word,
+  and what cannot pair is counted apart. It says lemma, part of speech and features as shares of the
+  pairs where either side has a value (features in any order agree), and lists where
+  they differ, features included. One annotator against itself is refused. Reads `TARGUM_LEDGER`; spends
+  nothing.
 - The daily mail's weekly-portion row follows the reader's calendar, Israel's or the
   diaspora's (targum-internal#409 slice 4, option A, David 2026-11-16). In a week the two
   read different portions, an Israel subscriber is mailed Israel's portion and a diaspora
