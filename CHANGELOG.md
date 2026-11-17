@@ -1450,6 +1450,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     осталось.»), a first draft for ling-ru. No spend.
 - A build reads a transcript only from inside its own home; `/prepare` already keeps one
   out of a request (ops, 2026-11-17).
+- A find that joins the library, and a proposal accepted in the back office, are written
+  to `joined.json` beside the shared shelf (`shelf_file.JOINED`), which
+  `catalogue.everything` joins, instead of the catalogue file the service may not write on
+  the box (targum-internal#738). `take_down` removes from the same file. No find had
+  reached the join yet, so nothing was lost.
 
 ### Changed
 - Russian says every amount of credits in баллы, and «мин» only for a duration (David,
