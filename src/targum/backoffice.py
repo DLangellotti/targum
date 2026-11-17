@@ -289,8 +289,8 @@ class Line:
 
 @dataclass
 class Reader:
-    """One account's credits (`?who=<id>`, targum-internal#543): this month and all
-    time by kind, and their latest jobs. Counts and stages only."""
+    """One account's credits (`/back-office/readers/<id>`, targum-internal#543): this
+    month and all time by kind, and their latest jobs. Counts and stages only."""
 
     id: int
     email: str
@@ -760,9 +760,10 @@ ID_MAX = 2**63 - 1
 
 
 def account_id(said: str) -> int | None:
-    """An account id typed into `?who=`, or None for anything that is not one: `int`
-    accepts "²" from `isdigit` no more than it does a 30-digit number SQLite cannot
-    bind, and either raised out of the request (qa on targum#956)."""
+    """An account id in a reader page's address (or the old `?who=`), or None for
+    anything that is not one: `int` accepts "²" from `isdigit` no more than it does a
+    30-digit number SQLite cannot bind, and either raised out of the request (qa on
+    targum#956)."""
     try:
         who = int(said.strip())
     except ValueError:
