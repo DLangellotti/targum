@@ -475,22 +475,49 @@ def transaction(
 TRANSACTION_ID = re.compile(r"txn_[a-z0-9]{26}")
 
 
-def ticket(account: int, transaction_id: str) -> str:
+#: How long a checkout ticket opens a checkout for (qa on #1304): long enough to read the
+#: plans page and pay, short enough that a link copied out of a history or a log is dead.
+TICKET_MINUTES = 30
+
+#: What a ticket was made for: Start the plan, or a top-up.
+TICKET_KINDS = ("start", "top-up")
+
+
+def ticket(account: int, transaction_id: str, kind: str, at: float | None = None) -> str:
     """What our server gives the reader beside a transaction it made for them, so that
     `/plans` opens a checkout only on a transaction made for the account looking at it,
-    never on an id somebody else put in a link."""
+    for what it was made for, and only for `TICKET_MINUTES`: `<kind>.<seconds>.<mac>`,
+    the kind and the moment it was made under the HMAC with the account and the id."""
+    made = int(time.time() if at is None else at)
+    return f"{kind}.{made}.{_ticket_mac(account, transaction_id, kind, made)}"
+
+
+def _ticket_mac(account: int, transaction_id: str, kind: str, made: int) -> str:
     key = webhook_secret().encode()
-    said = f"checkout:{int(account)}:{transaction_id}".encode()
+    said = f"checkout:{int(account)}:{transaction_id}:{kind}:{made}".encode()
     return hmac.new(key, said, hashlib.sha256).hexdigest()[:32]
 
 
-def ticket_holds(account: int, transaction_id: str, given: str) -> bool:
-    """Whether `given` is the ticket our server made for this account and transaction."""
+def ticket_kind(account: int, transaction_id: str, given: str, at: float | None = None) -> str:
+    """What `given` was made for (`start` or `top-up`), where it is the ticket our server
+    made for this account and transaction less than `TICKET_MINUTES` ago; "" otherwise."""
     if not webhook_secret() or not TRANSACTION_ID.fullmatch(transaction_id or ""):
-        return False
-    return hmac.compare_digest(
-        ticket(account, transaction_id).encode(), (given or "").encode("utf-8", "replace")
-    )
+        return ""
+    kind, _, rest = (given or "").partition(".")
+    stamp, _, mac = rest.partition(".")
+    if kind not in TICKET_KINDS or not (stamp.isascii() and stamp.isdigit()):
+        return ""
+    made = int(stamp)
+    now = time.time() if at is None else at
+    if not (0 <= now - made <= TICKET_MINUTES * 60):
+        return ""
+    wanted = _ticket_mac(account, transaction_id, kind, made).encode()
+    return kind if hmac.compare_digest(wanted, mac.encode("utf-8", "replace")) else ""
+
+
+def ticket_holds(account: int, transaction_id: str, given: str) -> bool:
+    """Whether `given` is a live ticket our server made for this account and transaction."""
+    return bool(ticket_kind(account, transaction_id, given))
 
 
 def cancel(subscription: str) -> None:

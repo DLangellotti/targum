@@ -132,20 +132,31 @@ def test_a_client_token_for_the_other_environment_is_no_token(
     assert billing.client_token() == "", "an API key is never a client token"
 
 
-def test_a_ticket_holds_only_for_its_account_and_transaction(
+def test_a_ticket_holds_only_for_its_account_transaction_and_time(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     configure(monkeypatch)
-    ticket = billing.ticket(7, TXN)
-    assert billing.ticket_holds(7, TXN, ticket)
-    assert not billing.ticket_holds(8, TXN, ticket), "another account's"
+    now = 2_000_000_000.0
+    ticket = billing.ticket(7, TXN, "start", at=now)
+    assert billing.ticket_kind(7, TXN, ticket, at=now + 60) == "start"
+    assert billing.ticket_kind(8, TXN, ticket, at=now) == "", "another account's"
     other = "txn_01hv8wptq8987qeep44cyrewq0"
-    assert not billing.ticket_holds(7, other, ticket), "another transaction's"
-    assert not billing.ticket_holds(7, TXN, ""), "no ticket"
-    assert not billing.ticket_holds(7, "txn_short", billing.ticket(7, "txn_short"))
-    assert not billing.ticket_holds(7, TXN, ticket + "\u00e9")
+    assert billing.ticket_kind(7, other, ticket, at=now) == "", "another transaction's"
+    assert billing.ticket_kind(7, TXN, "", at=now) == "", "no ticket"
+    assert billing.ticket_kind(7, "txn_short", billing.ticket(7, "txn_short", "start")) == ""
+    assert billing.ticket_kind(7, TXN, ticket + "\u00e9", at=now) == ""
+    # qa on #1304: a ticket dies after TICKET_MINUTES, and one from the future is no ticket.
+    late = now + billing.TICKET_MINUTES * 60 + 1
+    assert billing.ticket_kind(7, TXN, ticket, at=late) == "", "expired"
+    assert billing.ticket_kind(7, TXN, ticket, at=now - 5) == "", "not made yet"
+    # The kind and the time are under the MAC: changing either breaks it.
+    kind, made, mac = ticket.split(".")
+    assert billing.ticket_kind(7, TXN, f"top-up.{made}.{mac}", at=now) == ""
+    assert billing.ticket_kind(7, TXN, f"{kind}.{int(made) + 600}.{mac}", at=now + 600) == ""
+    top_up = billing.ticket(7, TXN, "top-up", at=now)
+    assert billing.ticket_kind(7, TXN, top_up, at=now) == "top-up"
     monkeypatch.delenv(billing.WEBHOOK_SECRET_ENV)
-    assert not billing.ticket_holds(7, TXN, ticket), "no secret, no ticket"
+    assert billing.ticket_kind(7, TXN, ticket, at=now) == "", "no secret, no ticket"
 
 
 # -- the call to Paddle ---------------------------------------------------------------
@@ -424,6 +435,32 @@ def test_a_checkout_link_opens_nothing_for_anyone_else(
         assert status == 200
         policy = headers["Content-Security-Policy"]
         assert not names_paddle(policy) and not names_paddle(page), link
+
+
+@pytest.mark.usefixtures("on")
+def test_an_expired_ticket_or_a_start_after_subscribing_opens_nothing(
+    box: tuple[int, Path, dict[str, str]], paddle: Paddle
+) -> None:
+    """qa on #1304: a copied Start link must not open an unpaid checkout once the reader
+    has subscribed, nor any link after `TICKET_MINUTES`."""
+    port, store_path, sessions = box
+    store = Store(store_path)
+    me = store.person_by_email("free@example.com")
+    assert me is not None
+    gone = time.time() - billing.TICKET_MINUTES * 60 - 5
+    old = billing.ticket(me.id, TXN, "start", at=gone)
+    _, headers, page = fetch(port, f"/plans?checkout={TXN}&ticket={old}", sessions["free"])
+    assert not names_paddle(headers["Content-Security-Policy"]) and not names_paddle(page)
+    # The paying reader's own fresh Start ticket opens nothing: their plan holds.
+    paying = store.person_by_email("paying@example.com")
+    assert paying is not None
+    fresh = billing.ticket(paying.id, TXN, "start")
+    _, _, page = fetch(port, f"/plans?checkout={TXN}&ticket={fresh}", sessions["paying"])
+    assert not names_paddle(page), "a Start for an account already on a paid plan"
+    # A top-up ticket for the same reader does open.
+    top_up = billing.ticket(paying.id, TXN, "top-up")
+    _, _, page = fetch(port, f"/plans?checkout={TXN}&ticket={top_up}", sessions["paying"])
+    assert "cdn.paddle.com/paddle/v2/paddle.js" in page
 
 
 @pytest.mark.usefixtures("on")

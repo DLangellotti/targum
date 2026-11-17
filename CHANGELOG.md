@@ -250,8 +250,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 - The checkout is Paddle's overlay on `/plans`, not a hosted checkout (David,
   2026-11-17). A pay press still makes the Paddle transaction on our server, with the
   same `custom_data` and tag, and now answers a 303 back to
-  `/plans?checkout=txn_…&ticket=…`. The ticket is an HMAC our server makes for that
-  account and transaction, so a link opens a checkout for nobody else. That view alone
+  `/plans?checkout=txn_…&ticket=…`. The ticket is an HMAC our server makes over that
+  account, the transaction, what it is for and when, so a link opens a checkout for
+  nobody else, dies after 30 minutes, and a Start link opens nothing once the account's
+  plan holds. That view alone
   loads Paddle.js (`https://cdn.paddle.com/paddle/v2/paddle.js`; Paddle publishes no
   pinned build and no integrity hash) and `plans-checkout.js`, which opens the overlay on
   the transaction. Its policy alone adds Paddle.js's origin to `script-src`, the

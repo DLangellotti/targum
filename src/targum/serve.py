@@ -13943,10 +13943,13 @@ class Handler(BaseHTTPRequestHandler):
         pay = billing.configured()
         asked = parse_qs(urlparse(self.path).query)
         # The one view that opens a checkout (design.md §12, 2026-11-17): a transaction
-        # our server made for this account, with the ticket that says so. Any other id,
-        # or one made for somebody else, opens nothing and loads nothing of Paddle's.
+        # our server made for this account, with the live ticket that says so. Any other
+        # id, one made for somebody else, a ticket past `billing.TICKET_MINUTES`, or a
+        # Start for an account whose plan already holds (a link kept from before it
+        # subscribed) opens nothing and loads nothing of Paddle's.
         opening = asked.get("checkout", [""])[0]
-        if not (pay and billing.ticket_holds(person.id, opening, asked.get("ticket", [""])[0])):
+        kind = billing.ticket_kind(person.id, opening, asked.get("ticket", [""])[0]) if pay else ""
+        if not kind or (kind == "start" and plans.subscribed(person)):
             opening = ""
         page = plans_page(
             plans.summary(person, language=language),
@@ -14018,7 +14021,9 @@ class Handler(BaseHTTPRequestHandler):
         except billing.PaddleError as error:
             print(f"billing: checkout not made ({error})")
             return self._go(f"{back}?pay=failed")
-        held_ticket = billing.ticket(person.id, made_id)
+        held_ticket = billing.ticket(
+            person.id, made_id, "start" if route == PLANS_START else "top-up"
+        )
         self._go(f"/plans?{urlencode({'checkout': made_id, 'ticket': held_ticket})}")
 
     def _subscribe_post(self, form: dict[str, str]) -> None:
