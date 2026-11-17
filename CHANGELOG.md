@@ -49,6 +49,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     four `practice.rule.gender-*`), and the Grammar tab's note and empty line no longer
     say Hebrew alone. Russian cleared by ling-ru.
   - Nothing spends: read off annotation already built.
+- A text under a NonCommercial licence stays free to read (David, 2026-11-17; design.md
+  §12). With plans on, a build of a library text (catalogue row, weekly or joined find,
+  from its own source) whose licence is CC BY-NC or CC BY-NC-SA takes none of the month's
+  credits and never needs a plan, on Free or Plan (`Library.free_to_read`;
+  `licensing.noncommercial`, a Creative Commons NC deed by the words `promote.clears`
+  asks for, so an ad-hoc "NC" is not one). A web address must be the row's own,
+  exactly as written. It is
+  still claimed through `Library.claim`, so the money rails and the box ceiling hold.
+  The quote says "Uses none of your credits" for it (`metered: false`). With plans off
+  nothing changes.
 - Connect's approval page says when the app asking is already connected: "Claude is
   already connected. Connecting again replaces what it may do." (targum-internal#721
   P2-3; design.md §12, "Connecting an app again replaces its older grant", 2026-11-14).
