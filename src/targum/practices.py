@@ -49,7 +49,19 @@ CACHE = "practice.json"
 #: 2 (2026-10-21) adds the vav-consecutive's candidates (targum-internal#449), and 3 the
 #: pronoun suffixes' (targum-internal#450); 4 drops governed prepositions from Biblical
 #: texts, where the spot is declared out (targum-internal#454).
+#:
+#: A new spot needs no bump: the file also records the spots it was counted for
+#: (`spots_key`), and a file counted before a spot was registered is rebuilt on its next
+#: read (qa on targum#1295). Bump this only when the encoding of a row changes.
 VERSION = 4
+
+
+def spots_key() -> str:
+    """Every registered spot's short key, sorted and joined: what a cached file was
+    counted for. Registering a spot changes it, so every text gets the new spot without a
+    bump that each practice's PR would fight over."""
+    return ",".join(sorted({KEYS[name] for spots in REGISTERED.values() for name in spots}))
+
 
 #: When a spot is offered: met in this many lines, across this many texts (the research's
 #: "about six attended encounters across at least two texts").
@@ -526,6 +538,7 @@ def _cached(folder: Path, stamp: tuple[int, ...]) -> TextPractice | None:
         if (
             isinstance(loaded, dict)
             and loaded.get("version") == VERSION
+            and loaded.get("spots") == spots_key()
             and loaded.get("stamp") == list(stamp)
         ):
             return TextPractice(
@@ -555,6 +568,7 @@ def _cached(folder: Path, stamp: tuple[int, ...]) -> TextPractice | None:
             json.dumps(
                 {
                     "version": VERSION,
+                    "spots": spots_key(),
                     "stamp": list(stamp),
                     "sections": {
                         str(section): [
