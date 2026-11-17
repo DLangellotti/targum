@@ -552,8 +552,8 @@ tab, a worked example and five items, six lines across two texts, nothing scored
 
 ### The French subjunctive is practised after que — 2026-11-16
 
-ling-fr, 2026-11-16, French's subjunctive toward Beta, under "A practice for every hard
-spot" (2026-10-13). It waits for David.
+David, 2026-11-17 (ling-fr's draft, approved as written), French's subjunctive toward
+Beta, under "A practice for every hard spot" (2026-10-13).
 
 - **One question: "Subjunctive, or present?"** It is asked of a finite verb in the
   present, in a clause opened by the conjunction *que*. The answers are the card's own
