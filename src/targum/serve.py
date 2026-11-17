@@ -10493,6 +10493,15 @@ class Handler(BaseHTTPRequestHandler):
         )
         self._send(200, page.encode("utf-8"), HTML)
 
+    def _back_office_trouble(self, section: str, error: BaseException) -> None:
+        """A press that went wrong: the reason goes to Incidents, where the recorder cuts
+        out any address or text, and the page is told only that it did (qa on
+        targum#1308). An error's own words never ride in `said`, which the proxy logs."""
+        incidents_module.record(self.library.incidents, self.path, error)
+        self._back_office_go(
+            section, "That did not go through. Incidents, under Operations, says why."
+        )
+
     def _behind_the_door(self) -> bool:
         """The door again, asked by each page itself as well as by `_back_office`, so a
         page reached some other way later still opens for an admin session only."""
@@ -10564,7 +10573,7 @@ class Handler(BaseHTTPRequestHandler):
                 then=self.library.build_saved_link_later,
             )
         except ValueError as error:
-            return self._back_office_go("waitlist", str(error))
+            return self._back_office_trouble("waitlist", error)
         let_in = sum(1 for row in rows if row.ok)
         failed = len(rows) - let_in
         if not rows:
@@ -10597,12 +10606,12 @@ class Handler(BaseHTTPRequestHandler):
                 then=self.library.build_saved_link_later,
             )
         except ValueError as error:
-            return self._back_office_go("waitlist", str(error))
+            return self._back_office_trouble("waitlist", error)
         # Said without the address: it rides in the address bar, which the proxy logs.
         if row is None:
             said = "That address is not waiting to be let in."
         elif row.failed:
-            said = f"Could not write to them: {row.failed}"
+            return self._back_office_trouble("waitlist", RuntimeError(row.failed))
         else:
             said = "Let them in, and wrote to them."
         self._back_office_go("waitlist", said)
@@ -10642,11 +10651,11 @@ class Handler(BaseHTTPRequestHandler):
         try:
             row = resend(self.store, self.mailer, self.address, email)
         except ValueError as error:
-            return self._back_office_go("overview", str(error))
+            return self._back_office_trouble("overview", error)
         if row is None:
             said = "That address was not let in, or has signed in already."
         elif row.failed:
-            said = f"Could not write to them: {row.failed}"
+            return self._back_office_trouble("overview", RuntimeError(row.failed))
         else:
             said = "Sent them the invitation again."
         self._back_office_go("overview", said)
@@ -10698,8 +10707,7 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 return self._send(400, b"bad request", "text/plain")
         except TargumError as error:
-            said = f"{error.message} {error.hint or ''}".strip()
-            return self._back_office_go("shelf", said)
+            return self._back_office_trouble("shelf", error)
         self._back_office_go("shelf")
 
     def _take_down(self, form: dict[str, str]) -> None:
@@ -11514,6 +11522,13 @@ class Handler(BaseHTTPRequestHandler):
         if route in MAILING_POSTS and self._cross_site():
             self.close_connection = True
             return self._json({"error": "forbidden"}, 403)
+        # The back office's presses come from its own pages and nowhere else (qa on
+        # targum#1308). Stricter than `_cross_site`: a sibling name such as
+        # `x.targum.page` is the same site, so SameSite=Lax would send the admin's
+        # cookie with its form, and only the same origin is let through here.
+        if route.startswith(BACK_OFFICE_ROUTE + "/") and not self._same_origin():
+            self.close_connection = True
+            return self._send(403, b"forbidden", "text/plain")
         # Unlink and Undo change how an account is signed into (targum-internal#502), so
         # a form on another site must not press them for the reader, cookie or not; and
         # they are pressed only by our own script, which always names its body as JSON.
@@ -15609,6 +15624,19 @@ class Handler(BaseHTTPRequestHandler):
         asked = (self.headers.get("Host") or "").rsplit(":", 1)[0].strip().lower()
         named = {host, f"[{host}]"}  # `urlparse` drops an IPv6 address's brackets
         return not named & self.hosts and asked not in named
+
+    def _same_origin(self) -> bool:
+        """Whether a post came from one of our own pages, for the back office's presses.
+
+        `Sec-Fetch-Site` decides wherever a browser sends it: `same-origin`, or `none`
+        for a post nobody's page made. `same-site` is refused, unlike `_cross_site`,
+        because every name under the domain is the same site. A browser that sends no
+        `Sec-Fetch-Site` is judged by `Origin` as `_cross_site` judges it, `null` and
+        none passing for the reasons given there."""
+        fetched = (self.headers.get("Sec-Fetch-Site") or "").strip().lower()
+        if fetched:
+            return fetched in ("same-origin", "none")
+        return not self._cross_site()
 
     def _json_body(self) -> bool:
         """Whether the post names its body as JSON, whatever parameters follow."""

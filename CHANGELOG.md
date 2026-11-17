@@ -23,6 +23,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     names an address: both ride in the address, which the proxy writes into
     `targum.log`. `deploy/Caddyfile` deletes `bq`, `bwq` and `said` from both logs;
     `deploy.sh` does not ship it, so it waits for David to apply it on the box once.
+  - Every press under `/back-office/` is refused 403 unless it comes from the same origin
+    (`Sec-Fetch-Site: same-origin`, or by `Origin` where a browser sends no
+    `Sec-Fetch-Site`). A sibling name under the domain counts as the same site, so
+    SameSite=Lax alone would have sent the admin's cookie (qa on targum#1308). When a
+    press fails, its reason goes to Incidents. The page says only that it did not go
+    through. The Caddy filters also delete the old `q` and `wq` for now.
 - The French chat contract keeps spoken French as written (version 2,
   `hebrew.FRENCH_CONTRACT_VERSION`). The first French chat eval (2026-11-17, $1.78, David's
   go) "corrected" two spoken lines in the recast, *je sais pas* and *j'ai jamais vu ça*,

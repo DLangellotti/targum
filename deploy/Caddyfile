@@ -47,8 +47,9 @@ targum.page {
 			mode 0640
 		}
 		# The sign-in link is a bearer token in a query string. Do not write it down.
-		# Nor a reader's address: the back office's searches are `bq` and `bwq`, and
-		# what a press there said rides back as `said` (design.md §12, 2026-11-17).
+		# Nor a reader's address: the back office's searches are `bq` and `bwq` (`q` and
+		# `wq` until 2026-11-17), and what a press there said rides back as `said`
+		# (design.md §12, 2026-11-17).
 		# `deploy.sh` does not ship this file; apply it once with the commands at the top.
 		format filter {
 			request>uri query {
@@ -57,6 +58,9 @@ targum.page {
 				delete bq
 				delete bwq
 				delete said
+				# The old names, while a bookmark may still carry them.
+				delete q
+				delete wq
 			}
 		}
 	}
@@ -98,6 +102,9 @@ bo.targum.page {
 				delete bq
 				delete bwq
 				delete said
+				# The old names, while a bookmark may still carry them.
+				delete q
+				delete wq
 			}
 		}
 	}

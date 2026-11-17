@@ -69,8 +69,9 @@ def ask(
     cookie: str = "",
     fields: dict[str, str] | None = None,
     navigate: bool = False,
+    sent: dict[str, str] | None = None,
 ) -> tuple[int, dict[str, str], str]:
-    """A request, and its status, headers and body."""
+    """A request, and its status, headers and body. `sent` adds headers of its own."""
     connection = HTTPConnection("127.0.0.1", port, timeout=10)
     try:
         headers = {"Content-Type": "application/x-www-form-urlencoded"}
@@ -78,6 +79,7 @@ def ask(
             headers["Cookie"] = cookie
         if navigate:
             headers |= {"Accept": "text/html", "Sec-Fetch-Mode": "navigate"}
+        headers |= sent or {}
         body = urlencode(fields).encode("utf-8") if fields is not None else None
         connection.request(method, path, body, headers)
         response = connection.getresponse()
@@ -278,9 +280,56 @@ def test_the_log_filter_deletes_them() -> None:
     for kept in filters:
         deleted = set(re.findall(r"delete (\w+)", kept))
         assert {"t", "k", backoffice.ACCOUNT_SEARCH, backoffice.WAITING_SEARCH, "said"} <= deleted
+        assert {"q", "wq"} <= deleted, "the old names, for a bookmark that still has them"
 
 
 def test_one_route_said_in_two_places() -> None:
     assert serve.BACK_OFFICE_ROUTE == backoffice.ROUTE
     assert backoffice.page_route("overview") == "/back-office"
     assert backoffice.page_route("shelf") == "/back-office/shelf"
+
+
+#: How a press from somewhere else announces itself: another site, a sibling name under
+#: the same domain (the same site, so SameSite=Lax sends the cookie), and an old browser
+#: that names only its `Origin`.
+ELSEWHERE = [
+    {"Sec-Fetch-Site": "cross-site"},
+    {"Sec-Fetch-Site": "same-site", "Origin": "https://x.targum.page"},
+    {"Origin": "https://evil.example"},
+]
+
+
+def test_a_press_from_anywhere_but_our_own_page_is_refused(world) -> None:  # type: ignore[no-untyped-def]
+    """qa on targum#1308: SameSite=Lax sends the admin's cookie with a form posted from
+    any name under the same domain. Every press is refused 403 unless it comes from the
+    same origin, before the body is read, and changes nothing."""
+    port, store, _, admin, _ = world
+    store.fault(None, "TypeError: boom", "", "/texts")
+    store.tell(None, "please fix")
+    for path, fields in POSTS.items():
+        for headers in ELSEWHERE:
+            status, answer, _ = ask(port, "POST", path, admin, fields, sent=headers)
+            assert status == 403, (path, headers, status)
+            assert "location" not in answer
+    assert store.waiting_state("waiting@example.com") == "on"
+    assert store.balances() == {}
+    assert store.told()[0]["state"] == "open"
+    assert store.faults()[0]["fixed"] == 0
+    # Our own page's post goes through: the browser says same-origin, and under
+    # no-referrer its `Origin` is `null`.
+    for headers in ({"Sec-Fetch-Site": "same-origin", "Origin": "null"}, {"Origin": "null"}):
+        status, answer, _ = ask(
+            port, "POST", "/back-office/balance", admin, POSTS["/back-office/balance"], sent=headers
+        )
+        assert status == 303 and answer["location"] == "/back-office/operations#services"
+
+
+def test_what_went_wrong_goes_to_incidents_and_not_into_the_address() -> None:
+    """qa on targum#1308: an error's own words, a mail server's or the shelf's, never ride
+    in `said`; the page says it did not go through and Incidents says why."""
+    text = (ROOT / "src" / "targum" / "serve.py").read_text(encoding="utf-8")
+    presses = text[text.index("    def _open_the_door(") : text.index("    def do_GET(")]
+    assert "str(error)" not in presses and "row.failed}" not in presses
+    assert "error.message" not in presses and "error.hint" not in presses
+    trouble = text[text.index("def _back_office_trouble(") : text.index("def _behind_the_door(")]
+    assert "incidents_module.record(" in trouble
