@@ -429,8 +429,8 @@ this spends targum's on David's.
 
 ### French object pronouns are practised by their role, and the antecedent waits — 2026-11-16
 
-ling-fr, 2026-11-16, French's third practice toward Beta, under "A practice for every
-hard spot" (2026-10-13).
+David, 2026-11-17 (ling-fr's draft, approved as written), French's third practice toward
+Beta, under "A practice for every hard spot" (2026-10-13).
 
 - **One question: "What is it to the verb?"** It is asked of an object pronoun the card
   names a role for. The answers are the card's own words: direct object against indirect
