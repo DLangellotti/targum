@@ -60,20 +60,17 @@ and filed in the catalogue. `targum grow drop <id>` takes one down.
 
 from __future__ import annotations
 
-import fcntl
-import json
 import logging
 import os
 import secrets
 import shutil
-from collections.abc import Callable, Iterator, Mapping
-from contextlib import contextmanager
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from .paths import write_atomic
+from .shelf_file import ShelfFile, locked
 
 if TYPE_CHECKING:
     from .accounts import Store
@@ -101,8 +98,6 @@ MAX_SECONDS = 10 * 60
 
 #: Beside the videos, in the store the shelf reads them from.
 INDEX = "grown.json"
-#: Held while the index is changed, by a round or a `drop`.
-INDEX_LOCK = ".grown.lock"
 #: Held for a whole round: two rounds at once would both pass the month's cap.
 ROUND_LOCK = ".grow-round.lock"
 
@@ -152,50 +147,27 @@ def index_path() -> Path:
     return store.root() / INDEX
 
 
-def _read(path: Path) -> dict[str, Any]:
-    if not path.is_file():
-        return {"entries": [], "passed": {}}
-    try:
-        loaded = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {"entries": [], "passed": {}}
-    if not isinstance(loaded, dict):
-        return {"entries": [], "passed": {}}
-    loaded.setdefault("entries", [])
-    loaded.setdefault("passed", {})
-    return loaded
-
-
-def _write(path: Path, held: Mapping[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    write_atomic(path, json.dumps(held, ensure_ascii=False, indent=1) + "\n")
-
-
-@contextmanager
-def _locked(path: Path, *, wait: bool = True) -> Iterator[bool]:
-    """An exclusive lock on `path`, across processes: True where it was taken. With
-    `wait=False`, False at once where somebody else holds it."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a") as handle:
-        try:
-            fcntl.flock(handle, fcntl.LOCK_EX | (0 if wait else fcntl.LOCK_NB))
-        except BlockingIOError:
-            yield False
-            return
-        try:
-            yield True
-        finally:
-            fcntl.flock(handle, fcntl.LOCK_UN)
+#: The grown rows, as every file of rows the box writes for itself is kept
+#: (`shelf_file.ShelfFile`): read again only when it changed, changed under its lock.
+#: Beside the rows, `passed`: what a round looked at and will not build, and why.
+GROWN = ShelfFile(index_path)
 
 
 def _update(change: Callable[[dict[str, Any]], None]) -> None:
     """Read the index afresh, change it and write it, under its lock: a `drop` made while
     a round runs is never written over by the round's older copy."""
-    path = index_path()
-    with _locked(path.with_name(INDEX_LOCK)):
-        held = _read(path)
+
+    def with_passed(held: dict[str, Any]) -> None:
+        if not isinstance(held.get("passed"), dict):
+            held["passed"] = {}
         change(held)
-        _write(path, held)
+
+    GROWN.update(with_passed)
+
+
+def _passed() -> dict[str, str]:
+    found = GROWN.read().get("passed")
+    return dict(found) if isinstance(found, dict) else {}
 
 
 def _pass_over(identifier: str, why: str) -> None:
@@ -205,44 +177,18 @@ def _pass_over(identifier: str, why: str) -> None:
     _update(change)
 
 
-_held: dict[Path, tuple[tuple[int, int], list[Entry], dict[str, list[str]]]] = {}
-
-
-def _loaded() -> tuple[list[Entry], dict[str, list[str]]]:
-    """The index as entries and as collection members, read again only when it changed:
-    `catalogue.everything` asks on every page."""
-    from .catalogue import _entry
-
-    path = index_path()
-    try:
-        stat = path.stat()
-    except OSError:
-        return [], {}
-    stamp = (stat.st_mtime_ns, stat.st_size)
-    held = _held.get(path)
-    if held is not None and held[0] == stamp:
-        return held[1], held[2]
-    entries: list[Entry] = []
-    members: dict[str, list[str]] = {}
-    for raw in _read(path)["entries"]:
-        try:
-            entries.append(_entry(raw))
-        except (KeyError, ValueError, TypeError):
-            continue
-        if raw.get("collection"):
-            members.setdefault(str(raw["collection"]), []).append(str(raw["id"]))
-    _held[path] = (stamp, entries, members)
-    return entries, members
-
-
 def entries() -> list[Entry]:
     """Every grown video, as a catalogue entry. Empty on a machine that grew none."""
-    return list(_loaded()[0])
+    return GROWN.entries()
 
 
 def members() -> dict[str, list[str]]:
     """Grown entry ids by the collection whose channel brought them."""
-    return {key: list(value) for key, value in _loaded()[1].items()}
+    out: dict[str, list[str]] = {}
+    for row in GROWN.rows():
+        if row.get("collection"):
+            out.setdefault(str(row["collection"]), []).append(str(row["id"]))
+    return out
 
 
 # -- where it grows from --------------------------------------------------------------
@@ -359,7 +305,7 @@ def _known(identifier: str) -> bool:
     from . import catalogue
     from .video import store
 
-    if identifier in _read(index_path())["passed"] or store.folder(identifier).exists():
+    if identifier in _passed() or store.folder(identifier).exists():
         return True
     return catalogue.matching(f"video:{identifier}") is not None
 
@@ -422,7 +368,7 @@ def grow(
     if cap() <= 0:
         report.stopped = f"off ({CREDITS_ENV} sets no cap)"
         return report
-    with _locked(index_path().with_name(ROUND_LOCK), wait=False) as taken:
+    with locked(index_path().with_name(ROUND_LOCK), wait=False) as taken:
         if not taken:
             report.stopped = "another round is running"
             return report

@@ -24,6 +24,7 @@ from targum import catalogue, grow, stages
 from targum.accounts import Store
 from targum.errors import TargumError
 from targum.serve import Job, Library
+from targum.shelf_file import locked
 from targum.video import channels, discover
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -379,7 +380,7 @@ def test_a_round_left_working_by_a_dead_process_is_settled_and_counted(world: An
 
 def test_two_rounds_at_once_do_not_both_run(world: Any) -> None:
     library, store, built = world
-    with grow._locked(grow.index_path().with_name(grow.ROUND_LOCK)):
+    with locked(grow.index_path().with_name(grow.ROUND_LOCK)):
         report = grow.grow(library, store, get=api([upload("a")]), track=track, api_key="k")
     assert report.stopped == "another round is running" and not built
 
