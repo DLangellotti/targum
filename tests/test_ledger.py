@@ -405,6 +405,41 @@ class TestTokens:
             ).fetchone()
         assert (agree, total) == (2, 3)
 
+    def test_agreement_is_one_named_query(self, tmp_path: Path) -> None:
+        """Criterion 2 as `Ledger.agreement`: lemma, part of speech and features over the
+        tokens both read alike, with each disagreement where it is."""
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        book.record("tokens", "doc123:grammar/2", _annotation("grammar/2"))
+        book.record("tokens", "doc123:grammar/3", _annotation("grammar/3", "בַּיִת"))
+        said = book.agreement("doc123", "grammar/2", "grammar/3")
+        assert said is not None
+        assert (said.paired, said.lemma, said.pos, said.features) == (3, 2, 3, 3)
+        assert said.unpaired == (0, 0) and round(said.share("lemma"), 4) == round(2 / 3, 4)
+        assert [(d.segment, d.place, d.form) for d in said.disagreements] == [("s1", 0, "בית")]
+        assert said.disagreements[0].second_lemma == "בַּיִת"
+
+    def test_agreement_reads_each_current_pass_and_pairs_only_alike_forms(
+        self, tmp_path: Path
+    ) -> None:
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        book.record("tokens", "doc123:grammar/2", _annotation("grammar/2"))
+        # The current pass of grammar/3 split a segment differently; an older pass of it,
+        # now history, agreed everywhere and must not be read.
+        book.record("tokens", "doc123:grammar/3", _annotation("grammar/3"))
+        other = _annotation("grammar/3")
+        other["tokens"]["s1"][0]["surface"] = "הבית"
+        book.record("tokens", "doc123:grammar/3", other)
+        said = book.agreement("doc123", "grammar/2", "grammar/3")
+        assert said is not None and said.paired == 2 and said.unpaired == (1, 1)
+        assert said.disagreements == []
+
+    def test_agreement_without_both_passes_is_none(self, tmp_path: Path) -> None:
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        assert book.agreement("doc123", "grammar/2", "grammar/3") is None
+        book.record("tokens", "doc123:grammar/2", _annotation("grammar/2"))
+        assert book.agreement("doc123", "grammar/2", "grammar/3") is None
+        assert book.agreement("other", "grammar/2", "grammar/2") is None
+
     def test_the_same_pass_again_keeps_the_old_as_history(self, tmp_path: Path) -> None:
         book = ledger.Ledger(tmp_path / "corpus.db")
         book.record("tokens", "k", _annotation("grammar/2"))
@@ -1775,3 +1810,19 @@ class TestCommandLineBuildsNameTheirLibrary:
         )
         assert isinstance(result.exception, Stop), result.output
         assert seen.get("library") == tmp_path / "targum-out"
+
+
+def test_corpus_agree_says_the_agreement(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from typer.testing import CliRunner
+
+    from targum.cli import app
+
+    book = ledger.Ledger(tmp_path / "corpus.db")
+    book.record("tokens", "doc123:grammar/2", _annotation("grammar/2"))
+    book.record("tokens", "doc123:grammar/3", _annotation("grammar/3", "בַּיִת"))
+    monkeypatch.setenv(ledger.ENV, str(book.file))
+    said = CliRunner().invoke(app, ["corpus", "agree", "doc123", "grammar/2", "grammar/3"])
+    assert said.exit_code == 0, said.output
+    assert "3 tokens paired; lemma 66.7%" in said.output and "s1:0 בית" in said.output
+    missing = CliRunner().invoke(app, ["corpus", "agree", "doc123", "grammar/2", "nobody/1"])
+    assert missing.exit_code != 0 and "No two passes to compare" in missing.output

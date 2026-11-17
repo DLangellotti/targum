@@ -229,6 +229,41 @@ def path() -> Path | None:
     return Path(raw).expanduser() if raw else None
 
 
+@dataclass(frozen=True)
+class Disagreement:
+    """One token two annotators read differently: where it is, and what each said."""
+
+    segment: str
+    place: int
+    form: str
+    first_lemma: str | None
+    second_lemma: str | None
+    first_pos: str | None
+    second_pos: str | None
+
+
+@dataclass(frozen=True)
+class Agreement:
+    """Two annotators on one text (`Ledger.agreement`). `paired` is the tokens both read
+    at the same place with the same form; `lemma`, `pos` and `features` how many of those
+    each agrees on; `unpaired` what each read that the other did not, in that order."""
+
+    document_hash: str
+    first: str
+    second: str
+    paired: int
+    lemma: int
+    pos: int
+    features: int
+    unpaired: tuple[int, int]
+    disagreements: list[Disagreement]
+
+    def share(self, field: str) -> float:
+        """The share of paired tokens agreeing on `lemma`, `pos` or `features`, 0 to 1."""
+        count = {"lemma": self.lemma, "pos": self.pos, "features": self.features}[field]
+        return count / self.paired if self.paired else 0.0
+
+
 class Ledger:
     def __init__(self, file: Path, *, timeout: float = 30) -> None:
         self.file = file
@@ -350,6 +385,65 @@ class Ledger:
                 value = _read(db, stage, key)
                 if value is not None:
                     yield key, value
+
+    def agreement(
+        self, document_hash: str, first: str, second: str, *, stage: str = "tokens"
+    ) -> Agreement | None:
+        """How far two annotators agree on one text, token by token (criterion 2 of
+        targum-internal#162): what renaming the annotator is for, asked as one query.
+
+        Each annotator's current pass over the text is read (an older pass of the same
+        name is history, not a second opinion). Tokens are paired by segment and place,
+        and a pair counts only where both read the same form there: two tokenizers that
+        split a segment differently disagree about where the words are, not what they
+        mean, and those places are counted apart (`unpaired`). None where either
+        annotator has no current pass over the text."""
+        if stage not in ("tokens",) or not self.file.is_file():
+            return None
+        with closing(self._connect()) as db:
+            passes = {}
+            for tool in (first, second):
+                row = db.execute(
+                    "SELECT id FROM annotations WHERE stage = ? AND document_hash = ?"
+                    " AND tool = ? AND superseded_at IS NULL ORDER BY written_at DESC, id DESC",
+                    (stage, document_hash, tool),
+                ).fetchone()
+                if row is None:
+                    return None
+                passes[tool] = int(row[0])
+            pairs = db.execute(
+                "SELECT a.segment_id, a.ord, a.form, a.lemma, b.lemma, a.pos, b.pos,"
+                " a.features, b.features"
+                " FROM tokens a JOIN tokens b"
+                "  ON b.annotation_id = ? AND b.segment_id = a.segment_id AND b.ord = a.ord"
+                "  AND b.form = a.form"
+                " WHERE a.annotation_id = ? ORDER BY a.segment_ord, a.ord",
+                (passes[second], passes[first]),
+            ).fetchall()
+            sizes = [
+                int(
+                    db.execute(
+                        "SELECT COUNT(*) FROM tokens WHERE annotation_id = ?", (passes[tool],)
+                    ).fetchone()[0]
+                )
+                for tool in (first, second)
+            ]
+        differ = [
+            Disagreement(str(seg), int(place), str(form), a_lemma, b_lemma, a_pos, b_pos)
+            for seg, place, form, a_lemma, b_lemma, a_pos, b_pos, a_feats, b_feats in pairs
+            if (a_lemma, a_pos, a_feats) != (b_lemma, b_pos, b_feats)
+        ]
+        return Agreement(
+            document_hash=document_hash,
+            first=first,
+            second=second,
+            paired=len(pairs),
+            lemma=sum(1 for row in pairs if row[3] == row[4]),
+            pos=sum(1 for row in pairs if row[5] == row[6]),
+            features=sum(1 for row in pairs if row[7] == row[8]),
+            unpaired=(sizes[0] - len(pairs), sizes[1] - len(pairs)),
+            disagreements=differ,
+        )
 
     def record_text(self, text: Text) -> bool:
         """Write one source document's row, keeping what it said before as history.

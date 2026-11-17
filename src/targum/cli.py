@@ -4949,6 +4949,47 @@ def corpus_export(
     console.print(f"[green]Wrote[/green] {rows} [dim]{to}[/dim]")
 
 
+@corpus_app.command("agree")
+def corpus_agree(
+    document_hash: Annotated[str, typer.Argument(help="The text, by its document hash.")],
+    first: Annotated[str, typer.Argument(help="One annotator, by name (e.g. dicta/3).")],
+    second: Annotated[str, typer.Argument(help="The other annotator, by name.")],
+    show: Annotated[int, typer.Option("--show", help="How many disagreements to list.")] = 20,
+) -> None:
+    """How far two annotators agree on one text, token by token (targum-internal#162,
+    criterion 2): lemma, part of speech and features over the tokens both read at the
+    same place, and the places they split differently. Reads the file `TARGUM_LEDGER`
+    names; spends nothing."""
+    from . import ledger as ledger_module
+
+    file = ledger_module.path()
+    if file is None:
+        fail(
+            TargumError(
+                "The corpus ledger is off.",
+                "Set TARGUM_LEDGER to the ledger file, then run this again.",
+            )
+        )
+    said = ledger_module.Ledger(file).agreement(document_hash, first, second)
+    if said is None:
+        fail(
+            TargumError(
+                "No two passes to compare.",
+                f"The ledger holds no current pass of both {first} and {second} over that text.",
+            )
+        )
+    console.print(
+        f"{said.paired} tokens paired; lemma {said.share('lemma'):.1%}, "
+        f"part of speech {said.share('pos'):.1%}, features {said.share('features'):.1%}; "
+        f"unpaired {said.unpaired[0]} ({first}) and {said.unpaired[1]} ({second})"
+    )
+    for one in said.disagreements[: max(0, show)]:
+        console.print(
+            f"  {one.segment}:{one.place} {one.form}  "
+            f"{one.first_lemma}/{one.first_pos}  {one.second_lemma}/{one.second_pos}"
+        )
+
+
 def _tables_store() -> Store:
     """The language tables in the corpus ledger, or a failure saying the ledger is off."""
     from .tables import Store
