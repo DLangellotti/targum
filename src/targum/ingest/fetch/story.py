@@ -39,7 +39,9 @@ def root() -> Path:
 
 
 def read(identifier: str) -> dict[str, Any]:
-    path = root() / f"{identifier}.json"
+    from ...dialogue import index
+
+    path = root() / f"{index.checked(identifier, 'story')}.json"
     if not path.exists():
         known = ", ".join(sorted(p.stem for p in root().glob("*.json"))[:6]) or "none yet"
         raise OffHere(

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
+from ...dialogue.index import SHELF_ID
 from ...errors import UnsupportedSource
 from ...kinds import PRIVATE, private_source
 from ...models import Document
@@ -55,6 +56,10 @@ FETCHERS: dict[str, Fetcher] = {
 }
 
 
+#: The fetchers that read a file off a shelf by the identifier's own name.
+SHELVED = frozenset({"dialogue", "story"})
+
+
 def is_identifier(source: str) -> bool:
     scheme, sep, rest = source.partition(":")
     return bool(sep) and scheme.lower() in FETCHERS and bool(rest)
@@ -65,7 +70,10 @@ def addressable(source: str) -> bool:
     private (`kinds.PRIVATE`): a private fetcher reads a reader's own file, and a link
     pasted into the Add page, the chat or Telegram would read whatever the server holds
     under that name (targum-internal#652)."""
-    return is_identifier(source) and source.partition(":")[0].lower() not in PRIVATE
+    scheme, _, rest = source.partition(":")
+    if scheme.lower() in SHELVED and not SHELF_ID.fullmatch(rest):
+        return False  # `story:../outside` names a file off the shelf (qa on #1306)
+    return is_identifier(source) and scheme.lower() not in PRIVATE
 
 
 def load(source: str) -> Document:

@@ -9,9 +9,10 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 
-from ..errors import OffHere
+from ..errors import OffHere, UnsupportedSource
 from .models import Dialogue
 
 
@@ -22,8 +23,25 @@ def root() -> Path:
     return Path.cwd() / "targum-out" / "dialogues"
 
 
+#: What a shelf's file may be called (qa on targum#1306): every dialogue id on the laptop
+#: and the box fits (381 of 381, 2026-11-17), Russian's slugs included, which are English.
+#: Anything else, `../outside` above all, would read a file off the shelf: `dialogue:` and
+#: `story:` are addressable from Add and the chat.
+SHELF_ID = re.compile(r"[a-z0-9-]+")
+
+
+def checked(identifier: str, what: str = "dialogue") -> str:
+    """The identifier, if it names a file on a shelf and nothing outside it."""
+    if not SHELF_ID.fullmatch(identifier):
+        raise UnsupportedSource(
+            f"There is no {what} called {identifier}.",
+            f"A {what}'s name is lower-case letters, digits and hyphens.",
+        )
+    return identifier
+
+
 def path_for(identifier: str) -> Path:
-    return root() / f"{identifier}.json"
+    return root() / f"{checked(identifier)}.json"
 
 
 def load(identifier: str) -> Dialogue:

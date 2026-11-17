@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from targum import correct
-from targum.errors import OffHere
+from targum.errors import OffHere, UnsupportedSource
 from targum.ingest import fetch
 from targum.ingest.fetch import story
 from targum.models import BlockKind
@@ -70,3 +70,36 @@ def test_a_story_is_everybody_s_and_written_by_a_model() -> None:
     assert not correct.own_source("story:fr-01-un-dimanche")
     assert "story:" in imports.MODEL_WRITTEN
     assert registers.register_of("story:fr-01-un-dimanche") == registers.SCENES_COUNT_AS
+
+
+@pytest.mark.parametrize("scheme", ["dialogue", "story"])
+@pytest.mark.parametrize("name", ["../outside", "..%2Foutside", "a/b", "/etc/passwd", "Fr-01"])
+def test_a_shelf_name_cannot_leave_its_shelf(
+    scheme: str, name: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """qa on #1306: `story:../outside` read a JSON file off the shelf, and so did
+    `dialogue:` before it. Neither door takes such a name, and `load` refuses it too."""
+    from targum import ingest
+
+    shelf = tmp_path / "shelf"
+    shelf.mkdir()
+    (tmp_path / "outside.json").write_text(json.dumps(STORY), encoding="utf-8")
+    monkeypatch.setenv("TARGUM_STORY_DIR", str(shelf))
+    monkeypatch.setenv("TARGUM_DIALOGUE_DIR", str(shelf))
+    assert not ingest.fetchable(f"{scheme}:{name}")
+    with pytest.raises(UnsupportedSource):
+        fetch.load(f"{scheme}:{name}")
+
+
+def test_every_good_shelf_name_still_reads(shelf: Path) -> None:
+    from targum import ingest
+
+    assert ingest.fetchable(f"story:{STORY['id']}")
+    assert ingest.fetchable("dialogue:ru-01-at-the-market")
+
+
+def test_what_the_scene_loop_writes_is_targum_s(tmp_path: Path) -> None:
+    from targum import ledger
+
+    for source in ("story:fr-01-un-dimanche", "dialogue:ru-01-at-the-market", "weekly:2026-w46"):
+        assert ledger._licence_of(tmp_path, source) == "targum"
