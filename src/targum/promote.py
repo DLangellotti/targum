@@ -45,6 +45,7 @@ from .kinds import private_source
 from .licensing import Standing, verdict
 from .models import Annotation, Document, Translation, is_biblical, read_artifact
 from .paths import write_atomic
+from .shelf_file import JOINED
 
 if TYPE_CHECKING:
     from .accounts import Store
@@ -387,7 +388,8 @@ def accept(
         "licence": row["licence"],
         "credit": credit,
     }
-    merge_into_catalogue(entry)
+    # Into the box's own file, never the catalogue it may not write (#738).
+    JOINED.merge(entry)
     store.proposal_state(proposal_id, "accepted", by)
     return {"entry": entry["id"], "warmed": warmed, "corpus": bool(row["corpus_ok"])}
 
@@ -728,7 +730,9 @@ def join_find(
 
         shutil.rmtree(shelf, ignore_errors=True)
         return None
-    merge_into_catalogue(entry)
+    # Beside the shelf's copy, never the catalogue file, which the service may not write
+    # (targum-internal#738): `catalogue.everything` joins it on.
+    JOINED.merge(entry)
     return entry
 
 
@@ -756,7 +760,9 @@ def take_down(library: Library, store: Store, entry_id: str) -> bool:
     row = store.joined_one(entry_id)
     if row is None or row["state"] != "joined":
         return False
-    remove_from_catalogue(entry_id)
+    if not JOINED.remove(entry_id):
+        # A find that joined before #738 went into the catalogue file, where one could.
+        remove_from_catalogue(entry_id)
     shelf = library.shared / entry_id
     if entry_id.startswith("find-") and shelf.is_dir():
         shutil.rmtree(shelf, ignore_errors=True)

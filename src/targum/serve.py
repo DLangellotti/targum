@@ -2218,6 +2218,9 @@ class Library:
         # meant it, and overwriting theirs is how two servers in one process end up
         # reading each other's issues.
         os.environ.setdefault("TARGUM_WEEKLY_DIR", str(self.weekly))
+        # And where what joins the shelf on this box is written (`shelf_file.JOINED`,
+        # targum-internal#738), for `catalogue.everything` to read: the same reason.
+        os.environ.setdefault("TARGUM_SHARED_DIR", str(self.shared))
         self.max_cost = max_cost
         self.budget = budget
         self.account_budget = account_budget

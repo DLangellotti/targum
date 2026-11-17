@@ -19,6 +19,7 @@ from targum import catalogue, promote
 from targum.accounts import Store
 from targum.errors import TargumError
 from targum.serve import Job, Library
+from targum.shelf_file import JOINED
 
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "catalogue.json"
 
@@ -180,8 +181,12 @@ def test_accepting_needs_a_credit_for_owed_and_then_merges_and_warms(
     entry = catalogue.by_id("vid-he")
     assert entry is not None and entry.licence == "CC BY 4.0" and entry.credit == "Kan, CC BY 4.0"
     assert entry.kind.value == "talk" and entry.register.value == "modern" and entry.words == 30
-    written = json.loads(shelf.read_text(encoding="utf-8"))
+    written = json.loads(JOINED.path().read_text(encoding="utf-8"))
     assert any(row["id"] == "vid-he" for row in written["entries"]), "the file, not just the list"
+    assert JOINED.path().parent == library.shared, "beside the shelf, under /var/lib/targum"
+    # Never the catalogue file, which the service may not write on the box (#738).
+    curated = json.loads(shelf.read_text(encoding="utf-8"))
+    assert not any(row["id"] == "vid-he" for row in curated["entries"])
     assert (folder / "document.json").is_file() and (folder / "reader" / "index.html").is_file()
     assert (
         store.proposal(got.id)["state"] == "accepted" and store.proposal(got.id)["by"] == "person"

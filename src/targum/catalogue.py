@@ -1060,9 +1060,15 @@ def everything() -> list[Entry]:
     Imported here rather than at the top so `catalogue` keeps importing nothing from
     the rest of the package: the weekly reads `Entry` from this module.
     """
+    from .shelf_file import JOINED
     from .weekly import entries as weekly_entries
 
-    return [*CATALOGUE, *weekly_entries.entries()]
+    # And what joined the shelf on the box by itself — a find, an accepted proposal —
+    # which lives beside its copy, never in the catalogue file the box may not write
+    # (targum-internal#738). A row the catalogue itself now carries is the catalogue's.
+    curated = {entry.id for entry in CATALOGUE}
+    joined = [entry for entry in JOINED.entries() if entry.id not in curated]
+    return [*CATALOGUE, *weekly_entries.entries(), *joined]
 
 
 def collections() -> list[Collection]:

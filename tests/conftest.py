@@ -96,6 +96,14 @@ def pytest_configure(config: pytest.Config) -> None:
 
 
 @pytest.fixture(autouse=True)
+def no_shared_dir_carried_over(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Each test starts with no shared shelf named: a `Library` names its own
+    (`TARGUM_SHARED_DIR`, setdefault), and one left by an earlier test would have this
+    one's joined rows read from, and written to, that test's folder."""
+    monkeypatch.delenv("TARGUM_SHARED_DIR", raising=False)
+
+
+@pytest.fixture(autouse=True)
 def isolated_cache(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch):
     """Never touch the real cache from a test run.
 

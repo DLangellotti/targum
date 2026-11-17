@@ -20,6 +20,7 @@ from targum import catalogue, promote, source_line
 from targum.accounts import Store
 from targum.finds import pool
 from targum.serve import Job, Library
+from targum.shelf_file import JOINED
 
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "catalogue.json"
 URL = "https://he.globalvoices.org/2026/11/02/a-story/"
@@ -290,7 +291,7 @@ def test_nothing_written_names_the_reader(world, shelf) -> None:
     entry = promote.join_find(library, store, job, read=no_tag, render=drawn)
     assert entry is not None
     traces = [job.id, str(home), home.name, EMAIL, "story-he"]
-    written = [json.dumps(entry, ensure_ascii=False), shelf.read_text(encoding="utf-8")]
+    written = [json.dumps(entry, ensure_ascii=False), JOINED.path().read_text(encoding="utf-8")]
     written += [json.dumps(row, ensure_ascii=False) for row in store.joined()]
     for path in (library.shared / entry["id"]).rglob("*"):
         if path.is_file():
@@ -298,7 +299,7 @@ def test_nothing_written_names_the_reader(world, shelf) -> None:
             assert path.name not in promote.NOT_COPIED and not path.name.startswith(".")
     catalogue_row = next(
         row
-        for row in json.loads(shelf.read_text(encoding="utf-8"))["entries"]
+        for row in json.loads(JOINED.path().read_text(encoding="utf-8"))["entries"]
         if row["id"] == entry["id"]
     )
     assert not {"owner", "home", "job", "person", "opened"} & set(catalogue_row)
@@ -327,6 +328,38 @@ def test_a_second_reader_opening_the_same_find_adds_nothing(world, shelf, tmp_pa
     )
     assert len([path for path in library.shared.iterdir() if path.is_dir()]) == 1
     assert len(store.joined()) == 1
+
+
+def test_a_find_joins_where_the_catalogue_file_is_read_only(world, shelf, monkeypatch: Any) -> None:
+    """On the box the catalogue is root's and the service may not write it
+    (`ProtectSystem=strict`; targum-internal#738). A find joins all the same: its row is
+    written beside the shelf's copy, read by `catalogue.everything`, and the next deploy's
+    catalogue does not write over it. The catalogue file is never opened for writing."""
+    library, store, home, owner = world
+    written: list[str] = []
+    real = promote.write_atomic
+
+    def refused(path: Path, text: str) -> Path:
+        if Path(path).resolve() == Path(shelf).resolve():
+            written.append(str(path))
+            raise OSError(30, "Read-only file system")
+        return real(path, text)
+
+    monkeypatch.setattr(promote, "write_atomic", refused)
+    find_id = a_find(store, licence="CC BY 3.0", licence_from="publisher")
+    built(home, "story-he", URL)
+    entry = promote.join_find(
+        library, store, opened(home, "story-he", find_id, owner), read=no_tag, render=drawn
+    )
+    assert entry is not None and not written
+    assert JOINED.path() == library.shared / "joined.json"
+    assert catalogue.matching(URL) is not None
+    # A new catalogue arriving with a deploy leaves it on the shelf.
+    catalogue.reload()
+    assert catalogue.by_id(entry["id"]) is not None
+    # And taking it down takes it out of the same file.
+    assert promote.take_down(library, store, entry["id"])
+    assert catalogue.by_id(entry["id"]) is None and not written
 
 
 @pytest.mark.parametrize("licence", ["", "CC BY-NC-ND 4.0", "All rights reserved"])
