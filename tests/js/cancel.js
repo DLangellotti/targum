@@ -57,6 +57,9 @@ function walk(node, out) {
     return out;
   }
   if (node.hidden) return out;
+  // What a screen reader is told to read when it changes (targum-internal#716).
+  const role = (node.attrs || {}).role;
+  if (role === "status" || role === "alert") (out.live = out.live || []).push(tag);
   if (node.textContent && (!node.children || !node.children.length)) out.words.push(node.textContent);
   (node.children || []).forEach((child) => walk(child, out));
   return out;

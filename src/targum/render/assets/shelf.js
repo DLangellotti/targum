@@ -277,8 +277,10 @@
     item.className = "row is-building";
     item.setAttribute("data-job", String(job.id));
     var left = leaving[job.id];
-    // Said aloud when it changes, because a reader watching this is waiting on it.
-    item.setAttribute("role", "status");
+    // Said aloud when it changes, because a reader watching this is waiting on it. Not a
+    // row kept after a cancel: `cancel.js` said its words once, and a live row redrawn
+    // every three seconds would say "Cancelled. Nothing was used." again each time.
+    if (!left) item.setAttribute("role", "status");
     var box = document.createElement("span");
     box.className = "building";
     var named = buildingName(job);

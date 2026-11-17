@@ -376,6 +376,10 @@ def test_a_cancelled_row_stays_through_the_next_redraw_with_its_words() -> None:
     redrawn = said["redrawn"]
     assert "Cancelled. Nothing was used." in redrawn["words"]
     assert "Un film" in redrawn["words"] and redrawn["presses"] == []
+    # Said once, by the cancel itself; the row redrawn every three seconds is not a live
+    # region, or a screen reader would say it again at each redraw.
+    assert said["before"].get("live") == ["li"], "a building row is still read as it changes"
+    assert not redrawn.get("live"), "the kept row is quiet"
 
 
 @pytest.mark.parametrize("place", ["row", "card"])
