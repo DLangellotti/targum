@@ -464,6 +464,39 @@ class TestTokens:
         assert said.paired == 3 and said.unpaired == (1, 2)
         assert said.lemma == said.compared["lemma"] == 3 and said.disagreements == []
 
+    def test_alignment_is_the_longest_common_subsequence(self) -> None:
+        """qa-claude on #1289: difflib's greedy runs pair 2 of `a b a b a` against
+        `a a b`; three pair without crossing (a, a, b)."""
+        left = [(form, at) for at, form in enumerate("a b a b a".split())]
+        right = [(form, at) for at, form in enumerate("a a b".split())]
+        pairs = ledger._aligned(left, right)
+        assert len(pairs) == 3
+        assert [a[0] for a, _ in pairs] == [b[0] for _, b in pairs]
+        assert [a[1] for a, _ in pairs] == sorted(a[1] for a, _ in pairs)
+        assert [b[1] for _, b in pairs] == [0, 1, 2]
+        assert ledger._aligned([], right) == [] and ledger._aligned(left, []) == []
+
+    def test_a_difference_in_features_alone_is_seen(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from typer.testing import CliRunner
+
+        from targum.cli import app
+
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        other = _annotation("grammar/3")
+        other["tokens"]["s1"][0]["feats"] = "Gender=Fem"
+        book.record("tokens", "doc123:grammar/2", _annotation("grammar/2"))
+        book.record("tokens", "doc123:grammar/3", other)
+        said = book.agreement("doc123", "grammar/2", "grammar/3")
+        assert said is not None and len(said.disagreements) == 1
+        one = said.disagreements[0]
+        assert (one.first_lemma, one.first_pos) == (one.second_lemma, one.second_pos)
+        assert (one.first_features, one.second_features) == ("Gender=Masc", "Gender=Fem")
+        monkeypatch.setenv(ledger.ENV, str(book.file))
+        out = CliRunner().invoke(app, ["corpus", "agree", "doc123", "grammar/2", "grammar/3"])
+        assert "בית/NOUN/Gender=Masc  בית/NOUN/Gender=Fem" in out.output
+
     def test_nothing_on_both_sides_is_not_agreement_and_feature_order_is_not_a_difference(
         self, tmp_path: Path
     ) -> None:

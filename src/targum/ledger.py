@@ -240,6 +240,10 @@ class Disagreement:
     second_lemma: str | None
     first_pos: str | None
     second_pos: str | None
+    #: Each side's features, in one order (`_features`), so a difference in features
+    #: alone is seen.
+    first_features: str | None = None
+    second_features: str | None = None
 
 
 @dataclass(frozen=True)
@@ -285,17 +289,33 @@ def _features(said: Any) -> str | None:
 def _aligned(
     first: list[tuple[Any, ...]], second: list[tuple[Any, ...]]
 ) -> list[tuple[tuple[Any, ...], tuple[Any, ...]]]:
-    """Pairs of tokens from one segment, aligned by their forms in order (difflib's
-    longest matching runs): a token is paired only with one of the same form."""
-    from difflib import SequenceMatcher
-
-    matcher = SequenceMatcher(
-        None, [row[0] for row in first], [row[0] for row in second], autojunk=False
-    )
+    """Pairs of tokens from one segment, aligned by their forms in order: the longest
+    common subsequence of the two form sequences, so as many tokens pair as can without
+    crossing, and a token is paired only with one of the same form. (difflib's matching
+    runs are greedy and can pair fewer: `a b a b a` against `a a b` gives 2 where 3 can.)
+    A segment is a sentence, so the table is small."""
+    left = [row[0] for row in first]
+    right = [row[0] for row in second]
+    n, m = len(left), len(right)
+    # longest[i][j]: the most pairs between left[i:] and right[j:].
+    longest = [[0] * (m + 1) for _ in range(n + 1)]
+    for i in range(n - 1, -1, -1):
+        for j in range(m - 1, -1, -1):
+            if left[i] == right[j]:
+                longest[i][j] = longest[i + 1][j + 1] + 1
+            else:
+                longest[i][j] = max(longest[i + 1][j], longest[i][j + 1])
     out = []
-    for block in matcher.get_matching_blocks():
-        for k in range(block.size):
-            out.append((first[block.a + k], second[block.b + k]))
+    i = j = 0
+    while i < n and j < m:
+        if left[i] == right[j] and longest[i][j] == longest[i + 1][j + 1] + 1:
+            out.append((first[i], second[j]))
+            i += 1
+            j += 1
+        elif longest[i + 1][j] >= longest[i][j + 1]:
+            i += 1
+        else:
+            j += 1
     return out
 
 
@@ -484,7 +504,9 @@ class Ledger:
                 else:
                     wrong = True
             if wrong:
-                differ.append(Disagreement(segment, a[1], str(a[0]), a[2], b[2], a[3], b[3]))
+                differ.append(
+                    Disagreement(segment, a[1], str(a[0]), a[2], b[2], a[3], b[3], a[4], b[4])
+                )
         return Agreement(
             document_hash=document_hash,
             first=first,

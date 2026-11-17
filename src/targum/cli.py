@@ -4991,7 +4991,9 @@ def corpus_agree(
     for one in said.disagreements[: max(0, show)]:
         console.print(
             f"  {one.segment}:{one.place} {one.form}  "
-            f"{one.first_lemma}/{one.first_pos}  {one.second_lemma}/{one.second_pos}"
+            f"{one.first_lemma}/{one.first_pos}/{one.first_features or '-'}  "
+            f"{one.second_lemma}/{one.second_pos}/{one.second_features or '-'}",
+            markup=False,
         )
 
 
