@@ -50,6 +50,12 @@
       <button class="who-not" type="submit" name="press" value="not-you">{{ t("connect.page.not-you", "Not you?") }}</button>
     </form>
     <h1>{{ t("connect.page.connect-to-targum", "Connect {client} to targum", client=client or t("connect.page.this-app", "this app")) }}</h1>
+    {#- The same app asking again (targum-internal#721 P2-3): approving replaces what it
+        may do (design.md §12, "Connecting an app again replaces its older grant", 2026-11-14),
+        so the page says so rather than reading as a first connection. -#}
+    {%- if already %}
+    <p class="said already">{{ t("connect.page.already", "{client} is already connected. Connecting again replaces what it may do.", client=client or t("connect.page.this-app-cap", "This app")) }}</p>
+    {%- endif %}
     <p class="said">{{ t("connect.page.it-will-be-able-to", "It will be able to:") }}</p>
 
     <ul class="scopes grant-scopes">

@@ -16117,6 +16117,9 @@ class Handler(BaseHTTPRequestHandler):
             email=person.email,
             left=credits["left"],
             back=credits["back"],
+            already=any(
+                str(one["client"]) == asked.client_id for one in self.store.connections(person.id)
+            ),
         )
         # The press is answered with a 303 to the client's callback, and a policy of
         # `'self'` alone refuses to follow it — see `_policy`. Only this redirect, which

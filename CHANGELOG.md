@@ -32,6 +32,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     four `practice.rule.gender-*`), and the Grammar tab's note and empty line no longer
     say Hebrew alone. Russian cleared by ling-ru.
   - Nothing spends: read off annotation already built.
+- Connect's approval page says when the app asking is already connected: "Claude is
+  already connected. Connecting again replaces what it may do." (targum-internal#721
+  P2-3; design.md §12, "Connecting an app again replaces its older grant", 2026-11-14).
+  A first approval reads as before. Russian line for ling-ru.
 - The daily mail's weekly-portion row follows the reader's calendar, Israel's or the
   diaspora's (targum-internal#409 slice 4, option A, David 2026-11-16). In a week the two
   read different portions, an Israel subscriber is mailed Israel's portion and a diaspora

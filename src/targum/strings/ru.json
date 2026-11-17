@@ -2251,6 +2251,8 @@
   "upload.protected": "Файл защищён, поэтому мы не можем его прочитать.",
   "upload.protected.hint": "Если у вас есть книга обычным аудиофайлом, перетащите его — или опишите её и нажмите «Продолжить», а мы поищем.",
   "connect.page.connect-to-targum": "Подключить {client} к targum",
+  "connect.page.already": "{client} уже подключён. Новое подключение заменит то, что ему разрешено.",
+  "connect.page.this-app-cap": "Это приложение",
   "connect.page.connect": "Подключить",
   "connect.page.not-now": "Не сейчас",
   "connect.page.you-can-disconnect-it-later": "Отключить его можно в любой момент в разделе «Ваш аккаунт».",

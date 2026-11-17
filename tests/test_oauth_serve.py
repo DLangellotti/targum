@@ -637,6 +637,30 @@ def test_approving_an_app_again_replaces_its_older_grant(
     assert status == 200, "the stale refresh did not take the new grant down with it"
 
 
+def test_the_approval_page_says_an_app_is_already_connected(
+    connected: tuple[int, str, Path],
+) -> None:
+    """targum-internal#721 P2-3: the same app asking again is told it replaces what it may
+    do (design.md §12, 2026-11-14), where a first approval says nothing of the kind."""
+    port, _, store_path = connected
+    store = Store(store_path)
+    signed = store.finish_sign_in(store.start_sign_in("again@example.com"))
+    assert signed is not None
+    session = signed[1]
+    client_id = a_client(port)
+    _, challenge = pkce()
+    query = an_authorize(client_id, challenge)
+    first = html.unescape(get(port, f"/oauth/authorize?{query}", session=session)[1].decode())
+    assert "is already connected" not in first
+    _exchange(port, session, client_id, "library")
+    again = html.unescape(get(port, f"/oauth/authorize?{query}", session=session)[1].decode())
+    assert "is already connected. Connecting again replaces what it may do." in again
+    other = a_client(port)
+    fresh = an_authorize(other, challenge)
+    elsewhere = html.unescape(get(port, f"/oauth/authorize?{fresh}", session=session)[1].decode())
+    assert "is already connected" not in elsewhere, "only the app that is connected"
+
+
 def test_a_refresh_mints_the_current_spelling_of_a_renamed_scope(
     connected: tuple[int, str, Path],
 ) -> None:
