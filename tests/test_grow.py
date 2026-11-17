@@ -426,10 +426,12 @@ def test_the_real_prepare_prices_the_written_track_and_measures_the_seconds(
     )
     monkeypatch.setattr(youtube_module, "ensure_reachable", lambda *a, **k: None)
     monkeypatch.setattr("targum.video.ytdlp_available", lambda: (True, "yt-dlp"))
-    written = track("", tmp_path / "tracks", ("fr",))
     library = Library(tmp_path / "out", side=True)
+    # Where the round writes it: inside the job's own home (`Library._transcript_of`).
+    work = library.out / grow.WORKSPACE
+    written = track("", work / ".tracks" / "vid9", ("fr",))
     options = {"to": "en", "words": True, "from": "fr", "transcript": str(written)}
-    job = Job(id="g", source="https://www.youtube.com/watch?v=vid9", options=options)
+    job = Job(id="g", source="https://www.youtube.com/watch?v=vid9", options=options, home=work)
     library.prepare(job)
     assert job.error == "" and job.stage in ("ready", "blocked")
     assert job.audio and job.seconds == 250.0
@@ -439,4 +441,4 @@ def test_the_real_prepare_prices_the_written_track_and_measures_the_seconds(
     bare = Job(id="h", source="https://www.youtube.com/watch?v=vid9", options={"from": "fr"})
     library.prepare(bare)
     assert bare.transcription > 0.0
-    assert library._builder(job).transcript == written
+    assert str(library._builder(job).transcript) == str(written.resolve())
