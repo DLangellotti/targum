@@ -301,7 +301,7 @@ def test_the_back_office_is_six_pages_under_one_bar() -> None:
 
     assert list(PAGES) == ["overview", "readers", "waitlist", "traffic", "shelf", "operations"]
     heads = {
-        "overview": "<h2>Follow up",
+        "overview": '<h2 id="follow">Follow up',
         "readers": "<h2>Accounts",
         "waitlist": "confirmed their email",
         "traffic": '<h2 id="visitors">',
@@ -320,9 +320,12 @@ def test_the_back_office_is_six_pages_under_one_bar() -> None:
         for other, head in heads.items():
             assert (head in page) == (other == section), (section, other)
         assert "backoffice.js" not in page and "role=" not in bar, "links, not tabs"
-    overview = back_office_page(Survey(), 30, section="overview")
-    assert overview.index('class="bo-tabs"') < overview.index("waiting to be let in")
-    assert "incidents" in overview[overview.index('class="bo-tabs"') :]
+    from targum.backoffice import Overview
+
+    overview = back_office_page(Survey(), 30, section="overview", overview=Overview())
+    assert overview.index('class="bo-tabs"') < overview.index("Needs doing")
+    assert overview.index("Needs doing") < overview.index('<h2 id="follow">Follow up')
+    assert "incidents in 24 hours" in overview
 
 
 def test_each_confirmed_person_has_their_own_let_in() -> None:

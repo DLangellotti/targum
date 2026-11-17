@@ -169,13 +169,13 @@ def test_an_admin_opens_each_page_and_it_is_kept_nowhere(world) -> None:  # type
 def test_each_page_is_its_own(world) -> None:  # type: ignore[no-untyped-def]
     port, _, _, admin, who = world
     one = {
-        "/back-office": "<h2>Follow up",
+        "/back-office": '<h2 id="follow">Follow up',
         "/back-office/readers": "<h2>Accounts",
         "/back-office/waitlist": "<h2>The waitlist",
         "/back-office/traffic": '<h2 id="visitors">',
         "/back-office/shelf": "<h2>Proposed for the shelf",
         "/back-office/operations": '<h2 id="services">',
-        f"/back-office/readers/{who}": "credits this month",
+        f"/back-office/readers/{who}": "credits this month &middot;",
     }
     for path in one:
         body = ask(port, "GET", path, admin)[2]
@@ -296,6 +296,9 @@ ELSEWHERE = [
     {"Sec-Fetch-Site": "cross-site"},
     {"Sec-Fetch-Site": "same-site", "Origin": "https://x.targum.page"},
     {"Origin": "https://evil.example"},
+    # An old browser's sandboxed frame says `null` and sends no `Sec-Fetch-Site`
+    # (qa on targum#1308).
+    {"Origin": "null"},
 ]
 
 
@@ -316,8 +319,8 @@ def test_a_press_from_anywhere_but_our_own_page_is_refused(world) -> None:  # ty
     assert store.told()[0]["state"] == "open"
     assert store.faults()[0]["fixed"] == 0
     # Our own page's post goes through: the browser says same-origin, and under
-    # no-referrer its `Origin` is `null`.
-    for headers in ({"Sec-Fetch-Site": "same-origin", "Origin": "null"}, {"Origin": "null"}):
+    # no-referrer its `Origin` is `null`; and so does one with neither header (curl).
+    for headers in ({"Sec-Fetch-Site": "same-origin", "Origin": "null"}, {}):
         status, answer, _ = ask(
             port, "POST", "/back-office/balance", admin, POSTS["/back-office/balance"], sent=headers
         )

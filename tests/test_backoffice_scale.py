@@ -90,8 +90,7 @@ def test_accounts_are_drawn_fifty_at_a_time_newest_first(five_hundred: sqlite3.C
     page = back_office_page(found, 30, section="readers")
     assert 'rel="next" href="/back-office/readers?page=2"' in page
     assert 'rel="prev"' not in page[page.index("<h2>Accounts") :]
-    overview = back_office_page(found, 30)
-    assert "500 accounts," in overview, "the headline counts every account, not the page"
+    assert "1–50 of 500" in page, "the count is every account, not the page"
 
     second = survey(five_hundred, today=TODAY, accounts=accounts(page="2"))
     assert second.accounts[0].email == "reader051@example.com"

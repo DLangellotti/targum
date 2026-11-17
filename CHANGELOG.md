@@ -29,6 +29,25 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     SameSite=Lax alone would have sent the admin's cookie (qa on targum#1308). When a
     press fails, its reason goes to Incidents. The page says only that it did not go
     through. The Caddy filters also delete the old `q` and `wq` for now.
+- The back office's Overview is one desk screen of figures (design.md §12, 2026-11-17, PR 3
+  of the back-office plan). It has four rows:
+  - Needs doing: feedback waiting, follow-ups due, open browser faults and incidents in
+    24 hours, each linked.
+  - Active: readers today, in 7 days and in 30, with a bar a day, plus new accounts with
+    twelve weekly bars.
+  - Funnel: the beta and the last four weeks, each step "n of m", ending on days 8–14
+    (`WEEK_TWO`).
+  - Spend: the box's last 24 hours against $40, summed as `Store.claim` sums it
+    (`box_spent`), then the month with daily bars, readers' credits by kind, and readers
+    over $7 of their $10 a day, each linked to their page.
+  Every "today" figure and window is said against yesterday and the same day last week.
+  Operator, admin and test accounts are counted nowhere, save in the box's spend. Follow
+  up and Tell us stay below the figures; the full weekly table and the reach fold under
+  one `<details>`. `overview_store` reads a bounded span of days, with new indexes on
+  `word.at`, `doc.opened`, `doc.updated` and `day.day`, and is under 300 ms at 5,000
+  accounts. The Languages row waits for the Notice's 3.7 to land.
+  - A press under `/back-office/` with `Origin: null` and no `Sec-Fetch-Site` is refused
+    403 too (qa on targum#1308).
 - The French chat contract keeps spoken French as written (version 2,
   `hebrew.FRENCH_CONTRACT_VERSION`). The first French chat eval (2026-11-17, $1.78, David's
   go) "corrected" two spoken lines in the recast, *je sais pas* and *j'ai jamais vu ça*,
