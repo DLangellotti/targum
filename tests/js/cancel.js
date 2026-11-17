@@ -89,5 +89,12 @@ const before = walk(host, { words: [], presses: [] });
     for (let i = 0; i < 10; i += 1) await Promise.resolve();
   }
   const after = walk(host, { words: [], presses: [] });
-  process.stdout.write(JSON.stringify({ before, after, asked, gone: host.children.length === 0 }));
+  // Your targums redraws its shelf from `/jobs` every three seconds, and a cancelled
+  // build is no longer in it: what the next draw shows (targum-internal#716 P2-5).
+  let redrawn = null;
+  if (payload.redraw) {
+    global.window.TargumShelf.draw(payload.job.language || "he", [], { building: [] });
+    redrawn = walk(document.getElementById("library-list"), { words: [], presses: [] });
+  }
+  process.stdout.write(JSON.stringify({ before, after, asked, redrawn, gone: host.children.length === 0 }));
 })();
