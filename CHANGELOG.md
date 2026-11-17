@@ -1439,6 +1439,8 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     together.
   - Strings: `building.credits.none` in English and Russian («В этом месяце баллов не
     осталось.»), a first draft for ling-ru. No spend.
+- A build reads a transcript only from inside its own home; `/prepare` already keeps one
+  out of a request (ops, 2026-11-17).
 
 ### Changed
 - Russian says every amount of credits in баллы, and «мин» only for a duration (David,
