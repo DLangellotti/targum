@@ -262,7 +262,7 @@
 
   <h2 class="row-head">Spend</h2>
   <div class="tiles">
-    <div class="tile"><span class="figure">${{ '%.2f'|format(o.spent_today.now) }}</span> <span class="label">of ${{ '%.0f'|format(o.ceiling) }} in the last 24 hours</span>{{ against(o.spent_today, True) }}</div>
+    <div class="tile"><span class="figure">${{ '%.2f'|format(o.spent_today.now) }}</span> <span class="label">of ${{ '%.2f'|format(o.ceiling)|replace('.00', '') }} in the last 24 hours</span>{{ against(o.spent_today, True) }}</div>
     <div class="tile"><span class="figure">${{ '%.2f'|format(o.spent_month) }}</span> <span class="label">this month</span>
       {{ bars(o.month_days, 'Spend each day this month, from the first', '', True) }}</div>
     <div class="tile"><span class="label">Readers' credits this month</span>
@@ -271,7 +271,8 @@
         <tr{% if not seconds %} class="empty"{% endif %}><td>{{ kind }}</td><td class="n">{% if kind == 'chat' %}{{ '%.0f'|format(seconds) }} s{% else %}{{ credits(seconds) }}{% endif %}</td></tr>
         {%- endfor %}
       </tbody></table></div>
-    <div class="tile"><span class="figure">{{ o.near_rail|length }}</span> <span class="label">over ${{ '%.0f'|format(o.rail * 0.7) }} of their ${{ '%.0f'|format(o.rail) }} a day</span>
+    {%- if o.rail %}
+    <div class="tile"><span class="figure">{{ o.near_rail|length }}</span> <span class="label">over ${{ '%.2f'|format(o.rail * near_share)|replace('.00', '') }} of their ${{ '%.2f'|format(o.rail)|replace('.00', '') }} a day</span>
       {%- if o.near_rail %}
       <ul class="near">
         {%- for id, email, spent in o.near_rail %}
@@ -279,6 +280,7 @@
         {%- endfor %}
       </ul>
       {%- endif %}</div>
+    {%- endif %}
   </div>
   <p class="quiet count">The box's spend is everyone's, yours included, as its ceiling counts it. Everything else here leaves out your own and test accounts.</p>
   {%- endif %}

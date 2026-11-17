@@ -10467,12 +10467,13 @@ class Handler(BaseHTTPRequestHandler):
             told=self.store.told() if overview else None,
             faults=self.store.faults() if overview or operations else None,
             # The overview's figures (design.md §12, 2026-11-17): the box's spend summed
-            # as `claim` sums it, against the ceilings `claim` is held to.
+            # as `claim` sums it, against the ceilings this server's `claim` is actually
+            # held to, which `--budget` may have set (qa on targum#1310: the box runs 50).
             overview=(
                 overview_store(
                     self.store.path,
-                    ceiling=SESSION_BUDGET,
-                    rail=ACCOUNT_BUDGET,
+                    ceiling=self.library.budget,
+                    rail=self.library.account_budget or 0.0,
                     hours=BUDGET_HOURS,
                 )
                 if overview

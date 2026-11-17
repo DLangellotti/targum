@@ -322,3 +322,30 @@ def test_the_indexes_carry_the_span(tmp_path: Path) -> None:
     assert "doc_opened" in plan("SELECT person FROM doc WHERE opened >= 5 AND opened < 9")
     assert "doc_updated" in plan("SELECT person FROM doc WHERE updated >= 5 AND updated < 9")
     assert "day_day" in plan("SELECT person FROM day WHERE day BETWEEN 'a' AND 'b'")
+
+
+def test_the_ceilings_are_the_ones_the_box_runs_with(store: Store) -> None:
+    """qa on targum#1310: the box runs `--budget 50`, so $40 was the wrong ceiling. The
+    page says whatever this server's `claim` is held to, and near-rail is judged against
+    the server's own per-account rail."""
+    job(store, "a", 2, AT - 1000, claimed=13.0)
+    job(store, "b", 1, AT - 1000, claimed=14.5)
+    found = overview(store.db, AT, ceiling=50.0, rail=20.0)
+    assert [who for who, _, _ in found.near_rail] == [1], "$14 of $20 is the line"
+    page = back_office_page(Survey(), 30, overview=found)
+    assert "of $50 in the last 24 hours" in page and "of their $20 a day" in page
+    assert "over $14 of their $20 a day" in page
+    # And the server hands over its own, not the module's defaults.
+    served = Path(__file__).resolve().parent.parent / "src" / "targum" / "serve.py"
+    text = served.read_text(encoding="utf-8")
+    start = text.index("overview_store(\n")
+    call = text[start : text.index("hours=BUDGET_HOURS", start)]
+    assert "ceiling=self.library.budget" in call
+    assert "rail=self.library.account_budget" in call
+
+
+def test_without_a_rail_nobody_is_near_it(store: Store) -> None:
+    job(store, "a", 2, AT - 1000, claimed=99.0)
+    found = overview(store.db, AT, ceiling=50.0, rail=0.0)
+    assert found.near_rail == []
+    assert "of their" not in back_office_page(Survey(), 30, overview=found)

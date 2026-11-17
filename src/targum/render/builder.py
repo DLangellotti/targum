@@ -3351,6 +3351,7 @@ def back_office_page(
     from ..backoffice import (
         ACCOUNT_SEARCH,
         ACCOUNT_SORTS,
+        NEAR_THE_RAIL,
         PAGES,
         WAITING_SEARCH,
         WAITING_SORTS,
@@ -3448,6 +3449,7 @@ def back_office_page(
                 1 for one in incidents or [] if _within_a_day(str(getattr(one, "at", "")))
             ),
             signed=_signed,
+            near_share=NEAR_THE_RAIL,
             bo_pages=PAGES,
             bo_route=page_route,
             # One account's credits, at `/back-office/readers/<id>` (targum-internal#543): a
