@@ -437,7 +437,8 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   was used." and nothing to press, for about four seconds before it goes
   (targum-internal#716 P2-5). The page redraws its shelf from `/jobs` every three
   seconds, and the next draw dropped the row before its words could be read. Home's card
-  already did this (#695).
+  already did this (#695). The kept row is not a live region: the cancel says its words
+  once, and a screen reader is not told them again at every redraw.
 - Ships keep file times, so saved copies don't refetch (#1247 follow-up, qa-claude).
   `deploy/ship-weekly.sh` copied each edition with `rsync -rL`, which stamps every file
   with the time of the ship. A saved copy refetches a file whose size or time changed, so
