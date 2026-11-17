@@ -1890,22 +1890,16 @@ READER_PLANS = {"": "Any plan", "plan": "Plan", "beta": "Beta", "free": "Free"}
 #: How many days the sparkline draws, oldest on the left.
 SPARK_DAYS = 14
 
-#: The words of the Privacy Notice's clause 3.2 that let the back office show a reader's
-#: languages (design's plan, 2026-11-17, §2). The column and its filter are drawn only
-#: once the Notice says so; builder-3 lands that text, and nothing here needs to change.
-NOTICE_LANGUAGES = "the languages in which it reads"
-
 
 def languages_shown() -> bool:
-    """Whether the Privacy Notice in this build says the Controller may see the languages
-    an account reads in (clause 3.2 as amended): read off the Notice's own template, so
-    the column can never be drawn ahead of the words that allow it."""
-    template = Path(__file__).parent / "render" / "templates" / "legal.html.j2"
-    try:
-        said = " ".join(template.read_text(encoding="utf-8").split())
-    except OSError:
-        return False
-    return NOTICE_LANGUAGES in said
+    """Whether the published Privacy Notice lets the back office show the languages an
+    account reads in: `render.builder.NOTICE_ALLOWS_LANGUAGES`, set beside
+    `LEGAL_CHANGED` by the PR that lands the approved clauses 3.2 and 3.7 (qa on
+    targum#1309: reading the Notice's template for the words could be tripped by a
+    comment or a draft). Until it is True the column and its filter are not drawn."""
+    from .render.builder import NOTICE_ALLOWS_LANGUAGES
+
+    return bool(NOTICE_ALLOWS_LANGUAGES)
 
 
 @dataclass
@@ -2119,12 +2113,18 @@ def readers(
     rows = _reader_rows(db, people, named, today, allowance, plan_allowance, shown, reasons)
     languages: list[str] = []
     if shown:
+        # From readers' rows only: a language only staff read in is no reader's.
         languages = sorted(
             {
                 str(row[0])
                 for row in db.execute(
-                    "SELECT DISTINCT language FROM doc WHERE gone = 0 AND language != ''"
-                    " UNION SELECT DISTINCT language FROM word WHERE gone = 0 AND language != ''"
+                    "SELECT language FROM ("
+                    " SELECT person, language FROM doc WHERE gone = 0 AND language != ''"
+                    " UNION SELECT person, language FROM word WHERE gone = 0 AND language != '')"
+                    " JOIN person p ON p.id = person"
+                    " WHERE bare(p.email) NOT IN (SELECT value FROM json_each(:staff))"
+                    " GROUP BY language",
+                    named,
                 )
             }
         )

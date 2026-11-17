@@ -217,10 +217,27 @@ def test_languages_wait_for_the_notice(store: Store, monkeypatch: pytest.MonkeyP
     assert "<th>Languages</th>" not in page and 'name="lang"' not in page
     shown = back_office_page(None, 30, listed=table(store), section="readers")
     assert "<th>Languages</th>" in shown and '<option value="ru">ru</option>' in shown
-    # Read off the Notice itself, so it can never run ahead of the words.
-    legal = Path(backoffice.__file__).parent / "render" / "templates" / "legal.html.j2"
-    said = " ".join(legal.read_text(encoding="utf-8").split())
-    assert backoffice.languages_shown() == (backoffice.NOTICE_LANGUAGES in said)
+    # An explicit switch beside LEGAL_CHANGED, flipped by the Notice PR (qa on #1309),
+    # never the Notice's words found anywhere in its template.
+    from targum.render import builder
+
+    assert backoffice.languages_shown() is builder.NOTICE_ALLOWS_LANGUAGES
+    monkeypatch.setattr(builder, "NOTICE_ALLOWS_LANGUAGES", False)
+    off = readers(store.db, listing(), ReaderFilter(language="ru"), now=NOW)
+    assert not off.languages_shown and len(off.rows) == 5
+    page = back_office_page(None, 30, listed=off, section="readers")
+    assert "<th>Languages</th>" not in page and 'name="lang"' not in page
+    monkeypatch.setattr(builder, "NOTICE_ALLOWS_LANGUAGES", True)
+    on = readers(store.db, listing(), ReaderFilter(language="ru"), now=NOW)
+    assert on.languages_shown and [row.email for row in on.rows] == ["dina@example.com"]
+
+
+def test_the_language_filter_offers_readers_languages_only(store: Store) -> None:
+    """The admin's Hebrew word is not why "he" is offered; a language only staff read in
+    is no reader's (qa on #1309)."""
+    store.db.execute("INSERT INTO word (person, language, lemma, at) VALUES (6, 'it', 'casa', 1)")
+    assert "it" not in table(store).languages
+    assert table(store).languages == ["fr", "he", "ru"]
 
 
 def test_pages_keep_the_search_order_and_filters(store: Store) -> None:

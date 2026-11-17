@@ -72,8 +72,9 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     days or not, follow-up due, flagged (2+) and plan.
   - **Paging and method:** fifty a page by GET, no script.
   - **The languages column and its filter** are drawn only once the Privacy Notice's
-    clause 3.2 says the Controller may see an account's languages
-    (`backoffice.languages_shown`, read off the Notice itself).
+    clause 3.2 says the Controller may see an account's languages:
+    `NOTICE_ALLOWS_LANGUAGES` beside `LEGAL_CHANGED`, False until the Notice PR sets it.
+    The filter offers only languages readers read in.
   - **Speed:** at 5,000 accounts every order and filter answers in well under a second.
     Last seen is one grouped join, not four subqueries a row.
   - It replaces the Readers page's Accounts table and its thirty-day strip.
