@@ -75,7 +75,7 @@
         targum-internal#714). -#}
     <p class="quiet-line story-failed" id="where-failed" hidden>{{ t("progress.story.failed", "We couldn't load this part.") }}
       <button type="button" class="btn ghost outline story-again" id="story-again">{{ t("fault.try-again", "Try again") }}</button>
-      <button type="button" class="btn ghost outline story-again" data-tell-us>{{ t("fault.tell-us", "Tell us") }}</button></p>
+      <button type="button" class="btn ghost outline story-again" data-tell-us>{{ t("fault.tell-us", "Send feedback") }}</button></p>
     <div class="level-grid" id="level-grid" hidden>
       <div class="card level-lead" id="level-lead">
         {#- Visible, as the ladder's and the chart's heads are, and the one heading: the
@@ -373,7 +373,7 @@
   <div class="fault-panel-row">
     <button type="button" class="fault-go" id="progress-fault-again">{{ t("fault.try-again", "Try again") }}</button>
     <span class="fault-fact" id="progress-fault-says">{{ t("progress.page.failed-says", "Everything you've marked is still here.") }}</span>
-    <button type="button" class="fault-act" id="progress-fault-tell" data-tell-us>{{ t("fault.tell-us", "Tell us") }}</button>
+    <button type="button" class="fault-act" id="progress-fault-tell" data-tell-us>{{ t("fault.tell-us", "Send feedback") }}</button>
   </div>
 </section>
 {% include '_foot.html.j2' %}

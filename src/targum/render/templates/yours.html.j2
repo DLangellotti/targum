@@ -430,7 +430,7 @@
   <div class="fault-panel-row">
     <button type="button" class="fault-go" id="nothing-again">{{ t("fault.try-again", "Try again") }}</button>
     <span class="fault-fact" id="nothing-says">{{ t("home.failed.says", "Everything you've read is still here.") }}</span>
-    <button type="button" class="fault-act" id="nothing-tell" data-tell-us>{{ t("fault.tell-us", "Tell us") }}</button>
+    <button type="button" class="fault-act" id="nothing-tell" data-tell-us>{{ t("fault.tell-us", "Send feedback") }}</button>
   </div>
 </section>
 {%- else %}
@@ -458,7 +458,7 @@
       {%- if which == 'grammar' %}{{ t("practice.page.failed-says", "What you've practised is still here.") }}
       {%- else %}{{ t("lists.failed.says", "Everything you've marked and saved is still here.") }}{% endif -%}
     </span>
-    <button type="button" class="fault-act" id="nothing-tell" data-tell-us>{{ t("fault.tell-us", "Tell us") }}</button>
+    <button type="button" class="fault-act" id="nothing-tell" data-tell-us>{{ t("fault.tell-us", "Send feedback") }}</button>
   </div>
 </section>
 {%- endif %}
