@@ -4,8 +4,7 @@
     Signed in only, and only while `TARGUM_PLANS` is on; linked from Your account, the
     panels a free reader meets and the foot inside the app, and from nowhere in front of
     the door. Every pay button is drawn and greyed until there is a payment provider. No
-    script: the month or the three months is a pair of radios, and the price follows them
-    in CSS. -#}
+    script. Plan is paid monthly and nothing else (David, 2026-11-18). -#}
 <!doctype html>
 <html lang="{{ page_language|default('en') }}">
 <head>
@@ -46,26 +45,11 @@
     </section>
 
     <section class="card plan-card plan-paid" aria-labelledby="plan-paid-name">
-      {#- The cadence the pay press sends, by `form=`: the radios sit above the press so
-          the price can follow them in CSS. -#}
-      <input class="plan-every" type="radio" name="cadence" value="month" id="every-month" form="plan-start-form" checked>
-      <input class="plan-every" type="radio" name="cadence" value="quarter" id="every-quarter" form="plan-start-form">
       <div class="plan-top">
         <h2 class="plan-name" id="plan-paid-name">{{ t("plans.page.plan", "Plan") }}</h2>
         {%- if mine == 'plan' %}<span class="plan-yours">{{ t("plans.page.your-plan", "Your plan") }}</span>{% endif %}
-        <div class="seg plan-seg" role="group" aria-label="{{ t("plans.page.how-often", "How often you pay") }}">
-          <label for="every-month" class="plan-seg-month">{{ t("plans.page.monthly", "Monthly") }}</label>
-          <label for="every-quarter" class="plan-seg-quarter">{{ t("plans.page.quarterly", "Every 3 months") }}</label>
-        </div>
       </div>
-      <div class="plan-price-month">
-        <p class="plan-price"><span class="plan-figure">${{ price_month }}</span> <span class="plan-per">{{ t("plans.page.a-month", "a month") }}</span></p>
-        <p class="plan-or">{{ t("plans.page.or-quarter", "Or ${quarter} every 3 months, which is ${each} a month", quarter=price_quarter, each=quarter_each) }}</p>
-      </div>
-      <div class="plan-price-quarter">
-        <p class="plan-price"><span class="plan-figure">${{ price_quarter }}</span> <span class="plan-per">{{ t("plans.page.every-quarter", "every 3 months") }}</span></p>
-        <p class="plan-or">{{ t("plans.page.or-month", "That's ${each} a month, or ${month} paid monthly", each=quarter_each, month=price_month) }}</p>
-      </div>
+      <p class="plan-price"><span class="plan-figure">${{ price_month }}</span> <span class="plan-per">{{ t("plans.page.a-month", "a month") }}</span></p>
       <p class="plan-says">{{ t("plans.page.plan-says", "Everything in Free, and the audio and video you bring.") }}</p>
       {%- if plan.comp %}
       <p class="plan-comp">{{ t("plans.page.comp", "Free for beta readers until {date}", date=plan.compSaid) }}</p>
@@ -85,6 +69,7 @@
           checkout", 2026-11-15). The comp keeps it greyed: that is David's to decide. -#}
       {%- if pay and mine != 'plan' %}
       <form class="plan-pay" id="plan-start-form" method="post" action="/plans/start">
+        <input type="hidden" name="cadence" value="month">
         <button type="submit" class="btn plan-start">{{ t("plans.page.start", "Start the plan") }}</button>
         {%- if failed %}
         <span class="fault-fact" role="status">{{ t("plans.page.pay-failed", "The checkout didn't open. Try again in a minute.") }}</span>

@@ -166,15 +166,8 @@
             <button type="button" class="btn soon" disabled aria-describedby="soon-paid">{{ t("you.page.top-up", "Top up") }}</button>
           </span>
         </li>
-        {#- Neither row is drawn for a beta reader comped to Plan (targum-internal#59): a
-            comp has no renewal to switch and nothing to cancel. -#}
-        <li class="row" id="plan-switch-row">
-          <span class="row-main">
-            <span class="acct-name">{{ t("you.page.plan-quarterly", "Pay every 3 months instead") }}</span>
-            <span class="acct-says">{{ t("you.page.plan-quarterly-says", "From your next renewal") }}</span>
-          </span>
-          <span class="acct-end"><button type="button" class="btn ghost outline" disabled aria-describedby="soon-paid">{{ t("you.page.plan-switch", "Switch") }}</button></span>
-        </li>
+        {#- Not drawn for a beta reader comped to Plan (targum-internal#59): a comp has
+            nothing to cancel. -#}
         <li class="row" id="plan-cancel-row">
           <span class="row-main">
             <span class="acct-name">{{ t("you.page.plan-cancel", "Cancel your plan") }}</span>

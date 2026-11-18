@@ -660,7 +660,8 @@ def test_the_box_takes_paddles_sandbox_settings_and_never_the_plans_switch() -> 
     assert lines["PADDLE_ENVIRONMENT"] == "sandbox"
     for name in ("PADDLE_API_KEY", "PADDLE_WEBHOOK_SECRET", "PADDLE_CLIENT_TOKEN"):
         assert lines[name].startswith("op://targum/Paddle sandbox"), name
-    for name in ("PADDLE_PRICE_MONTH", "PADDLE_PRICE_QUARTER", "PADDLE_PRICE_TOP_UP"):
+    for name in ("PADDLE_PRICE_MONTH", "PADDLE_PRICE_TOP_UP"):
         assert lines[name].startswith("pri_"), name
+    assert "PADDLE_PRICE_QUARTER" not in lines, "Plan is monthly only (David, 2026-11-18)"
     assert "TARGUM_PLANS" not in lines and "TARGUM_PLANS_PREVIEW" not in lines
     assert all(" #" not in value for value in lines.values()), "no comment after a value"

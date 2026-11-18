@@ -661,12 +661,12 @@ def test_a_comped_reader_is_named_with_the_day_the_comp_ends() -> None:
     page = run(who={**SIGNED_IN, "plan": {**plan, **comp, "listed": 0, "topUps": [60]}})
     drawn = page["plan"]
     assert drawn["paidName"] == "Plan \u00b7 free for beta readers until March 4, 2027"
-    assert drawn["switchRow"] is True and drawn["cancelRow"] is True
+    assert drawn["cancelRow"] is True
     assert drawn["paidSays"] == "480 credits a month, which is 8 hours of audio or video"
     assert drawn["topUps"] == ["60 credits"]
     bought = run(who={**SIGNED_IN, "plan": {**plan, "listed": 0, "topUps": []}})["plan"]
     assert bought["paidName"] == "Monthly plan"
-    assert bought["switchRow"] is False and bought["cancelRow"] is False
+    assert bought["cancelRow"] is False
 
 
 PAID = {"on": True, "plan": "plan", "credits": 480, "planCredits": 480, "words": None}
@@ -675,20 +675,20 @@ PAID = {"on": True, "plan": "plan", "credits": 480, "planCredits": 480, "words":
 def test_a_paddle_plan_says_when_it_renews_and_links_the_portal() -> None:
     """Manage (targum-internal#59 phase 2, item 9): the renewal day, and Manage, a link
     our server answers with Paddle's portal, where Cancel and the card are, so the greyed
-    Switch and Cancel rows give way to it."""
+    Cancel row gives way to it."""
     billed = {
-        "cadence": "quarter",
+        "cadence": "month",
         "ending": False,
         "manage": True,
         "renews": "2027-02-16",
         "renewsSaid": "February 16, 2027",
     }
     drawn = run(who={**SIGNED_IN, "plan": {**PAID, "listed": 0, "billed": billed}})["plan"]
-    assert drawn["paidName"] == "Plan, paid every 3 months"
+    assert drawn["paidName"] == "Monthly plan"
     assert drawn["renewsRow"] is False and drawn["manage"] is False
     assert drawn["renews"] == "Your plan renews on February 16, 2027"
     assert drawn["renewsSays"] == "Paddle handles your card and receipts, and you can cancel there."
-    assert drawn["switchRow"] is True and drawn["cancelRow"] is True
+    assert drawn["cancelRow"] is True
 
 
 def test_a_cancelled_paddle_plan_says_when_it_ends() -> None:

@@ -186,7 +186,7 @@ def test_on_the_operator_keeps_every_word(tmp_path: Path, on: None) -> None:
 
 def test_the_plans_page_says_both_plans_and_greys_every_pay_button(on: None) -> None:
     page = plans_page(plans.summary(None))
-    assert "Free" in page and "$0" in page and "$16" in page and "$39" in page
+    assert "Free" in page and "$0" in page and "$16" in page and "$39" not in page
     assert "60 credits a month" in page and "up to 300 words" in page
     assert "480 credits a month, which is 8 hours of audio or video" in page
     assert "Start the plan</button>" in page and 'class="btn soon plan-start" disabled' in page

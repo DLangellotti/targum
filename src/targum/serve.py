@@ -14154,7 +14154,7 @@ class Handler(BaseHTTPRequestHandler):
         prices = billing.prices()
         if route == PLANS_START:
             cadence = form.get("cadence", "")
-            if cadence not in ("month", "quarter") or plans.subscribed(person):
+            if cadence != "month" or plans.subscribed(person):
                 return self._go("/plans")
             price, quantity, back = prices[cadence], 1, "/plans"
         else:

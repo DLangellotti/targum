@@ -233,7 +233,7 @@ def test_configured_start_is_a_form_to_our_own_server() -> None:
         page
     )
     assert '<button type="submit" class="btn plan-start">Start the plan</button>' in page
-    assert 'name="cadence" value="month"' in page and 'name="cadence" value="quarter"' in page
+    assert 'name="cadence" value="month"' in page and 'value="quarter"' not in page
     assert "Payments open soon" not in page
     assert "paddle" not in page.lower(), "nothing of Paddle's on our page"
 
@@ -502,11 +502,11 @@ def test_start_sends_a_free_reader_to_paddles_checkout(
     box: tuple[int, Path, dict[str, str]], paddle: Paddle
 ) -> None:
     port, store_path, sessions = box
-    status, headers, _ = press(port, serve.PLANS_START, {"cadence": "quarter"}, sessions["free"])
+    status, headers, _ = press(port, serve.PLANS_START, {"cadence": "month"}, sessions["free"])
     assert status == 303 and headers["Location"].startswith(f"/plans?checkout={TXN}&ticket=")
     me = Store(store_path).person_by_email("free@example.com")
     assert me is not None
-    assert paddle.body()["items"] == [{"price_id": "pri_quarter", "quantity": 1}]
+    assert paddle.body()["items"] == [{"price_id": "pri_month", "quantity": 1}]
     made = Store(store_path).db.execute("SELECT made FROM person WHERE id = ?", (me.id,))
     tag = billing.account_tag(me.id, int(made.fetchone()[0]))
     assert paddle.body()["custom_data"] == {"targum_account": str(me.id), "targum_tag": tag}
@@ -641,3 +641,11 @@ def test_the_purge_sweep_asks_again_for_a_plan_that_has_not_ended(
     paddle.answer = urllib.error.URLError("down")
     assert library.purge_departed() == []
     assert (tmp_path / "out" / "incidents.jsonl").read_text().count("billing-cancel") == 1
+
+
+@pytest.mark.usefixtures("on")
+def test_a_quarter_is_not_offered(box: tuple[int, Path, dict[str, str]], paddle: Paddle) -> None:
+    """Plan is monthly only (David, 2026-11-18): a pressed quarter goes back to /plans."""
+    port, _, sessions = box
+    status, headers, _ = press(port, serve.PLANS_START, {"cadence": "quarter"}, sessions["free"])
+    assert status == 303 and headers["Location"] == "/plans"

@@ -1492,9 +1492,7 @@
       var billed = plan.billed || null;
       if (billed && !comp) {
         document.getElementById("plan-paid-name").textContent =
-          billed.cadence === "quarter"
-            ? t("you.plan.quarterly-name", "Plan, paid every 3 months")
-            : t("you.page.plan-monthly", "Monthly plan");
+          t("you.page.plan-monthly", "Monthly plan");
       }
       var renews = document.getElementById("plan-renews-row");
       if (renews) {
@@ -1521,7 +1519,7 @@
         document.getElementById("plan-manage").hidden = !(billed && billed.manage);
         renews.hidden = !billed || (!when && !billed.graceSaid);
       }
-      ["plan-switch-row", "plan-cancel-row"].forEach(function (id) {
+      ["plan-cancel-row"].forEach(function (id) {
         var row = document.getElementById(id);
         if (row) row.hidden = !!comp || !!billed;
       });

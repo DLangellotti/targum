@@ -751,7 +751,8 @@ refusal is drawn on one of five surfaces" and "Refusals say what to do next" (al
   origin and nothing else, because Chrome checks a form's redirect against it, as the
   approval page names a client's callback. Readers, saved copies and every other page
   keep the policy they have.
-- **Prices as set.** Plan is $16 a month or $39 a quarter, with 480 credits a month.
+- **Prices as set.** Plan is $16 a month, with 480 credits a month. There is no
+  quarterly or yearly cadence (David, 2026-11-18: "we just want the 1 month plan").
   Top-ups are 60, 180 or 300 credits at $3 an hour: $3, $9 and $15. The $3 top-up stays
   even though Paddle's fixed fee for each sale takes a larger share of it.
 

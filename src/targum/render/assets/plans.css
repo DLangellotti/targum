@@ -80,18 +80,6 @@ body.plans main.plans-main { max-inline-size: calc(65rem + 2.5rem); }
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M6 1v10M1 6h10' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat;
 }
 
-/* Monthly or every three months: two radios, the price following them with no script. */
-.plan-every { position: absolute; opacity: 0; pointer-events: none; }
-.plan-seg { margin-inline-start: auto; }
-.plan-seg label { cursor: pointer; }
-.plan-paid:has(#every-month:checked) .plan-seg-month,
-.plan-paid:has(#every-quarter:checked) .plan-seg-quarter { background: var(--teal); color: var(--teal-ink); font-weight: 600; }
-.plan-paid:has(#every-month:focus-visible) .plan-seg-month,
-.plan-paid:has(#every-quarter:focus-visible) .plan-seg-quarter { outline: 2px solid var(--focus); outline-offset: -2px; }
-.plan-price-quarter { display: none; }
-.plan-paid:has(#every-quarter:checked) .plan-price-quarter { display: block; }
-.plan-paid:has(#every-quarter:checked) .plan-price-month { display: none; }
-
 .plan-pay {
   display: flex;
   flex-wrap: wrap;

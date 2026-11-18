@@ -6244,8 +6244,6 @@ def plans_page(
             plan_credits=plans.PLAN_CREDITS,
             plan_hours=f"{plans.PLAN_CREDITS / 60:g}",
             price_month=plans.PRICE_MONTH,
-            price_quarter=plans.PRICE_QUARTER,
-            quarter_each=f"{plans.PRICE_QUARTER / 3:g}",
             top_up_hour=plans.TOP_UP_HOUR,
             languages=_language_names(language),
             strings=script_strings(language),
