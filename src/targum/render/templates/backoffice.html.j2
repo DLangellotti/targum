@@ -656,6 +656,18 @@
   <p class="taken">Accounts from
     {%- for page, n in survey.accounts_by_came_from.items() %} {{ page or 'unknown' }} {{ n }}{% if not loop.last %} &middot;{% endif %}{% endfor %}</p>
   {%- endif %}
+  {#- Of those, who pays their own money, as "n of m" against the line above: the
+      go/no-go's question per channel (design.md §12, 2026-11-18). A comped beta reader
+      is not paying and is counted on a line of their own. Each line only once anybody is
+      on it. -#}
+  {%- if survey.paying_by_came_from %}
+  <p class="taken">Paying from
+    {%- for page, n in survey.paying_by_came_from.items() %} {{ page or 'unknown' }} {{ n }} of {{ survey.accounts_by_came_from.get(page, n) }}{% if not loop.last %} &middot;{% endif %}{% endfor %}</p>
+  {%- endif %}
+  {%- if survey.comped_by_came_from %}
+  <p class="taken">Comped from
+    {%- for page, n in survey.comped_by_came_from.items() %} {{ page or 'unknown' }} {{ n }}{% if not loop.last %} &middot;{% endif %}{% endfor %}</p>
+  {%- endif %}
   {%- endif %}
   {#- Who is waiting, oldest first, which is the order they would be let in. The counts
       above answer "how many", which is the one question the operator does not have.
