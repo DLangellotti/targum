@@ -3481,6 +3481,10 @@ def back_office_page(
             told=[dict(row, when=_as_of(int(row["at"]))) for row in told or []],
             told_open=sum(1 for row in told or [] if row.get("state") in ("open", "asked")),
             told_states=TOLD_STATES,
+            # What the reader on this page wrote to us, dated as the Overview's are.
+            reader_told=[
+                dict(row, when=_as_of(int(row["at"]))) for row in getattr(reader, "told", [])
+            ],
             # A fault marked fixed folds away until a report comes after the fix.
             faults=[
                 dict(

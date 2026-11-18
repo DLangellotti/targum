@@ -86,6 +86,26 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   - **Speed:** at 5,000 accounts every order and filter answers in well under a second.
     Last seen is one grouped join, not four subqueries a row.
   - It replaces the Readers page's Accounts table and its thirty-day strip.
+- One reader's page in the back office, `/back-office/readers/<id>` (design's plan,
+  2026-11-17, PR 5). Its sections, in order:
+  1. Who they are: plan, joined, came from, last seen, leaving, and Write or Send again.
+  2. Why write: the Follow up line and the flags.
+  3. What they sent through Tell us, with its state. A press there comes back to the page.
+  4. The last thirty days, a column each: active, texts opened, words saved, lookups and
+     minutes played. The strip moved here from the old Readers page.
+  5. Reading:
+     - Library texts are named by the catalogue's own title, and only when their hash is a
+       row of the public catalogue (`Library.catalogue_titles`). `doc.title` is never read.
+     - What they brought is counted by kind, language and medium, and never named.
+  6. Words and weeks: saved, learned, known and known by ear, plus twelve weeks of words
+     read, lookups, lookups per 100 words and minutes heard and watched.
+  7. Practice: each hard spot by its name from `practices.SPOTS`, with its step.
+  8. Credits and jobs, as before.
+
+  The page holds no word, phrase, note, chat or correction, and no job's title or source.
+  Erased records are not counted. While a reader has recording off, the record of use
+  (clause 3.6) is not read and the page says so. Staff (the operators, admins and test
+  accounts) and unknown ids are a 404. One page at 5,000 accounts takes about 0.4 s.
 - `story:<id>`, a short story targum wrote, read off a shelf of its own as paragraphs
   (`ingest/fetch/story.py`): the narrative counterpart of `dialogue:`, for French's
   generated A2 narratives (targum-internal#739). The shelf is `TARGUM_STORY_DIR`, else a

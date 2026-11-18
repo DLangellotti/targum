@@ -4163,6 +4163,24 @@ class Library:
         )
         return str(facts.get("title") or "")
 
+    def catalogue_titles(self) -> dict[str, str]:
+        """The shared library's texts that are rows of the public catalogue, by content
+        hash, each with the catalogue's own title: the one list a reader's page in the back
+        office may name a text from (clause 3.2, as amended 2026-11-17). A text on the
+        shared shelf that no catalogue row matches is left out, and so is every upload."""
+        from . import catalogue as catalogue_module
+
+        titles: dict[str, str] = {}
+        for content_hash, (folder, _language) in self._hashes(self.shared).items():
+            document = folder / "document.json"
+            facts = self.remembered.get(
+                folder, "document", [document], partial(self._document_facts, document)
+            )
+            entry = catalogue_module.matching(str(facts.get("source") or ""))
+            if entry is not None and entry.title:
+                titles[content_hash] = str(entry.title)
+        return titles
+
     def document_named(self, folder: Path) -> tuple[str, str]:
         """A built text's title and language, as the shelf has them: what a door to it in
         the chat is named by (targum-internal#472 B2), never its folder."""
@@ -10488,9 +10506,11 @@ class Handler(BaseHTTPRequestHandler):
         self._send(200, page.encode("utf-8"), HTML)
 
     def _back_office_reader(self, who: int, query: dict[str, list[str]]) -> None:
-        """One account's credits by kind (targum-internal#543), behind `_back_office`'s
-        door: counts and stages, never a title or a source (clause 3.14). An id that is no
-        reader's is a 404, and so is the operator's own, which is counted nowhere."""
+        """One reader's page (targum-internal#543; design's plan, 2026-11-17, PR 5), behind
+        `_back_office`'s door: counts, dates, languages, and the titles of library texts
+        only, taken from the catalogue (clause 3.2). An id that is no reader's is a 404, and
+        so is staff's — the operators', the admins' and the test accounts' — who are counted
+        nowhere."""
         if not self._behind_the_door():
             return self._send(404, b"not found", "text/plain")
         from .backoffice import DAYS, reader_store
@@ -10500,6 +10520,7 @@ class Handler(BaseHTTPRequestHandler):
             who,
             allowance=self.library.allowance(paid_plan=False),
             plan_allowance=self.library.allowance(paid_plan=True),
+            titles=self.library.catalogue_titles(),
         )
         if one is None:
             return self._send(404, b"not found", "text/plain")
@@ -10753,6 +10774,13 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(400, b"bad request", "text/plain")
         if state not in TOLD_STATES or not self.store.settle_told(told_id, state):
             return self._send(400, b"bad request", "text/plain")
+        # Pressed on a reader's page, back to it: by id, as every reader's page is reached.
+        from .backoffice import account_id, page_route
+
+        back = form.get("reader", "")
+        who = account_id(back) if back.isascii() and back.isdigit() else None
+        if who is not None:
+            return self._go(f"{page_route('readers')}/{who}#told")
         self._back_office_go("overview", anchor="#told")
 
     def _fix_fault(self, form: dict[str, str]) -> None:

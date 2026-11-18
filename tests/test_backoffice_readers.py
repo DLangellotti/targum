@@ -349,3 +349,18 @@ def test_five_thousand_readers_are_quick(
     assert found.total == 5000
     assert len(found.rows) <= PER_PAGE
     assert took < FAST_ENOUGH, f"{asked} {wanted}: {took:.2f} s"
+
+
+#: One reader's page asks Follow up's rule and the flags of everybody, as the Overview
+#: does, so that the page and the list never disagree: its own bar, generous for CI.
+READER_PAGE_FAST_ENOUGH = 2.5
+
+
+def test_one_readers_page_is_quick_among_five_thousand(
+    five_thousand: sqlite3.Connection,
+) -> None:
+    started = time.perf_counter()
+    one = backoffice.reader(five_thousand, 2500, today=TODAY, titles={"h2500": "A Title"})
+    took = time.perf_counter() - started
+    assert one is not None and [text.title for text in one.library] == ["A Title"]
+    assert took < READER_PAGE_FAST_ENOUGH, f"{took:.2f} s"
