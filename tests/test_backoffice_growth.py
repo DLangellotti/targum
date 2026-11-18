@@ -368,6 +368,6 @@ def test_the_notice_says_so() -> None:
     with no one in them at 3.7."""
     from targum.render.builder import legal_page
 
-    notice = legal_page("privacy")
+    notice = " ".join(legal_page("privacy").split())
     assert "may write to the Data Subject about their use" in notice
     assert "how many have used each part" in notice
