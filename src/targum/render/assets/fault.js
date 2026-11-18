@@ -389,7 +389,7 @@
 
   /* A panel where a free reader reaches for the plan (design.md §12, "A free reader meets
      the plan where they reach for it", 2026-10-09; board PlanUpgradeMoment): the sentence,
-     Start a plan greyed with "Payments open soon" beside it, See plans at the far end,
+     Upgrade greyed with "Payments open soon" beside it, See plans at the far end,
      and under a hairline the quiet line of what still works. Plans are behind a switch;
      a page only ever draws this because the server said `plan`. */
   function clockGlyph() {

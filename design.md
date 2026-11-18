@@ -5628,10 +5628,14 @@ what Plan costs, in US dollars, because a price nobody may read is not a price.
   plan, Start a plan, Top up, Switch and Cancel plan. There is no payment provider and none
   is chosen. *(Amended 2026-11-15: Paddle is chosen, as merchant of record, with a hosted
   checkout by redirect; the buttons stay greyed until it is live. See "Payments are
-  Paddle's, by a hosted checkout".)*
-- **A cost is still credits everywhere else.** The panels name the plan by its credits
-  ("A plan gives you 480 credits a month, which is 8 hours of audio or video") and send
-  the reader here for the price; no panel, card or mail carries a figure in money.
+  Paddle's, by a hosted checkout".)* *(Amended 2026-11-18, David: Start the plan and Start
+  a plan are both **Upgrade**, Switch is gone with the quarterly cadence, and a reader
+  comped to Plan sees no pay button at all, only "Payments open soon".)*
+- **A cost is still credits everywhere else.** The panels send the reader here for the
+  price; no panel, card or mail carries a figure in money. *(Amended 2026-11-18, David:
+  the panels no longer name the plan's credits either. They say what happened in one
+  short line, "Your free word list is full." or "You've used this month's free credits.",
+  and /plans says the rest. The old two-sentence panels read as AI and said too much.)*
 - **What the board drew and is not here:** the tax line (no checkout exists to add it;
   2026-11-15, the tax is Paddle's as merchant of record, on its checkout),
   the example of hearing a chapter read aloud (its figure was a placeholder), "Hear any
@@ -5647,7 +5651,10 @@ The fifth surface's panel in place ("A refusal is drawn on one of five surfaces"
 more way on: **the plan.** Where a free reader reaches for something Plan has, the panel
 says what they reached for and what a plan gives, with Start a plan greyed, "Payments open
 soon", and See plans, and its quiet line says what still works. It is drawn in four
-places:
+places *(amended 2026-11-18, David: the panel says only what they reached for, in one short
+line; what a plan gives is on /plans. The quiet line stays only where it carries a fact
+the reader needs next, the day credits reset; the word list's is gone. The press is
+**Upgrade**)*:
 
 - **Subscribing to a YouTube channel or a podcast**, on the confirm page: Subscribe stays
   greyed, and the panel says the cap it would have had and how many credits are left for

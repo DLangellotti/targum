@@ -238,9 +238,11 @@ def test_configured_start_is_a_form_to_our_own_server() -> None:
     assert "paddle" not in page.lower(), "nothing of Paddle's on our page"
 
 
-def test_a_comped_reader_keeps_start_greyed() -> None:
+def test_a_comped_reader_is_offered_no_upgrade() -> None:
+    """A reader comped to Plan is already on it: no Upgrade, only "Payments open soon"
+    (design.md §12, amended 2026-11-18)."""
     page = plans_page({"on": True, "plan": "plan", "comp": "2027-03-04"}, pay=True)
-    assert 'class="btn soon plan-start" disabled' in page
+    assert "plan-start" not in page and "Payments open soon" in page
 
 
 def test_a_failed_press_is_said() -> None:

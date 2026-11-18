@@ -2712,7 +2712,7 @@
           var spent = plan.on && plan.plan === "free"
             ? window.TargumFault.upgrade(
                 t("fault.plan.used", "You've used this month's free credits."),
-                t("fault.plan.fact", "They reset on {date}.", { date: hours.ends || "" })
+                hours.ends ? t("fault.plan.fact", "They reset on {date}.", { date: hours.ends }) : ""
               )
             : window.TargumFault.refusal(
             t("add.credits.none", "You've used all your credits this month. Top up, or they reset on {date}.", {

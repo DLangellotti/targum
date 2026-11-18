@@ -6224,7 +6224,7 @@ def plans_page(
     2026-10-09; boards PlanPricing and PlanPricingPhone): Free and Plan side by side, what
     the credits buy, and the questions. `plan` is `plans.summary` for the reader looking,
     which says whose plan is whose. The figures come from `plans`, the one place they
-    are kept. `pay` is whether Paddle is configured, which makes Start the plan a real
+    are kept. `pay` is whether Paddle is configured, which makes Upgrade a real
     press; `failed`, that the last press found no checkout to open. `checkout` is the
     one view that opens Paddle's overlay (design.md §12, 2026-11-17): the transaction our
     server made, the client-side token, the environment and Paddle.js's address. None
@@ -6240,6 +6240,7 @@ def plans_page(
             page_language=_page_language(language),
             plan=plan,
             free_credits=plans.FREE_CREDITS,
+            free_hours=f"{plans.FREE_CREDITS / 60:g}",
             free_words=plans.FREE_WORDS,
             plan_credits=plans.PLAN_CREDITS,
             plan_hours=f"{plans.PLAN_CREDITS / 60:g}",

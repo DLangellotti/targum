@@ -18,7 +18,7 @@ body.plans main.plans-main { max-inline-size: calc(65rem + 2.5rem); }
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 1.75rem;
-  align-items: start;
+  align-items: stretch;
 }
 .plan-card { position: relative; padding: 2rem 2.125rem; }
 .plan-paid { box-shadow: inset 0 0 0 2px var(--teal), var(--shadow-rest); }
@@ -44,12 +44,10 @@ body.plans main.plans-main { max-inline-size: calc(65rem + 2.5rem); }
   font-size: 0.6875rem;
   font-weight: 600;
 }
-.plan-paid .plan-yours { margin-inline-end: auto; }
 .plan-price { margin: 1.25rem 0 0; display: flex; align-items: baseline; gap: 0.5rem; }
 .plan-figure { font-family: var(--reading); font-size: 2.75rem; line-height: 1; color: var(--ink); }
 .plan-per { color: var(--ink-soft); font-size: 0.9375rem; }
-.plan-or { margin: 0.5rem 0 0; color: var(--ink-soft); font-size: 0.8125rem; }
-.plan-says { margin: 1.25rem 0 0; font-size: 1.0625rem; color: var(--ink); }
+.plan-says { margin: 1.25rem 0 0; font-size: 1.0625rem; font-weight: 600; color: var(--ink); }
 .plan-lines { margin: 1.25rem 0 0; padding: 0; list-style: none; display: grid; gap: 0.875rem; }
 .plan-lines li {
   position: relative;
@@ -133,7 +131,6 @@ body.plans main.plans-main { max-inline-size: calc(65rem + 2.5rem); }
   .plan-paid { order: -1; }
   .plan-card,
   .plans-far { padding: 1.5rem 1.25rem; }
-  .plan-seg { margin-inline-start: 0; }
   .plan-pay .btn { flex: 1 0 100%; }
   .plan-cancel-any { margin-inline-start: auto; }
   .plans-lede { font-size: 1.0625rem; }

@@ -2940,34 +2940,26 @@ class Library:
         )
         left = max(0, int((allowed - used) // SECONDS_A_CREDIT))
         needed = max(1, math.ceil((job.seconds if need is None else need) / SECONDS_A_CREDIT))
-        hours = f"{plans.PLAN_CREDITS / 60:g}"
         if left > 0:
             said = said_in(
                 ui,
                 "job.plan.needs",
-                "It needs {need} credits and you have {left} left this month. A plan gives "
-                "you {plan} a month, which is {hours} hours of audio or video.",
+                "It needs {need} credits. You have {left} left this month.",
                 need=needed,
                 left=left,
-                plan=plans.PLAN_CREDITS,
-                hours=hours,
             )
         else:
             said = said_in(
                 ui,
                 "job.plan.used",
-                "You've used this month's {credits} credits. A plan gives you {plan} credits "
-                "a month, which is {hours} hours of audio or video.",
-                credits=f"{allowed / SECONDS_A_CREDIT:g}",
-                plan=plans.PLAN_CREDITS,
-                hours=hours,
+                "You've used this month's free credits.",
             )
         return Refusal(
             said,
             said_in(
                 ui,
                 "job.plan.fact",
-                "Uploading text uses none, and your credits reset on {date}.",
+                "They reset on {date}.",
                 date=self._month_ends(ui),
             ),
             "plan",

@@ -91,7 +91,7 @@ def test_on_free_gets_sixty_credits_and_plan_the_whole_month(tmp_path: Path) -> 
     refused = library.claim(recording(library, 1, 45 * 60, "b"))
     # The plan, not Top up: there is no top-up on Free.
     assert refused.act == "plan"
-    assert "It needs 45 credits and you have 10 left this month" in refused
+    assert "It needs 45 credits. You have 10 left this month." in refused
     assert "A plan gives you 480 a month, which is 8 hours" in refused
     assert "reset on" in refused.fact
     assert "$" not in refused and "$" not in refused.fact, "never money outside /plans"
@@ -104,7 +104,7 @@ def test_on_a_spent_month_says_so_and_offers_the_plan(tmp_path: Path) -> None:
     library = a_library(tmp_path)
     assert library.claim(recording(library, 1, 60 * 60, "a")) == ""
     refused = library.claim(recording(library, 1, 60, "b"))
-    assert "You've used this month's 60 credits" in refused and refused.act == "plan"
+    assert "You've used this month's free credits" in refused and refused.act == "plan"
 
 
 @pytest.mark.usefixtures("off")
