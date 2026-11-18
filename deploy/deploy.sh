@@ -206,15 +206,23 @@ fi
 # whether it is borrowed, written on this machine by scripts/build_roots.py and private
 # for the same reason as the catalogue. The service reads /etc/targum/roots-<language>.json
 # (annotate/root_card.py); the rebuild below draws them into every reader. Optional: a box
-# without them shows a noun no root, as it did before. Point ~/.targum/roots-he.json at the
-# run to ship (a symlink to roots-he-<run>.json), or name the file in TARGUM_ROOTS_HE.
-ROOTS_HE="${TARGUM_ROOTS_HE:-$HOME/.targum/roots-he.json}"
-ROOTS_RU="${TARGUM_ROOTS_RU:-$HOME/.targum/roots-ru.json}"
+# without them shows a noun no root, as it did before. `deploy/roots.pin` names the file
+# each language ships, so moving a lexicon on is a reviewed change (targum-internal#592);
+# a language it does not name ships ~/.targum/roots-<language>.json, and TARGUM_ROOTS_HE /
+# TARGUM_ROOTS_RU name a file outright.
+pinned_roots() {
+  local named
+  named="$(awk -v want="$1" '$1 == want { print $2 }' "$ROOT/deploy/roots.pin" 2>/dev/null | tail -1 || true)"
+  echo "$HOME/.targum/${named:-roots-$1.json}"
+}
+ROOTS_HE="${TARGUM_ROOTS_HE:-$(pinned_roots he)}"
+ROOTS_RU="${TARGUM_ROOTS_RU:-$(pinned_roots ru)}"
 ssh "${SSH_OPTS[@]}" "$HOST" "rm -f /tmp/roots-he.json /tmp/roots-ru.json"
 for held in "he:$ROOTS_HE" "ru:$ROOTS_RU"; do
   language="${held%%:*}"
   file="${held#*:}"
   if [ -f "$file" ]; then
+    echo "root lexicon ($language): $(basename "$(readlink -f "$file")")"
     scp -q "$file" "$HOST:/tmp/roots-$language.json"
   else
     echo "no root lexicon at $file — cards keep the roots they had in $language" >&2

@@ -1,0 +1,11 @@
+# The root lexicon each deploy ships, by file name under ~/.targum (deploy.sh). One line a
+# language: the language, then the file. Changing a line here is how a lexicon is moved
+# on, so the move is reviewed and merged like code, and a deploy says which one it took.
+# A language with no line ships ~/.targum/roots-<language>.json; TARGUM_ROOTS_<LANG> in the
+# environment overrides both.
+#
+# he, 2026-11-18 (targum-internal#592): the 2026-11-03 file plus the 90 agreed rows for
+# rows 7700–7799 of the 2026-10-31 run, then the Wiktionary gaps: 167 rootless lemmas
+# rooted, 15 disagreements and 16 hollow ו/י roots settled by review, and III-י written
+# III-ה. 10,592 lemmas; the decisions are kept beside the run.
+he roots-he-2026-11-18b.json

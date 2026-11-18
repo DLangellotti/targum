@@ -14,6 +14,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   "learned on targum" is gone; the label stays. `progress.ear.start` and
   `progress.count.learned.note` are retired; `lists.ear.tip` is new, its Russian a draft
   for ling-ru.
+- The Hebrew root lexicon a deploy ships is named in `deploy/roots.pin`, so moving it on is
+  a reviewed change rather than a symlink on the laptop. It now names
+  `roots-he-2026-11-18b.json` (10,592 lemmas; targum-internal#592): 247 more words have a
+  root, and 94 roots change. A language with no line
+  ships `~/.targum/roots-<language>.json` as before, and `TARGUM_ROOTS_HE` still names a
+  file outright. The deploy prints which file it took.
 - The level card's footnote drops "A guide, not a placement." (David, 2026-11-18): "Ulpan
   classes in Israel go from aleph, for beginners, to vav." and "The European scale goes
   from A1, for beginners, to C2." Russian drops the matching sentence. The `ladder.note`
