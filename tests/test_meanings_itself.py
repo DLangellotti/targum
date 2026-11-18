@@ -374,3 +374,47 @@ def test_your_words_and_practice_never_ask_for_a_meaning() -> None:
     where a card already bought it: neither script so much as names `/gloss`."""
     for name in ("lists.js", "charts.js", "yours.js"):
         assert "/gloss" not in (ASSETS / name).read_text(encoding="utf-8"), name
+
+
+def test_an_answer_that_added_a_mark_lands_on_the_bare_form(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """#538, 2026-11-18: asked for עשה, the model answered `עשה (verb)`, because the
+    prompt lists the marks; seven of eleven common words came back so, and each was paid
+    for and dropped. Such an answer is the bare form's, unless the batch asked for the
+    marked form itself."""
+
+    class Usage:
+        input_tokens = 10
+        output_tokens = 5
+
+    said = {"עשה": "עשה (verb)", "הכי": "הכי (adverb)", "אלף": "אלף (number)"}
+
+    class Messages:
+        def parse(self, **kwargs: Any) -> Any:
+            entries = [
+                gloss_module._Entry(lemma=said.get(form, form), gloss="הגדרה", part_of_speech="x")
+                for form in [
+                    line[6:]
+                    for line in kwargs["messages"][0]["content"].split("\n")
+                    if line.startswith("form: ")
+                ]
+            ]
+            return type(
+                "R", (), {"parsed_output": gloss_module._Batch(entries=entries), "usage": Usage()}
+            )()
+
+    provider = gloss_module.AnthropicGlosses(gloss_module.GLOSS_MODEL)
+    monkeypatch.setattr(
+        provider._provider, "client", lambda: type("C", (), {"messages": Messages()})()
+    )
+    found = provider.gloss(["עשה", "הכי", "אלף", "בית"], "he", "he")
+    assert set(found) == {"עשה", "הכי", "אלף", "בית"}
+    assert gloss_module.answered_for({"עשה (verb)": "עשה (verb)", "עשה": "עשה"}, "עשה (verb)") == (
+        "עשה (verb)"
+    ), "a batch that asked for the marked form keeps it"
+    assert (
+        gloss_module.answered_for({"עם (noun)": "עם (noun)", "עם": "עם (noun)"}, "עם (verb)")
+        is None
+    )
+    assert gloss_module.answered_for({"בית": "בית"}, "בית (plural)") is None, "not a mark"

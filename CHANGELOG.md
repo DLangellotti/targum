@@ -19,6 +19,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   from A1, for beginners, to C2." Russian drops the matching sentence. The `ladder.note`
   that `my_progress` hands the chat and the connector says "The ladder's name only, never
   the reader's level." instead, so it is a model's label and not the page's dropped line.
+- A meaning the model answers with a mark it added itself, `עשה (verb)` for עשה, is filed
+  under the form it was asked for (`gloss.answered_for`, targum-internal#538). Asked for
+  the bare form, the model added a mark from the prompt's list on seven of eleven common
+  Hebrew words in the 2026-11-18 diagnosis ($0.04); `filed_as` matched none of them, so each
+  was paid for and dropped, and a third of the in-language read showed no meaning. A batch
+  that asked for the marked form itself keeps it.
 - "Tell us" is "Send feedback" to readers, «Отправить отзыв» in Russian (David,
   2026-11-17): the account menu's row, the box's title, the reader's ⋯ row and the press
   on every fault panel, all `fault.tell-us`. Code, routes and the back office keep
