@@ -112,8 +112,21 @@ def test_the_month_is_the_sum_the_allowance_is_held_to(store: Store) -> None:
     assert dina.allowance == 28800.0
     assert by_email["admin@example.com"].allowance == 86400.0, "an admin is on Plan"
 
-    page = back_office_page(found, 30, section="readers")
-    assert '<th class="n">Credits this month</th>' in page
+    from datetime import UTC, datetime, time
+
+    from targum.backoffice import ReaderFilter, readers
+
+    listed = readers(
+        store.db,
+        Listing(sort="seen"),
+        ReaderFilter(),
+        now=datetime.combine(TODAY, time(12), UTC),
+        allowance=28800.0,
+        plan_allowance=86400.0,
+    )
+    assert "admin@example.com" not in {row.email for row in listed.rows}, "staff are not readers"
+    page = back_office_page(None, 30, listed=listed, section="readers")
+    assert '<th class="n">Credits</th>' in page
     assert "32 of 480" in page and "$0.97" in page
     assert f'href="/back-office/readers/{dina.id}"' in page
 

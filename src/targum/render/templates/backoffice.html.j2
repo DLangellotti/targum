@@ -76,6 +76,8 @@
   .bo .strip .on, .bo .strip .off { display: inline-block; inline-size: 0.6rem; block-size: 0.6rem; border-radius: 2px; }
   .bo .strip .on { background: var(--leaf); }
   .bo .strip .off { background: var(--rule); }
+  .bo svg.spark .on { fill: var(--leaf); }
+  .bo svg.spark .off { fill: var(--rule); }
   .bo .reach td:first-child { inline-size: 70%; }
   /* The beta's row under the weeks: the same counts added up, under a rule in ink so it
      reads as the sum of what is above it, the way a ledger's total does (#458). */
@@ -335,88 +337,72 @@
 
   {%- if bo_page == 'readers' %}
   <section class="bo-page" aria-label="Readers">
-  <h2>Accounts</h2>
-  {#- Fifty at a time, newest first unless asked otherwise (targum-internal#542). -#}
-  {#- The search is `bq`, never `q`: the proxy writes every address it is asked for
-      into its log, and `deploy/Caddyfile` deletes `bq` from it by name. -#}
+  {#- The Readers table (design's plan, 2026-11-17, §1, PR 4): every account but staff,
+      last seen first, searched as `bq` (never `q`: the proxy logs every address, and
+      `deploy/Caddyfile` deletes `bq` by name), filtered and paged by GET. No script.
+      Counts, dates and language codes only, never a word, a title or a source
+      (clause 3.2). The languages are drawn only once the Notice says so. -#}
+  {%- set table = listed.listing if listed else accounts_listing %}
+  {%- set sift = listed.filter if listed else none %}
+  <h2>Readers{% if listed %} <span class="quiet">{{ listed.total }}</span>{% endif %}</h2>
   <form method="get" action="{{ bo_route('readers') }}" class="decide find" role="search">
-    <input type="search" name="bq" value="{{ accounts_listing.q }}" maxlength="100"
-           placeholder="Address or name" aria-label="Search accounts by address or name">
-    <select name="sort" aria-label="Order of the accounts">
-      {% for key, name in account_sorts.items() %}<option value="{{ key }}"{% if key == accounts_listing.sort %} selected{% endif %}>{{ name }}</option>{% endfor %}
+    <input type="search" name="bq" value="{{ table.q }}" maxlength="100"
+           placeholder="Address or name" aria-label="Search readers by address or name">
+    <select name="sort" aria-label="Order of the readers">
+      {% for key, name in reader_sorts.items() %}<option value="{{ key }}"{% if key == table.sort %} selected{% endif %}>{{ name }}</option>{% endfor %}
     </select>
-    <label class="fake"><input type="checkbox" name="fake" value="1"{% if accounts_listing.fake %} checked{% endif %}> Possibly fake (2+)</label>
-    <button type="submit">Search</button>
+    {%- if listed and listed.languages_shown %}
+    <select name="lang" aria-label="Language">
+      <option value="">Any language</option>
+      {% for code in listed.languages %}<option value="{{ code }}"{% if sift and code == sift.language %} selected{% endif %}>{{ code }}</option>{% endfor %}
+    </select>
+    {%- endif %}
+    <select name="active" aria-label="When active">
+      {% for key, name in reader_activity.items() %}<option value="{{ key }}"{% if sift and key == sift.active %} selected{% endif %}>{{ name }}</option>{% endfor %}
+    </select>
+    <select name="plan" aria-label="Plan">
+      {% for key, name in reader_plans.items() %}<option value="{{ key }}"{% if sift and key == sift.plan %} selected{% endif %}>{{ name }}</option>{% endfor %}
+    </select>
+    <label class="fake"><input type="checkbox" name="follow" value="1"{% if sift and sift.follow %} checked{% endif %}> Follow-up due</label>
+    <label class="fake"><input type="checkbox" name="flagged" value="1"{% if sift and sift.flagged %} checked{% endif %}> Flagged (2+)</label>
+    <button type="submit">Show</button>
   </form>
-  {%- if accounts_listing.q and not survey.accounts %}
-  <p class="quiet">No account matches “{{ accounts_listing.q }}”.</p>
-  {%- else %}
-  <table>
+  {%- if listed and not listed.rows %}
+  <p class="quiet">No reader matches{% if table.q %} “{{ table.q }}”{% endif %}.</p>
+  {%- elif listed %}
+  <table class="readers">
     <thead>
       <tr>
-        <th>Account</th><th>Joined</th><th>Last active</th>
-        <th class="n">Words</th><th class="n">Learned</th><th class="n">Phrases</th>
-        <th class="n">Texts</th><th class="n">Finished</th><th class="n">Days</th>
-        <th class="n">Credits this month</th>
+        <th>Reader</th><th>Plan</th><th>Last seen</th><th>14 days</th>
+        <th class="n">Texts</th><th class="n">Words</th>
+        <th class="n">Credits</th><th class="n">Spend</th>
+        {%- if listed.languages_shown %}<th>Languages</th>{% endif %}
+        <th class="n">Flags</th>
       </tr>
     </thead>
     <tbody>
-      {% for who in survey.accounts %}
+      {% for who in listed.rows %}
       <tr>
-        <td><a href="{{ bo_route('readers') }}/{{ who.id }}">{{ who.email }}</a>{% if who.name %} <span class="quiet">{{ who.name }}</span>{% endif %}{{ flagged(who.flags) }}
+        <td><a href="{{ bo_route('readers') }}/{{ who.id }}">{{ who.email }}</a>{% if who.name %} <span class="quiet">{{ who.name }}</span>{% endif %}
           {%- if who.leaving %} <span class="quiet">leaving {{ who.leaving }}</span>{% endif %}</td>
-        <td class="quiet">{{ who.joined }}</td>
-        <td class="quiet">{{ who.last_active or '—' }}</td>
-        <td class="n">{{ who.words }}</td>
-        <td class="n">{{ who.learned }}</td>
-        <td class="n">{{ who.phrases }}</td>
-        <td class="n">{{ who.texts_opened }}</td>
-        <td class="n">{{ who.targums_finished }}</td>
-        <td class="n">{{ who.days_read }}</td>
-        {#- Of their month, and what it cost in model spend (targum-internal#543). -#}
-        <td class="n">{{ credits(who.used) }}{% if who.allowance is not none %} of {{ credits(who.allowance) }}{% endif %}
-          <br><span class="quiet">${{ '%.2f'|format(who.spent) }}</span></td>
+        <td class="quiet">{{ who.plan }}</td>
+        <td class="quiet">{{ who.last_seen or '—' }}</td>
+        {#- A day a bar, oldest on the left: filled where they were active that day. -#}
+        <td><svg class="spark" viewBox="0 0 {{ who.spark|length * 5 }} 10" width="{{ who.spark|length * 5 }}" height="10" role="img" aria-label="Active on {{ who.spark|select|list|length }} of the last {{ who.spark|length }} days">
+          {%- for on in who.spark %}<rect x="{{ loop.index0 * 5 }}" y="{{ 0 if on else 7 }}" width="4" height="{{ 10 if on else 3 }}" class="{{ 'on' if on else 'off' }}"/>{% endfor -%}
+        </svg></td>
+        <td class="n">{{ who.texts }}</td>
+        <td class="n">{{ who.words }}{% if who.learned %} <span class="quiet">{{ who.learned }} learned</span>{% endif %}</td>
+        <td class="n">{{ credits(who.used) }}{% if who.allowance is not none %} of {{ credits(who.allowance) }}{% endif %}</td>
+        <td class="n">${{ '%.2f'|format(who.spent) }}</td>
+        {%- if listed.languages_shown %}<td class="quiet">{{ who.languages|join(' ') or '—' }}</td>{% endif %}
+        <td class="n">{% if who.flags %}<span title="{{ who.flags|join(' · ') }}">{{ who.flags|length }}</span>{% else %}0{% endif %}</td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
-  {{ pager(accounts_listing, 'page', 'Account pages') }}
+  {{ pager(table, 'page', 'Reader pages') }}
   {%- endif %}
-
-  <h2>The last {{ days }} days</h2>
-  {%- if accounts_listing.pages() > 1 or accounts_listing.q %}
-  <p class="quiet count">The accounts on this page of Accounts.</p>
-  {%- endif %}
-  {#- One row a reader and one cell a day, oldest on the left (2026-10-15). It was a
-      column a reader, which stopped fitting at ten. A filled cell is a day they kept a
-      word, opened a text or read; its title says which. Most recently active first. -#}
-  {%- set columns = survey.days|reverse|list %}
-  <div class="strip-wrap">
-  <table class="strip">
-    <thead>
-      <tr>
-        <th>Reader</th>
-        {% for day in columns %}<th class="d" title="{{ day.day }}">{{ day.day[8:]|int }}</th>{% endfor %}
-      </tr>
-    </thead>
-    <tbody>
-      {% for who in survey.accounts|sort(attribute='last_active', reverse=True) %}
-      <tr>
-        <td>{{ who.email.split('@')[0] }}</td>
-        {% for day in columns -%}
-          {%- set words = day.words.get(who.id, 0) -%}
-          {%- set opened = day.opened.get(who.id, 0) -%}
-          {%- if words or opened or who.id in day.read -%}
-          <td class="d"><span class="on" title="{{ day.day }}: {% if words %}{{ words }} word{{ '' if words == 1 else 's' }}{% endif %}{% if words and opened %} · {% endif %}{% if opened %}{{ opened }} text{{ '' if opened == 1 else 's' }}{% endif %}{% if not words and not opened %}read{% endif %}"></span></td>
-          {%- else -%}
-          <td class="d"><span class="off"></span></td>
-          {%- endif -%}
-        {%- endfor %}
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  </div>
   </section>
   {%- endif %}
 

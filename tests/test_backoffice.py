@@ -124,8 +124,14 @@ def test_it_never_opens_the_store_for_writing(tmp_path: Path) -> None:
 
 
 def test_the_page_shows_the_counts_and_not_the_words(store: sqlite3.Connection) -> None:
-    found = survey(store, today=date(2026, 9, 4))
-    page = back_office_page(found, 30, section="readers")
+    from datetime import UTC, datetime
+
+    from targum.backoffice import Listing, ReaderFilter, readers
+
+    listed = readers(
+        store, Listing(sort="seen"), ReaderFilter(), now=datetime(2026, 9, 4, 12, tzinfo=UTC)
+    )
+    page = back_office_page(None, 30, listed=listed, section="readers")
     assert "a@example.com" in page and "b@example.com" in page
     assert "2026-09-04" in page
     # The lemmas themselves are the thing this page must not become a window onto.
@@ -302,7 +308,7 @@ def test_the_back_office_is_six_pages_under_one_bar() -> None:
     assert list(PAGES) == ["overview", "readers", "waitlist", "traffic", "shelf", "operations"]
     heads = {
         "overview": "<h2>Follow up",
-        "readers": "<h2>Accounts",
+        "readers": "<h2>Readers",
         "waitlist": "confirmed their email",
         "traffic": '<h2 id="visitors">',
         "shelf": "<h2>Proposed for the shelf",

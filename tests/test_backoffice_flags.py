@@ -177,8 +177,18 @@ def test_possibly_fake_filters_both_lists_and_flags_sort_them(store: Store) -> N
     assert "2 possibly fake" in page
     assert 'name="wfake" value="1" checked' in page
     assert "3 flags:" in page and FLAGS["throwaway"] in page
-    readers = back_office_page(found, 30, section="readers")
-    assert 'name="fake" value="1" checked' in readers and "2 flags:" in readers
+    from targum.backoffice import ReaderFilter, readers
+
+    listed = readers(
+        store.db,
+        Listing(sort="seen"),
+        ReaderFilter(flagged=True),
+        now=dt.datetime.combine(TODAY, dt.time(12), dt.UTC),
+    )
+    assert [row.email for row in listed.rows] == ["99887766@mailinator.com"]
+    page = back_office_page(None, 30, listed=listed, section="readers")
+    assert 'name="flagged" value="1" checked' in page
+    assert '<td class="n"><span title="' in page and ">2</span></td>" in page
 
     assert "flags" in ACCOUNT_SORTS and "flags" in WAITING_SORTS
     ordered = survey(store.db, today=TODAY, waitlist=Listing(sort="flags"))
