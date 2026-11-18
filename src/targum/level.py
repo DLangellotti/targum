@@ -8,7 +8,7 @@ reason to ask. The chat runs on the server, so this is the same ladder in Python
 the two cannot drift apart without a test saying so.
 
 What this is not: a placement. `design.md` §6 says engagement counts real things and
-never levels, and the progress page prints "A guide, not a placement" over the ladder.
+never levels, and the ladder handed to a model is labelled as a name and never a level.
 A `Level` carries the rung so the chat can grade the Hebrew it writes; what the chat may
 *say* is the counts, and `describe()` tells it so in as many words.
 """
@@ -326,7 +326,7 @@ class Level:
                 "reach": self.here.name if self.here else "",
                 "next": self.next.name if self.next else "",
                 "cefr": self.here.cefr if self.here else "",
-                "note": "A guide, not a placement.",
+                "note": "The ladder's name only, never the reader's level.",
             },
         }
 

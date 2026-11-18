@@ -1963,6 +1963,20 @@
       }
       summary.textContent = parts.join(" · ");
     }
+    // How to make a first ear mark, said only while there is none (David, 2026-11-18): it
+    // stood under Your Progress's totals, away from the words it is about. Once a word is
+    // known by ear, the count on the head line above says it.
+    var tip = at("words-ear-tip");
+    if (tip) {
+      tip.textContent = sums.ear
+        ? ""
+        : t(
+            "lists.ear.tip",
+            "Know a word when you hear it but not when you read it? Open the word and press {press}.",
+            { press: t("vocab.ear", "Known by ear") }
+          );
+      tip.hidden = !!sums.ear;
+    }
     // Grouped as the head groups them: "4,560 on your list" over a tab that said 4560.
     if (at("count-words")) at("count-words").textContent = grouped(sums.saved).n;
     if (at("count-phrases")) at("count-phrases").textContent = grouped(sums.phrases).n;

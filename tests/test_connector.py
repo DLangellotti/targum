@@ -53,7 +53,7 @@ def test_the_server_lists_the_tools_and_answers_one(tmp_path: Path) -> None:
 
     answered = asyncio.run(server.call_tool("my_progress", {}))
     text = answered.content[0].text  # type: ignore[union-attr]
-    assert json.loads(text)["ladder"]["note"] == "A guide, not a placement."
+    assert json.loads(text)["ladder"]["note"] == "The ladder's name only, never the reader's level."
 
     found = asyncio.run(
         server.call_tool("find_text", {"query": "Genesis", "where": "library", "limit": 3})

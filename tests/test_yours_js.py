@@ -1012,6 +1012,37 @@ def test_the_head_counts_known_and_known_by_ear_and_says_nothing_new_before_one(
     assert draw(vocabulary(word("ספר", "book", status=9)))["summary"] == "1 on your list · 1 known"
 
 
+TIP = "Know a word when you hear it but not when you read it? Open the word and press Known by ear."
+
+
+def test_your_words_says_how_to_mark_a_word_known_by_ear_until_one_is() -> None:
+    """David, 2026-11-18: the tip moved here from Your Progress, a quiet note under the
+    head while no word is known by ear, and gone once one is, when the head counts it."""
+    assert draw(vocabulary(word("ספר", "book", status=9)))["earTip"] == TIP
+    assert draw(_eared())["earTip"] == ""
+    one = vocabulary(word("ספר", "book", status=9, ear=1), word("דרך", "road", status=2))
+    assert draw(one)["earTip"] == ""
+    # The first press takes it away without a reload.
+    pressed = draw(
+        vocabulary(word("דרך", "road", status=2)), filter="all", do=[{"type": "ear", "word": "דרך"}]
+    )
+    assert pressed["earTip"] == ""
+
+
+def test_russian_says_the_known_by_ear_tip_with_the_buttons_own_name() -> None:
+    from targum import strings
+
+    russian = strings.catalogue("ru")
+    keys = {key: text for key, text in russian.items() if key.startswith(("lists.", "vocab."))}
+    drawn = draw(
+        vocabulary(word("ספר", "book", status=9)), strings={"strings": keys, "language": "ru"}
+    )
+    assert drawn["earTip"] == (
+        "Узнаёте слово на слух, но не на письме? Откройте его карточку и нажмите «Знаю на слух»."
+    )
+    assert russian["vocab.ear"] == "Знаю на слух"
+
+
 def test_known_by_ear_is_a_filter_across_the_stages() -> None:
     drawn = draw(_eared(), do=[{"type": "chip", "stage": "all"}, {"type": "chip", "stage": "ear"}])
     assert drawn["chips"][-1] == "Known by ear"

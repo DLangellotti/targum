@@ -142,15 +142,17 @@ def test_the_time_figures_never_overlap_or_push_the_page_sideways(
         context.close()
 
 
-def test_the_learned_note_sits_inside_the_ledger_on_the_desk(chromium: Any) -> None:
-    """At 1440 the "Learned on targum" line sat under the ledger on the desk ground,
-    outside any card (targum-internal#522; §9, §13)."""
+def test_the_ledger_ends_with_its_totals_on_the_desk(chromium: Any) -> None:
+    """David, 2026-11-18: the "Learned on targum" note and the Known by ear start line
+    are off Your Progress, so the ledger holds its totals and nothing under them."""
     context, page, thrown = open_progress(chromium, "he", 1440)
     try:
         page.set_viewport_size({"width": 1440, "height": 900})
         page.goto(SITE + "/progress")
         page.wait_for_selector("#page:not([hidden])")
-        assert page.locator("#ledger #learned-note").is_visible()
+        assert page.locator("#ledger #counts").is_visible()
+        assert page.locator("#learned-note").count() == 0
+        assert page.locator("#ear-line").count() == 0
         assert not thrown, thrown
     finally:
         context.close()

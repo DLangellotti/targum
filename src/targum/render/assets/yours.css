@@ -99,6 +99,9 @@ body.yours .nothing a:hover { border-block-end-color: var(--ink-soft); }
 .came-back-text { font-weight: 700; }
 .words-summary { margin: 0; font-size: 0.9375rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 .words-summary:empty { display: none; }
+/* How to make a first Known by ear mark, while there is none: the head's quiet note. */
+.words-ear-tip { margin: 0; font-size: 0.875rem; color: var(--ink-soft); }
+.words-ear-tip[hidden] { display: none; }
 
 /* --- Your Words is one table and a practice card (design.md §12, 2026-10-09) -----------
    Boards WordsDesk and WordsPhone: the head on the desk, the exports quiet at its end;

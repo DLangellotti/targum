@@ -736,9 +736,7 @@ def test_the_card_is_the_level_and_nothing_else() -> None:
         # 2026-11-03; design.md §12, "The ulpan letter says what it is").
         "scale": "Ulpan level",
     }
-    assert drawn["basis"] == (
-        "Ulpan classes in Israel run from aleph, for beginners, to vav. A guide, not a placement."
-    )
+    assert drawn["basis"] == ("Ulpan classes in Israel go from aleph, for beginners, to vav.")
     assert drawn["head"] == "" and drawn["step"] == "" and drawn["known"] == ""
     assert drawn["go"] == "Show texts you can read now"
     assert drawn["goHref"] == "/library?k=k#see/now"
@@ -908,7 +906,7 @@ def test_the_european_scale_leads_with_itself() -> None:
         "scale": "",
     }
     # The scale it is on, under the card (2026-11-03).
-    assert drawn["basis"].startswith("The European scale runs from A1, for beginners, to C2.")
+    assert drawn["basis"] == "The European scale goes from A1, for beginners, to C2."
     assert drawn["toward"]["line"] == "237 more dictionary words to B2"
     assert drawn["toward"]["letter"] is None
 
@@ -1581,7 +1579,7 @@ def test_progress_says_how_many_words_are_known_by_ear_beside_the_reading_count(
     assert drawn["ear"]["href"].startswith("/words?ear=1")
     # Said once (design's §14 pass on #1243): the linked figure, and no sentence under the
     # totals repeating it.
-    assert drawn["ear"]["line"] == ""
+    assert not drawn["ear"]["lineAsked"]
     assert draw(_with_ear(1))["ear"]["figure"] == "1 known by ear"
 
 
@@ -1595,12 +1593,12 @@ def test_the_ear_figure_stands_below_the_roots_line() -> None:
     assert order.index("count-roots") < order.index("count-ear")
 
 
-def test_before_the_first_word_known_by_ear_progress_says_how_to_mark_one() -> None:
+def test_before_the_first_word_known_by_ear_progress_says_nothing_about_it() -> None:
+    """David, 2026-11-18: how to make a first ear mark is said on Your Words, where the
+    words are, so Progress draws no figure and no line under its totals."""
     drawn = draw({"targum:vocab:he": vocab(known=3)})
     assert drawn["ear"]["figure"] == ""
-    assert drawn["ear"]["line"] == (
-        "Mark a word Known by ear on its card when you know it by sound."
-    )
+    assert not drawn["ear"]["lineAsked"]
 
 
 @pytest.mark.parametrize("ear", [1, 3, 5, 11])
@@ -1610,7 +1608,5 @@ def test_russian_says_the_ear_figure(ear: int) -> None:
     russian = strings.catalogue("ru")
     keys = {key: text for key, text in russian.items() if "ear" in key}
     drawn = draw(_with_ear(ear, known=ear), strings={"strings": keys, "language": "ru"})
-    assert drawn["ear"]["line"] == ""
+    assert not drawn["ear"]["lineAsked"]
     assert drawn["ear"]["figure"] == f"на слух: {ear}"
-    start = draw({"targum:vocab:he": vocab(known=3)}, strings={"strings": keys, "language": "ru"})
-    assert start["ear"]["line"] == russian["progress.ear.start"]
