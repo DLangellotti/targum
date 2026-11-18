@@ -336,3 +336,39 @@ def test_what_went_wrong_goes_to_incidents_and_not_into_the_address() -> None:
     assert "error.message" not in presses and "error.hint" not in presses
     trouble = text[text.index("def _back_office_trouble(") : text.index("def _behind_the_door(")]
     assert "incidents_module.record(" in trouble
+
+
+def test_staff_have_no_reader_page_even_for_an_admin(world) -> None:  # type: ignore[no-untyped-def]
+    """Design's plan, 2026-11-17: operator and test accounts are counted nowhere, so no
+    page answers for one; nor for an admin, the one asking included."""
+    port, store, _, admin, who = world
+    store.db.execute("INSERT INTO test_account (email, at) VALUES ('tester@example.com', 1)")
+    store.db.execute("INSERT INTO person (email, made) VALUES ('tester@example.com', 1)")
+    store.db.commit()
+    tester = store.person_by_email("tester@example.com")
+    ops = store.person_by_email("ops@example.com")
+    assert tester is not None and ops is not None
+    for staff in (tester.id, ops.id):
+        status, headers, body = ask(port, "GET", f"/back-office/readers/{staff}", admin)
+        assert status == 404, staff
+        assert headers["cache-control"] == "no-store"
+        assert "@example.com" not in body
+    status, headers, body = ask(port, "GET", f"/back-office/readers/{who}", admin)
+    assert status == 200 and "<script" not in body[body.index('aria-label="Reader"') :]
+    assert headers["cache-control"] == "no-store"
+
+
+def test_a_tell_us_press_on_a_readers_page_goes_back_to_it(world) -> None:  # type: ignore[no-untyped-def]
+    port, store, _, admin, who = world
+    reader = store.person_by_email("reader@example.com")
+    store.tell(reader, "please fix")
+    told = store.told()[0]["id"]
+    fields = {"id": str(told), "state": "fixed", "reader": str(who)}
+    status, headers, _ = ask(port, "POST", "/back-office/told", admin, fields)
+    assert (status, headers["location"]) == (303, f"/back-office/readers/{who}#told")
+    assert store.told()[0]["state"] == "fixed"
+    # Anything but an id goes back to the Overview, as it always did.
+    for odd in ("abc", "+1", "", "1" * 30):
+        fields = {"id": str(told), "state": "open", "reader": odd}
+        status, headers, _ = ask(port, "POST", "/back-office/told", admin, fields)
+        assert (status, headers["location"]) == (303, "/back-office#told"), odd

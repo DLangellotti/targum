@@ -159,7 +159,7 @@ def test_a_readers_page_counts_by_kind_and_a_gift_as_targums(store: Store) -> No
     assert "dina@example.com" in panel and "32 of 480 credits this month" in panel
     assert ">95 s<" in panel, "a conversation is counted in seconds"
     assert ">gift<" in panel and ">15<" in panel
-    assert 'href="/back-office/readers">Back to accounts' in panel
+    assert 'href="/back-office/readers">Back to readers' in panel
     assert "<h2>Follow up" not in page, "a reader's page is that reader's alone"
 
 

@@ -164,18 +164,153 @@
     {%- if reasons %}<p class="flags"><span class="flag-count">{{ reasons|length }} flag{{ '' if reasons|length == 1 else 's' }}:</span> {{ reasons|join(' · ') }}</p>{% endif %}
   {%- endmacro %}
 
+  {#- What a reader wrote to us (clause 3.14), with its state: on the Overview, and on
+      that reader's own page, whose press comes back to it. -#}
+  {%- macro told_rows(rows, back='') %}
+  <table class="told">
+    <thead><tr><th>When</th><th>From</th><th>What they said</th><th>State</th></tr></thead>
+    <tbody>
+      {% for one in rows %}
+      <tr>
+        <td class="quiet">{{ one.when }}</td>
+        <td>{% if one.email %}{{ one.email }}<br><a class="write" href="mailto:{{ one.email|urlencode }}?subject=targum">Write</a>{% else %}<span class="quiet">no account</span>{% endif %}</td>
+        <td><p class="said-text" dir="auto">{{ one.said }}</p>
+          <p class="quiet told-where">{{ one.page or 'no page' }} &middot; {{ one.viewport or 'no window' }} &middot; {{ one.language or 'no language' }} &middot; {{ one.build or 'no build' }}</p></td>
+        <td>
+          <form method="post" action="/back-office/told" class="decide">
+            <input type="hidden" name="id" value="{{ one.id }}">
+            {%- if back %}<input type="hidden" name="reader" value="{{ back }}">{% endif %}
+            <select name="state" aria-label="State of message {{ one.id }}">
+              {% for state in told_states %}<option value="{{ state }}"{% if one.state == state %} selected{% endif %}>{{ state }}</option>{% endfor %}
+            </select>
+            <button type="submit">Save</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {%- endmacro %}
   {%- if bo_page == 'reader' and reader %}
   <section class="bo-page" aria-label="Reader">
-  {#- One account's credits, at `/back-office/readers/<id>` (targum-internal#543; it was
-      `?who=<id>`, which now redirects here): this month and all
-      time by kind, and the latest jobs by date, kind, credits, cost and stage. Never a
-      title or a source (clause 3.14). A conversation is counted in seconds. -#}
-  {%- if reader %}
+  {#- One reader's page, at `/back-office/readers/<id>` (design's plan, 2026-11-17, §1 and
+      PR 5; it was `?who=<id>`, which now redirects here), in the plan's order. Counts,
+      dates and language codes; a text is named only when it is a row of the public
+      catalogue, by the catalogue's title (clause 3.2). Nothing a reader saved, noted,
+      brought or said to the chat is on it; what they wrote to us is (clause 3.14). -#}
   <h2>{{ reader.email }}{% if reader.name %} <span class="quiet">{{ reader.name }}</span>{% endif %}</h2>
-  <p class="taken">Joined {{ reader.joined }} &middot;
-    {{ credits(reader.used) }}{% if reader.allowance is not none %} of {{ credits(reader.allowance) }}{% endif %} credits this month &middot;
-    ${{ '%.2f'|format(reader.spent) }} this month &middot;
-    <a href="{{ bo_route('readers') }}">Back to accounts</a></p>
+  <p class="taken">{{ reader.plan or 'Free' }} &middot; joined {{ reader.joined }}
+    {%- if reader.came_from %} from {{ reader.came_from }}{% endif %} &middot;
+    {% if reader.last_seen %}last seen {{ reader.last_seen }}{% else %}not seen yet{% endif %}
+    {%- if reader.leaving %} &middot; <strong>leaving, asked {{ reader.leaving }}</strong>{% endif %} &middot;
+    <a href="{{ bo_route('readers') }}">Back to readers</a></p>
+  {%- if reader.action == 'resend' %}
+  <form method="post" action="/back-office/resend" class="decide">
+    <input type="hidden" name="email" value="{{ reader.email }}">
+    <button type="submit" aria-label="Send {{ reader.email }} the invitation again">Send again</button>
+  </form>
+  {%- else %}
+  <p><a class="write" href="mailto:{{ reader.email|urlencode }}?subject=targum">Write</a></p>
+  {%- endif %}
+
+  <h3>Why write</h3>
+  {%- if reader.why or reader.flags %}
+  {%- if reader.why %}<p>{{ reader.why }}</p>{% endif %}
+  {{ flagged(reader.flags) }}
+  {%- else %}
+  <p class="quiet">Not on Follow up, and no flags.</p>
+  {%- endif %}
+
+  <h3 id="told">Tell us</h3>
+  {%- if reader_told %}
+  {{ told_rows(reader_told, reader.id) }}
+  {%- else %}
+  <p class="quiet">Nothing from them.</p>
+  {%- endif %}
+
+  {%- set off = 'Recording is off: they turned it off on their account page, so nothing is shown here.' %}
+  <h3>The last {{ reader.days|length }} days</h3>
+  <div class="strip-wrap"><table class="strip">
+    <thead><tr><th></th>
+      {%- for one in reader.days %}<th class="d" scope="col" title="{{ one.day }}">{{ one.day[8:]|int }}</th>{% endfor %}</tr></thead>
+    <tbody>
+      <tr><th scope="row">Active</th>
+        {%- for one in reader.days %}<td class="d"><span class="{{ 'on' if one.active else 'off' }}" role="img" aria-label="{{ one.day }}: {{ 'active' if one.active else 'not active' }}"></span></td>{% endfor %}</tr>
+      <tr><th scope="row">Texts opened</th>{% for one in reader.days %}<td class="d">{{ one.texts or '' }}</td>{% endfor %}</tr>
+      <tr><th scope="row">Words saved</th>{% for one in reader.days %}<td class="d">{{ one.words or '' }}</td>{% endfor %}</tr>
+      {%- if reader.recording %}
+      <tr><th scope="row">Lookups</th>{% for one in reader.days %}<td class="d">{{ one.lookups or '' }}</td>{% endfor %}</tr>
+      <tr><th scope="row">Minutes played</th>{% for one in reader.days %}<td class="d">{{ '%.0f'|format(one.minutes) if one.minutes >= 0.5 else '' }}</td>{% endfor %}</tr>
+      {%- endif %}
+    </tbody>
+  </table></div>
+  {%- if not reader.recording %}<p class="quiet count">Lookups and minutes played: {{ off }}</p>{% endif %}
+
+  <h3>Reading</h3>
+  {%- if reader.library %}
+  <table class="credits">
+    <thead><tr><th>From the library</th><th>Language</th><th>Opened</th><th class="n">Sections finished</th><th>Finished</th></tr></thead>
+    <tbody>
+      {%- for text in reader.library %}
+      <tr><td dir="auto">{{ text.title }}</td><td>{{ text.language }}</td><td class="quiet">{{ text.opened or '—' }}</td>
+        <td class="n">{{ text.sections }}</td><td>{{ 'yes' if text.finished else '' }}</td></tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+  {%- else %}
+  <p class="quiet">No text from the library yet.</p>
+  {%- endif %}
+  {%- if reader.brought %}
+  <table class="credits">
+    <thead><tr><th>Brought, by kind</th><th>Language</th><th>Medium</th><th class="n">Texts</th></tr></thead>
+    <tbody>
+      {%- for one in reader.brought %}
+      <tr><td>{{ one.kind }}</td><td>{{ one.language or '—' }}</td><td>{{ one.medium }}</td><td class="n">{{ one.texts }}</td></tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+  {%- endif %}
+  <p class="quiet count">{{ reader.other_texts }} other text{{ '' if reader.other_texts == 1 else 's' }} opened, not from the library. What a reader brings is counted and never named.</p>
+
+  <h3>Words and weeks</h3>
+  <p class="taken">{{ reader.totals.saved }} word{{ '' if reader.totals.saved == 1 else 's' }} saved, {{ reader.totals.learned }} learned in quiet &middot;
+    {{ reader.totals.known }} known &middot; {{ reader.totals.ear }} known by ear &middot;
+    {{ reader.totals.phrases }} phrase{{ '' if reader.totals.phrases == 1 else 's' }}</p>
+  <div class="strip-wrap"><table class="credits">
+    <thead><tr><th>Week of</th><th class="n">Saved</th><th class="n">Known</th><th class="n">By ear</th>
+      {%- if reader.recording %}<th class="n">Words read</th><th class="n">Lookups</th><th class="n">Per 100 words</th><th class="n">Minutes heard</th><th class="n">Minutes watched</th>{% endif %}</tr></thead>
+    <tbody>
+      {%- for week in reader.weeks %}
+      <tr><td class="quiet">{{ week.week }}</td><td class="n">{{ week.saved }}</td><td class="n">{{ week.known }}</td><td class="n">{{ week.ear }}</td>
+        {%- if reader.recording %}{% set per = week.per_hundred() %}
+        <td class="n">{{ week.read }}</td><td class="n">{{ week.lookups }}</td>
+        <td class="n">{{ '%.1f'|format(per) if per is not none else '—' }}</td>
+        <td class="n">{{ '%.0f'|format(week.heard) }}</td><td class="n">{{ '%.0f'|format(week.watched) }}</td>
+        {%- endif %}</tr>
+      {%- endfor %}
+    </tbody>
+  </table></div>
+  {%- if not reader.recording %}<p class="quiet count">Words read, lookups and minutes: {{ off }}</p>{% endif %}
+
+  <h3>Practice</h3>
+  {%- if not reader.recording %}
+  <p class="quiet">{{ off }}</p>
+  {%- elif reader.spots %}
+  <table class="credits">
+    <thead><tr><th>Hard spot</th><th>Language</th><th class="n">Step</th><th>Last</th></tr></thead>
+    <tbody>
+      {%- for spot in reader.spots %}
+      <tr><td>{{ spot.name }}</td><td>{{ spot.language }}</td><td class="n">{{ spot.step }}</td><td class="quiet">{{ spot.last or '—' }}</td></tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+  {%- else %}
+  <p class="quiet">No practice yet.</p>
+  {%- endif %}
+
+  <h3>Credits and jobs</h3>
+  <p class="taken">{{ credits(reader.used) }}{% if reader.allowance is not none %} of {{ credits(reader.allowance) }}{% endif %} credits this month &middot;
+    ${{ '%.2f'|format(reader.spent) }} this month</p>
   {%- macro used(one) %}{% if one.kind == 'chat' %}{{ '%.0f'|format(one.seconds) }} s{% else %}{{ credits(one.seconds) }}{% endif %}{% endmacro %}
   <div class="strip-wrap"><table class="credits">
     <thead>
@@ -206,7 +341,6 @@
   </table>
   {%- else %}
   <p class="quiet">No jobs yet.</p>
-  {%- endif %}
   {%- endif %}
   </section>
   {%- endif %}
@@ -340,30 +474,6 @@
   <h2 id="told">Tell us</h2>
   {%- set waiting_on_us = told|selectattr('state', 'in', ['open', 'asked'])|list %}
   {%- set settled = told|rejectattr('state', 'in', ['open', 'asked'])|list %}
-  {%- macro told_rows(rows) %}
-  <table class="told">
-    <thead><tr><th>When</th><th>From</th><th>What they said</th><th>State</th></tr></thead>
-    <tbody>
-      {% for one in rows %}
-      <tr>
-        <td class="quiet">{{ one.when }}</td>
-        <td>{% if one.email %}{{ one.email }}<br><a class="write" href="mailto:{{ one.email|urlencode }}?subject=targum">Write</a>{% else %}<span class="quiet">no account</span>{% endif %}</td>
-        <td><p class="said-text" dir="auto">{{ one.said }}</p>
-          <p class="quiet told-where">{{ one.page or 'no page' }} &middot; {{ one.viewport or 'no window' }} &middot; {{ one.language or 'no language' }} &middot; {{ one.build or 'no build' }}</p></td>
-        <td>
-          <form method="post" action="/back-office/told" class="decide">
-            <input type="hidden" name="id" value="{{ one.id }}">
-            <select name="state" aria-label="State of message {{ one.id }}">
-              {% for state in told_states %}<option value="{{ state }}"{% if one.state == state %} selected{% endif %}>{{ state }}</option>{% endfor %}
-            </select>
-            <button type="submit">Save</button>
-          </form>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  {%- endmacro %}
   {%- if waiting_on_us %}
   {{ told_rows(waiting_on_us) }}
   {%- else %}

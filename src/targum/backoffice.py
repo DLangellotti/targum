@@ -44,6 +44,15 @@ the store; the figures on a row are counted for the rows on the page and no othe
 what is summed across readers — Follow up, the weekly table, the reach, the headline —
 is summed in SQL, one row per reader at most. The operator's addresses are left out in
 the store too: `bare` is registered on the connection as an SQL function.
+
+**A page for each reader (2026-11-18, design's plan of 2026-11-17, PR 5).** Clauses 3.2,
+3.6 and 3.7 as amended on 2026-11-17 let the operator see one account's counts by day and
+language, and the titles of the texts from targum's own library it opened or finished.
+So `reader` names a text only when its hash is in the public catalogue, and takes the
+title from the catalogue, never from the reader's own `doc` row; a text the reader
+brought is counted by kind, language and medium and never named. The words, phrases,
+notes, chat and corrections themselves are not read. What the record of use (3.6) says
+is shown only while the reader keeps recording on: with it off, the page says so.
 """
 
 from __future__ import annotations
@@ -291,9 +300,81 @@ class Line:
 
 
 @dataclass
+class StripDay:
+    """One of a reader's last `DAYS` days: whether they were active, texts opened, words
+    saved, and, while recording is on, words looked up and minutes played."""
+
+    day: str
+    active: bool = False
+    texts: int = 0
+    words: int = 0
+    lookups: int = 0
+    minutes: float = 0.0
+
+
+@dataclass
+class Week:
+    """One week of a reader's, by its Monday: words saved, marked known and known by ear
+    (clause 3.2), and, while recording is on, words read in finished sections, words
+    looked up and minutes heard and watched (clause 3.6). None where recording is off."""
+
+    week: str
+    saved: int = 0
+    known: int = 0
+    ear: int = 0
+    read: int | None = None
+    lookups: int | None = None
+    heard: float | None = None
+    watched: float | None = None
+
+    def per_hundred(self) -> float | None:
+        """Words looked up per hundred read, or None with nothing read to divide by."""
+        if not self.read or self.lookups is None:
+            return None
+        return self.lookups * 100 / self.read
+
+
+@dataclass
+class LibraryText:
+    """A text from targum's own library a reader opened, named by the catalogue's title
+    (clause 3.2), never by the reader's own record of it."""
+
+    title: str
+    language: str
+    opened: str
+    sections: int
+    finished: bool
+
+
+@dataclass
+class Brought:
+    """Texts a reader brought, counted (clause 3.2) by the kind of job that built them,
+    language and medium, and never named."""
+
+    kind: str
+    language: str
+    medium: str
+    texts: int
+
+
+@dataclass
+class Spot:
+    """A hard spot a reader practised and how far up its ramp (clause 3.6): the spot's own
+    name from `practices.SPOTS`, never a line it asked about."""
+
+    language: str
+    name: str
+    step: int
+    last: str
+
+
+@dataclass
 class Reader:
-    """One account's credits (`/back-office/readers/<id>`, targum-internal#543): this
-    month and all time by kind, and their latest jobs. Counts and stages only."""
+    """One reader's page (`/back-office/readers/<id>`; targum-internal#543, design's plan
+    of 2026-11-17, PR 5): who they are, why write, what they told us, their last 30 days,
+    what they read, their words over time, their lookups, listening and practice, and
+    their credits this month and all time by kind, with their latest jobs. Counts, dates,
+    language codes and the catalogue's own titles only."""
 
     id: int
     email: str
@@ -305,6 +386,34 @@ class Reader:
     month: list[Use] = field(default_factory=list)
     ever: list[Use] = field(default_factory=list)
     recent: list[Line] = field(default_factory=list)
+    #: The header (design's plan, 2026-11-17, §1): "Plan", "Beta until March 4" or
+    #: "Free"; the page or link tag they came in by; the last day anything of theirs
+    #: moved; and when they asked to be forgotten, or "".
+    plan: str = ""
+    came_from: str = ""
+    last_seen: str = ""
+    leaving: str = ""
+    #: Why write: the Follow up line, if they are on it, and its press (`resend` or
+    #: `write`), and what might make the sign-up fake.
+    why: str = ""
+    action: str = "write"
+    flags: list[str] = field(default_factory=list)
+    #: What they wrote to us through Tell us (clause 3.14), newest first: written to us,
+    #: so shown to us, as on the Overview.
+    told: list[dict[str, object]] = field(default_factory=list)
+    #: Whether the record of use (clause 3.6) is kept for them: their own switch.
+    recording: bool = True
+    days: list[StripDay] = field(default_factory=list)
+    weeks: list[Week] = field(default_factory=list)
+    library: list[LibraryText] = field(default_factory=list)
+    brought: list[Brought] = field(default_factory=list)
+    #: Texts opened that are not in the catalogue, their own and the weekly's alike:
+    #: counted, never named.
+    other_texts: int = 0
+    #: All time: words saved, of them learned in quiet, marked known and known by ear,
+    #: and phrases saved.
+    totals: dict[str, int] = field(default_factory=dict)
+    spots: list[Spot] = field(default_factory=list)
 
 
 @dataclass
@@ -512,6 +621,8 @@ class Survey:
     #: Every address Follow up would name, however many are shown: the Readers table's
     #: "Follow-up due" filter (design's plan, 2026-11-17, PR 4).
     follow_up_due: set[str] = field(default_factory=set)
+    #: The same, each with why: what one reader's page says under Why write.
+    follow_up_by: dict[str, FollowUp] = field(default_factory=dict)
     #: Each week's people, newest first, and how far they got.
     batches: list[Batch] = field(default_factory=list)
     #: Every week from `BETA_FROM` on, added up: the beta's gate in one row
@@ -684,6 +795,15 @@ def _credits(
 RECENT_JOBS = 50
 
 
+#: How many weeks a reader's page goes back, newest last.
+WEEKS = 12
+
+
+def _ms(day: date) -> int:
+    """The first millisecond of a UTC day."""
+    return int(datetime.combine(day, datetime.min.time(), UTC).timestamp() * 1000)
+
+
 def reader(
     db: sqlite3.Connection,
     who: int,
@@ -691,25 +811,46 @@ def reader(
     operators: Iterable[str] = (),
     allowance: float | None = None,
     plan_allowance: float | None = None,
+    titles: Mapping[str, str] | None = None,
 ) -> Reader | None:
-    """One account's credits, by kind, this month and all time, and its latest jobs —
-    None for nobody, or for the operator, whom the page counts nowhere.
+    """One reader's page (design's plan, 2026-11-17, §1 and PR 5), or None for nobody and
+    for staff (`_staff`: the operators, the admins and the test accounts), who are counted
+    nowhere and so have no page.
 
-    Never the job's title, source, options or message: the columns are not read, so
-    they cannot reach the page (clause 3.14).
+    `titles` is the public catalogue by content hash, as the library has it: a text the
+    reader opened is named only when its hash is there, and by the catalogue's title,
+    never `doc.title`, which is the reader's own record and is never read (clause 3.2).
+    Never a job's title, source, options or message, a word, a phrase, a note, a chat or a
+    correction: those columns are not read, so they cannot reach the page. Records erased
+    (`gone`) are left out; the record of use (clause 3.6) is not read at all while the
+    reader has recording off.
     """
     _functions(db)
     now = today or datetime.now(UTC).date()
+    # "Two days ago", for the flags, counted back from the end of the day asked about.
+    now_ms = int(datetime.now(UTC).timestamp() * 1000) if today is None else _ms(now) + DAY_MS - 1
     mine = frozenset(bare(each) for each in operators)
+    person = _columns(db, "person")
+    extra = ", ".join(
+        column if column in person else f"'' AS {column}"
+        for column in ("came_from", "events", "plan_until")
+    )
     row = db.execute(
-        "SELECT id, email, name, made FROM person p"  # noqa: S608
-        f" WHERE id = :who AND {NOT_MINE.format(column='p.email')}",
-        {"who": who, "mine": json.dumps(sorted(mine))},
+        f"SELECT p.id, p.email, p.name, p.made, p.leaving, {extra},"  # noqa: S608 - ours
+        f" {_plan_kind(db)} AS kind FROM person p WHERE p.id = :who",
+        {"who": who, "today": now.isoformat(), "now_ms": now_ms},
     ).fetchone()
     if row is None:
         return None
     email = str(row["email"])
+    staff = _staff(db, mine)
+    if bare(email) in staff:
+        return None
     month = month_from(now)
+    kind = str(row["kind"])
+    plan = {"plan": "Plan", "free": "Free"}.get(kind, "")
+    if kind == "beta":
+        plan = f"Beta until {_said(str(row['plan_until']))}" if row["plan_until"] else "Beta"
     found = Reader(
         id=int(row["id"]),
         email=email,
@@ -718,7 +859,44 @@ def reader(
         allowance=plan_allowance if email.strip().lower() in _admins(db) else allowance,
         used=0.0,
         spent=0.0,
+        plan=plan,
+        came_from=str(row["came_from"] or ""),
+        leaving=_day(int(row["leaving"])) if row["leaving"] else "",
+        recording=str(row["events"] or "") != "off",
     )
+    _credits_of(db, found, who, month)
+    _header(db, found, who, now, now_ms, staff, mine)
+    _strip(db, found, who, now)
+    _weeks(db, found, who, now)
+    _texts(db, found, who, titles or {})
+    if found.recording:
+        found.spots = [
+            Spot(
+                language=str(each["language"]),
+                name=_spot_name(str(each["spot"])),
+                step=int(each["step"]),
+                last=_day(int(each["at"])) if each["at"] else "",
+            )
+            for each in _rows(
+                db,
+                "SELECT language, spot, step, at FROM practised WHERE person = ?"
+                " ORDER BY at DESC, language, spot",
+                who,
+            )
+        ]
+    return found
+
+
+def _spot_name(key: str) -> str:
+    """A hard spot's name, from the fixed list of them; anything else is "another spot",
+    so nothing stored in the column can reach the page as it was written."""
+    from .practices import SPOTS
+
+    return SPOTS.get(key, "another spot")
+
+
+def _credits_of(db: sqlite3.Connection, found: Reader, who: int, month: int) -> None:
+    """Credits by kind, this month and all time, and the latest jobs (#543)."""
 
     def uses(since: int) -> dict[str, Use]:
         return {
@@ -763,7 +941,223 @@ def reader(
             (who, RECENT_JOBS),
         )
     ]
-    return found
+
+
+def _header(
+    db: sqlite3.Connection,
+    found: Reader,
+    who: int,
+    now: date,
+    now_ms: int,
+    staff: set[str],
+    mine: frozenset[str],
+) -> None:
+    """Last seen, why write and the flags, and what they told us."""
+    seen = db.execute(
+        "SELECT MAX(at) FROM ("
+        " SELECT MAX(at) AS at FROM word WHERE gone = 0 AND person = :who"
+        " UNION ALL SELECT MAX(at) FROM phrase WHERE gone = 0 AND person = :who"
+        " UNION ALL SELECT MAX(MAX(updated), MAX(opened)) FROM doc"
+        " WHERE gone = 0 AND person = :who"
+        " UNION ALL SELECT MAX(seen) FROM session WHERE person = :who)",
+        {"who": who},
+    ).fetchone()[0]
+    found.last_seen = _day(int(seen)) if seen else ""
+    # Follow up's own rule, asked of everybody as the Overview asks it, so the page and the
+    # list never disagree about who is due.
+    scratch = Survey()
+    _growth(db, scratch, now, mine)
+    due = scratch.follow_up_by.get(found.email.strip().lower())
+    if due is not None:
+        found.why, found.action = due.why, due.action
+    reasons = _flag(db, now_ms, frozenset(staff))
+    found.flags = [FLAGS[key] for key in reasons.get(flag_key(found.email), [])]
+    if _has_table(db, "told"):
+        found.told = [
+            {
+                "id": int(each["id"]),
+                "at": int(each["at"]),
+                "said": str(each["said"]),
+                "page": str(each["page"]),
+                "build": str(each["build"]),
+                "viewport": str(each["viewport"]),
+                "language": str(each["language"]),
+                "state": str(each["state"]),
+                "email": found.email,
+            }
+            for each in _rows(
+                db,
+                "SELECT id, at, said, page, build, viewport, language, state FROM told"
+                " WHERE person = ? ORDER BY at DESC, id DESC LIMIT 100",
+                who,
+            )
+        ]
+
+
+def _strip(db: sqlite3.Connection, found: Reader, who: int, now: date) -> None:
+    """The last `DAYS` days, a column each: active by the Readers table's own rule (a day
+    marked, a text opened or updated, a word saved), texts opened and words saved by UTC
+    day, and, while recording is on, lookups and minutes played by the reader's own day."""
+    first = now - timedelta(days=DAYS - 1)
+    since = _ms(first)
+    window = [(first + timedelta(days=n)).isoformat() for n in range(DAYS)]
+    days = {day: StripDay(day) for day in window}
+    args = {"who": who, "first": first.isoformat(), "since": since}
+    for each in db.execute(
+        "SELECT day AS d FROM day WHERE gone = 0 AND person = :who AND day >= :first"
+        " UNION SELECT date(updated / 1000, 'unixepoch') FROM doc"
+        " WHERE gone = 0 AND person = :who AND updated >= :since",
+        args,
+    ):
+        if str(each[0]) in days:
+            days[str(each[0])].active = True
+    for each in db.execute(
+        "SELECT date(opened / 1000, 'unixepoch') AS d, COUNT(*) FROM doc"
+        " WHERE gone = 0 AND person = :who AND opened >= :since GROUP BY 1",
+        args,
+    ):
+        if str(each[0]) in days:
+            days[str(each[0])].texts = int(each[1])
+            days[str(each[0])].active = True
+    # A word ticked off on "Words you may already know" was not saved that day.
+    for each in db.execute(
+        "SELECT date(at / 1000, 'unixepoch') AS d, COUNT(*) FROM word"
+        " WHERE gone = 0 AND person = :who AND at >= :since AND source != 'claimed' GROUP BY 1",
+        args,
+    ):
+        if str(each[0]) in days:
+            days[str(each[0])].words = int(each[1])
+            days[str(each[0])].active = True
+    if found.recording:
+        for each in db.execute(
+            "SELECT day, SUM(kind = 'lookup') AS lookups,"
+            " SUM(CASE WHEN kind = 'play' THEN amount ELSE 0 END) AS played"
+            " FROM event WHERE person = :who AND day >= :first"
+            " AND kind IN ('lookup', 'play') GROUP BY day",
+            args,
+        ):
+            if str(each["day"]) in days:
+                one = days[str(each["day"])]
+                one.lookups = int(each["lookups"] or 0)
+                one.minutes = float(each["played"] or 0) / 60
+    found.days = [days[day] for day in window]
+
+
+def _weeks(db: sqlite3.Connection, found: Reader, who: int, now: date) -> None:
+    """The last `WEEKS` weeks, by Monday: words saved, known and known by ear, by the UTC
+    day each was set; and, while recording is on, words read in finished sections, words
+    looked up and minutes heard and watched, by the reader's own day. And the totals."""
+    monday = now - timedelta(days=now.weekday())
+    first = monday - timedelta(weeks=WEEKS - 1)
+    weeks = {
+        (first + timedelta(weeks=n)).isoformat(): Week((first + timedelta(weeks=n)).isoformat())
+        for n in range(WEEKS)
+    }
+    args = {"who": who, "since": _ms(first), "first": first.isoformat()}
+
+    def week_of(day: str) -> Week | None:
+        try:
+            when = date.fromisoformat(day)
+        except ValueError:
+            return None
+        return weeks.get(_monday(when))
+
+    for column, name in (("at", "saved"), ("known_at", "known"), ("ear_at", "ear")):
+        if column not in _columns(db, "word"):
+            continue
+        claimed = " AND source != 'claimed'" if name == "saved" else ""
+        for each in db.execute(
+            f"SELECT date({column} / 1000, 'unixepoch') AS d, COUNT(*) FROM word"  # noqa: S608 - ours
+            f" WHERE gone = 0 AND person = :who AND {column} >= :since{claimed} GROUP BY 1",
+            args,
+        ):
+            week = week_of(str(each[0]))
+            if week is not None:
+                setattr(week, name, getattr(week, name) + int(each[1]))
+    if found.recording:
+        for week in weeks.values():
+            week.read, week.lookups, week.heard, week.watched = 0, 0, 0.0, 0.0
+        for each in db.execute(
+            "SELECT day, SUM(CASE WHEN kind = 'section' THEN amount ELSE 0 END) AS read,"
+            " SUM(kind = 'lookup') AS lookups,"
+            " SUM(CASE WHEN kind = 'play' AND medium != 'watch' THEN amount ELSE 0 END) AS heard,"
+            " SUM(CASE WHEN kind = 'play' AND medium = 'watch' THEN amount ELSE 0 END) AS watched"
+            " FROM event WHERE person = :who AND day >= :first"
+            " AND kind IN ('section', 'lookup', 'play') GROUP BY day",
+            args,
+        ):
+            week = week_of(str(each["day"]))
+            if week is None:
+                continue
+            week.read = (week.read or 0) + round(float(each["read"] or 0))
+            week.lookups = (week.lookups or 0) + int(each["lookups"] or 0)
+            week.heard = (week.heard or 0.0) + float(each["heard"] or 0) / 60
+            week.watched = (week.watched or 0.0) + float(each["watched"] or 0) / 60
+    found.weeks = list(weeks.values())
+    from .accounts import KNOWN_STATUS
+
+    totals = db.execute(
+        "SELECT COUNT(*) AS saved, IFNULL(SUM(learned = 1), 0) AS learned,"
+        f" IFNULL(SUM(status = {KNOWN_STATUS}), 0) AS known, IFNULL(SUM(ear = 1), 0) AS ear"
+        " FROM word WHERE gone = 0 AND person = ?",
+        (who,),
+    ).fetchone()
+    found.totals = {key: int(totals[key] or 0) for key in ("saved", "learned", "known", "ear")}
+    found.totals["phrases"] = _one(
+        db, "SELECT COUNT(*) FROM phrase WHERE gone = 0 AND person = :who", {"who": who}
+    )
+
+
+def _texts(db: sqlite3.Connection, found: Reader, who: int, titles: Mapping[str, str]) -> None:
+    """The library's texts they opened, by the catalogue's title; the texts they brought,
+    counted by the kind of job that built them, language and medium; and how many other
+    texts they opened, counted. `doc.title`, `job.title` and `job.source` are not read."""
+    sections: Counter[str] = Counter(
+        {
+            str(each[0]): int(each[1])
+            for each in _rows(
+                db,
+                "SELECT hash, COUNT(*) FROM section WHERE gone = 0 AND person = ? GROUP BY hash",
+                who,
+            )
+        }
+    )
+    for each in _rows(
+        db,
+        "SELECT hash, language, opened, updated, done FROM doc"
+        " WHERE gone = 0 AND person = ? ORDER BY MAX(opened, updated) DESC, hash",
+        who,
+    ):
+        title = titles.get(str(each["hash"]))
+        if not title:
+            found.other_texts += 1
+            continue
+        at = int(each["opened"] or 0) or int(each["updated"] or 0)
+        found.library.append(
+            LibraryText(
+                title=title,
+                language=str(each["language"] or ""),
+                opened=_day(at) if at else "",
+                sections=sections[str(each["hash"])],
+                finished=bool(each["done"]),
+            )
+        )
+    found.brought = [
+        Brought(
+            kind=str(each["kind"]),
+            language=str(each["language"] or ""),
+            medium=str(each["medium"]),
+            texts=int(each["n"]),
+        )
+        for each in _rows(
+            db,
+            f"SELECT {JOB_KIND} AS kind, language,"  # noqa: S608 - ours
+            " CASE WHEN audio = 1 THEN 'recording' ELSE 'text' END AS medium, COUNT(*) AS n"
+            " FROM job WHERE owner = ? AND stage = 'done' AND kind IN ('build', 'subscription')"
+            " GROUP BY 1, 2, 3 ORDER BY n DESC, 1, 2, 3",
+            who,
+        )
+    ]
 
 
 #: The largest id SQLite stores: anything past it is nobody, not an overflow.
@@ -789,6 +1183,7 @@ def reader_store(
     operators: Iterable[str] | None = None,
     allowance: float | None = None,
     plan_allowance: float | None = None,
+    titles: Mapping[str, str] | None = None,
 ) -> Reader | None:
     """`reader`, opening the database read-only, as `survey_store` does."""
     db = sqlite3.connect(f"file:{store}?mode=ro", uri=True)
@@ -800,6 +1195,7 @@ def reader_store(
             operators=operators_from_env() if operators is None else operators,
             allowance=allowance,
             plan_allowance=plan_allowance,
+            titles=titles,
         )
     finally:
         db.close()
@@ -1640,6 +2036,7 @@ def _growth(
     found.follow_up_total = len(follow)
     found.follow_up = sorted(follow, key=lambda each: each.since)[:FOLLOW_UP_SHOWN]
     found.follow_up_due = {each.email.strip().lower() for each in follow}
+    found.follow_up_by = {each.email.strip().lower(): each for each in follow}
 
     # Each week's people. The week they were let in, or joined where there was no
     # guest list yet.
