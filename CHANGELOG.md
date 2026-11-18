@@ -16,7 +16,8 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   for ling-ru.
 - The Hebrew root lexicon a deploy ships is named in `deploy/roots.pin`, so moving it on is
   a reviewed change rather than a symlink on the laptop. It now names
-  `roots-he-2026-11-18.json` (10,592 lemmas; targum-internal#592). A language with no line
+  `roots-he-2026-11-18b.json` (10,592 lemmas; targum-internal#592): 247 more words have a
+  root, and 95 roots change. A language with no line
   ships `~/.targum/roots-<language>.json` as before, and `TARGUM_ROOTS_HE` still names a
   file outright. The deploy prints which file it took.
 - The level card's footnote drops "A guide, not a placement." (David, 2026-11-18): "Ulpan

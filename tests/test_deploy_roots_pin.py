@@ -41,10 +41,10 @@ def test_a_language_with_no_line_or_no_pin_ships_the_usual_file(tmp_path: Path) 
     assert resolve(tmp_path / "b", None, "he") == "/home/x/.targum/roots-he.json"
 
 
-def test_the_pin_in_the_tree_names_the_hebrew_lexicon_of_2026_11_18() -> None:
+def test_the_pin_in_the_tree_names_the_hebrew_lexicon_of_2026_11_18b() -> None:
     lines = [
         line.split()
         for line in (ROOT / "deploy" / "roots.pin").read_text(encoding="utf-8").splitlines()
         if line.strip() and not line.startswith("#")
     ]
-    assert lines == [["he", "roots-he-2026-11-18.json"]]
+    assert lines == [["he", "roots-he-2026-11-18b.json"]]
