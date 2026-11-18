@@ -320,7 +320,7 @@ def test_a_free_reader_s_press_on_a_retry_says_what_its_quote_said(
     quote.seconds, quote.stage = 50 * 60.0, "ready"
     world.library.short_of_month(quote)
     said = str(quote.blocked)
-    assert said.startswith("It needs 5 credits and you have 3 left this month."), said
+    assert said.startswith("It needs 5 credits. You have 3 left this month."), said
 
     quote.stage, quote.blocked = "ready", ""
     assert str(world.library.claim(quote)) == said

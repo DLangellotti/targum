@@ -192,7 +192,7 @@ def test_on_a_comped_reader_spends_plans_month_at_the_real_gate(
     assert over and over.act == "top-up", "past 480, Plan's Top up rather than the plan"
     # Free: 60, and the plan is what is offered.
     refused = library.claim(recording(library, stranger.id, 2 * hour, "s1"))
-    assert refused.act == "plan" and "you have 60 left" in refused
+    assert refused.act == "plan" and "You have 60 left" in refused
     assert library.claim(recording(library, stranger.id, 50 * 60, "s2")) == ""
     # The quote says what the press would: nothing for the comped reader's next hour.
     quoted = recording(library, beta.id, 30 * 60, "b4")
@@ -214,7 +214,7 @@ def test_on_a_comped_readers_set_and_voice_use_plans_month(
     sets = [recording(library, beta.id, hour, f"set{n}") for n in range(3)]
     assert library.claim_set(sets)[0] == ""
     refused, _, rail = library.claim_set([recording(library, stranger.id, 2 * hour, "free-set")])
-    assert rail == "hours" and "A plan gives you 480" in refused
+    assert rail == "hours" and "left this month" in refused
     voice = Job(id="v1", source="voice", estimate=0.001, owner=beta.id, seconds=2 * hour)
     assert library.claim_turn(voice, kind="voice") == ""
     free_voice = Job(id="v2", source="voice", estimate=0.001, owner=stranger.id, seconds=2 * hour)
@@ -287,14 +287,14 @@ def test_let_in_after_the_comp_day_comps_nobody(tmp_path: Path) -> None:
 # -- the plans page --------------------------------------------------------------------
 
 
-def test_the_plans_page_says_the_comp_and_keeps_start_greyed(
+def test_the_plans_page_says_the_comp_and_offers_no_upgrade(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("TARGUM_PLANS", "1")
     beta = Person(1, "beta@example.com", plan_until=UNTIL)
     page = plans_page(plans.summary(beta))
     assert "Free for beta readers until March 4, 2027" in page
-    assert 'class="btn soon plan-start" disabled' in page and "Payments open soon" in page
+    assert "plan-start" not in page and "Payments open soon" in page
     russian = plans_page(plans.summary(beta, language="ru"), language="ru")
     assert "до 4 марта 2027" in russian
     admin = plans_page(plans.summary(Person(2, "op@example.com", admin=True)))
