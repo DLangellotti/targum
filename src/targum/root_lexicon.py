@@ -956,6 +956,44 @@ def check_he(
     }
 
 
+def score_against_wiktionary(
+    lexicon: Mapping[str, Mapping[str, Any]],
+    wiktionary: Mapping[str, frozenset[str]] | None = None,
+) -> dict[str, Any]:
+    """A Hebrew lexicon's roots against Wiktionary's where both give one: #592's gate of
+    97%. `strict` is the same letters; `agreed` is one root under `same_he_root`'s
+    weak-letter rules (III-ה is III-י, hollow ו is י), the convention the gold set was
+    scored under. A lemma we give no root and Wiktionary does (a primary noun, mostly)
+    is counted apart as `ours_none`, not as a disagreement. Check only: nothing from
+    Wiktionary is written into the lexicon."""
+    wiktionary = wiktionary if wiktionary is not None else wiktionary_roots()
+    both = strict = agreed = ours_none = 0
+    misses: list[tuple[str, str, str]] = []
+    for lemma, row in lexicon.items():
+        theirs = wiktionary.get(letters(lemma))
+        if not theirs:
+            continue
+        root = str(row.get("root") or "")
+        if not root:
+            ours_none += 1
+            continue
+        both += 1
+        strict += root_key(root) in theirs
+        if any(same_he_root(root, one) for one in theirs):
+            agreed += 1
+        else:
+            misses.append((lemma, root, " ".join(sorted(theirs))))
+    return {
+        "both": both,
+        "strict": strict,
+        "agreed": agreed,
+        "rate": round(agreed / both, 4) if both else None,
+        "strict_rate": round(strict / both, 4) if both else None,
+        "ours_none": ours_none,
+        "misses": misses,
+    }
+
+
 def derivbase_edges(folder: Path | None = None) -> list[tuple[str, str, str]]:
     """DerivBase.Ru's edges (Apache 2.0) as (source word, derived word, PFX or SFX…)."""
     folder = folder or SOURCES / "derivbase"
