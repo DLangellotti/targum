@@ -93,3 +93,13 @@ def test_on_the_plan_has_no_cap(browser: Any, verb_page: Path) -> None:
     plan = {"on": True, "plan": "plan", "credits": 480, "planCredits": 480, "words": None}
     got = press_just_met(browser, verb_page, {**plan, "listed": 300, "topUps": [60]})
     assert got["panel"] is None and got["kept"] is True
+
+
+def test_the_operators_preview_draws_the_plan_but_holds_nobody(
+    browser: Any, verb_page: Path
+) -> None:
+    """The operator's account in `TARGUM_PLANS_PREVIEW=operators` is drawn as a free
+    reader, but the server still counts it as Plan, so the card must not refuse."""
+    plan = {"on": True, "plan": "free", "credits": 60, "planCredits": 480, "words": 300}
+    got = press_just_met(browser, verb_page, {**plan, "listed": 300, "preview": True})
+    assert got["panel"] is None and got["kept"] is True
