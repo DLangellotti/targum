@@ -1038,7 +1038,7 @@ def test_russian_says_the_known_by_ear_tip_with_the_buttons_own_name() -> None:
         vocabulary(word("ספר", "book", status=9)), strings={"strings": keys, "language": "ru"}
     )
     assert drawn["earTip"] == (
-        "Узнаёте слово на слух, но не при чтении? Откройте слово и нажмите «Знаю на слух»."
+        "Узнаёте слово на слух, но не на письме? Откройте его карточку и нажмите «Знаю на слух»."
     )
     assert russian["vocab.ear"] == "Знаю на слух"
 
