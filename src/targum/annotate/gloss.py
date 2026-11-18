@@ -12,6 +12,7 @@ translation, so Wiktionary through Wiktextract can slot in beside it later.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Collection, Mapping
 from typing import Any, NamedTuple, Protocol
 
@@ -150,7 +151,9 @@ For each {source} dictionary form you are given, return one short definition in 
 - Three to twelve everyday {source} words, simpler than the word itself. The sense the
   sentence gives first, where a sentence is given; a second sense after a semicolon
   only where the word is genuinely ambiguous.
-- Never the word itself, or a word of its own family, as the explanation. No
+- Never write the word itself anywhere in the definition: not as the explanation, not
+  inflected, not with a prefix or a suffix, not inside a longer phrase. Nor a word of its
+  own family. Explain it with other words, as a dictionary for learners does. No
   transliteration, no translation into another language, no example sentence.
 - For a grammatical word, say in {source} what it does.{unpointed}
 - Give the part of speech as one of: noun, verb, adjective, adverb, preposition,
@@ -161,8 +164,10 @@ For each {source} dictionary form you are given, return one short definition in 
 - For a noun whose plural is irregular — the ending does not match the gender, or the
   stem changes — give plural: that plural form, in {source}. For a regular plural
   leave it empty.
-- If a form is not a word of {source}, return it with an empty gloss rather than
-  guessing."""
+- If you cannot place a form (it is not a word of {source}, it looks misspelt or
+  mis-heard, or you cannot tell which word it is), return it with an empty gloss. Never
+  write a note about the form in the gloss, such as "unclear", "perhaps a typo" or what a
+  phrase it belongs to means: whatever is in the gloss is shown as the meaning."""
 
 #: Hebrew definitions go unpointed to start (Decision 3 on #538): whoever chooses them
 #: reads unpointed Hebrew, and nikkud is the least sure part of a model's Hebrew.
@@ -179,6 +184,44 @@ def system_for(source_language: str, target_language: str) -> str:
         code = _base(source_language)
         return SYSTEM_ITSELF.format(source=source, unpointed=_UNPOINTED.get(code, ""))
     return SYSTEM.format(source=source, target=language_name(target_language))
+
+
+#: The one-letter prefixes Hebrew writes on a word: and, the, in, to, from, that, as.
+_HE_PREFIXES = "והבלמשכ"
+
+
+def names_itself(form: str, definition: str, language: str) -> bool:
+    """Whether a definition in the word's own language writes the word itself (#538:
+    "יושב" defined as "נמצא במקום, יושב ולא זז", "עומק" as "מידת העומק של דבר"). A word
+    of the definition counts as the headword where it is the headword, or in Hebrew a
+    headword of three letters or more with one or two prefix letters on it. Such a
+    definition is dropped, and the card keeps the meaning in the reader's own language."""
+    bare = form
+    for mark in MARKS:
+        if bare.endswith(mark):
+            bare = bare[: -len(mark)]
+            break
+    if _base(language) == "he":
+        head = _letters(bare)
+        if len(head) < 2:
+            return False
+        for word in re.findall(r"[\u05d0-\u05ea\u0591-\u05c7]+", definition):
+            letters = _letters(word)
+            # A prefix is looked past only on a head of three letters or more: ים is not
+            # in מים.
+            for cut in range(3 if len(head) >= 3 else 1):
+                if letters[cut:] == head:
+                    return True
+                if cut >= len(letters) or letters[cut] not in _HE_PREFIXES:
+                    break
+        return False
+    head = bare.strip().casefold()
+    return len(head) > 1 and head in re.findall(r"\w+", definition.casefold())
+
+
+def _letters(text: str) -> str:
+    """The Hebrew letters of a word alone, points and marks dropped."""
+    return "".join(ch for ch in text if "\u05d0" <= ch <= "\u05ea")
 
 
 def _base(code: str) -> str:
@@ -347,6 +390,15 @@ class AnthropicGlosses:
                         # it never overwrites an answer already filed, and an exact answer
                         # arriving after it replaces it (qa on targum#1325).
                         if asked and asked in out and returned not in wanted:
+                            continue
+                        # A definition that writes the word itself explains nothing; the
+                        # card keeps the meaning in the reader's language (#538).
+                        if (
+                            asked
+                            and said
+                            and _same(source_language, target_language)
+                            and names_itself(asked, said, source_language)
+                        ):
                             continue
                         if asked and said:
                             out[asked] = Sense(

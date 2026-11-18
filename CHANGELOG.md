@@ -14,6 +14,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   "learned on targum" is gone; the label stays. `progress.ear.start` and
   `progress.count.learned.note` are retired; `lists.ear.tip` is new, its Russian a draft
   for ling-ru.
+- A meaning in the language itself never writes the word itself (targum-internal#538,
+  ling-he's read of 2026-11-16). The prompt says so in plainer terms, and a definition that
+  still writes the headword is not filed, so the card keeps the meaning in the reader's
+  language. A form the model cannot place comes back empty, and the prompt now says that
+  no note about a form ever goes in the gloss. `scripts/meanings_itself_read.py` counts
+  what it dropped.
 - The Hebrew root lexicon a deploy ships is named in `deploy/roots.pin`, so moving it on is
   a reviewed change rather than a symlink on the laptop. It now names
   `roots-he-2026-11-18b.json` (10,592 lemmas; targum-internal#592): 247 more words have a

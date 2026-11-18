@@ -25,6 +25,7 @@ from pathlib import Path
 
 
 def main() -> int:
+    from targum.annotate import gloss as gloss_module
     from targum.annotate.gloss import GLOSS_MODEL, AnthropicGlosses, gloss_one
     from targum.cache import Cache
 
@@ -57,7 +58,19 @@ def main() -> int:
             print(why, file=sys.stderr)
             return 1
     cache = Cache(Path(tempfile.mkdtemp(prefix="meanings-read-")))
-    print("form\tsentence\tdefinition\tcitation\tplural")
+    # A definition that writes the word itself is dropped before it is filed (#538); the
+    # read names each one, so the sheet can count them rather than show an empty line.
+    named: dict[str, str] = {}
+    holds = gloss_module.names_itself
+
+    def noted(form: str, definition: str, language: str) -> bool:
+        if holds(form, definition, language):
+            named[form] = definition
+            return True
+        return False
+
+    gloss_module.names_itself = noted  # type: ignore[assignment]
+    print("form\tsentence\tdefinition\tcitation\tplural\tdropped, names itself")
     for form in forms:
         sentence = " ".join(picked[form].split())
         if args.dry_run:
@@ -69,9 +82,11 @@ def main() -> int:
         print(
             f"{form}\t{sentence}\t{said.gloss if said else ''}"
             f"\t{said.citation if said else ''}\t{said.plural if said else ''}"
+            f"\t{named.get(form, '')}"
         )
     if not args.dry_run:
         print(f"spent ${provider._provider.spent.cost():.4f}", file=sys.stderr)
+        print(f"dropped as naming itself: {len(named)}", file=sys.stderr)
     return 0
 
 

@@ -76,7 +76,7 @@ def test_a_pair_keeps_its_prompt_and_the_language_itself_has_its_own() -> None:
     itself = system_for("he", "he")
     assert itself != SYSTEM.format(source="Hebrew", target="Hebrew")
     assert "simple Hebrew" in itself and "without nikkud" in itself
-    assert "Never the word itself" in itself
+    assert "Never write the word itself" in itself
     assert "without nikkud" not in system_for("fr", "fr")
 
 
@@ -472,3 +472,57 @@ def test_a_fallback_alone_still_lands(monkeypatch: pytest.MonkeyPatch) -> None:
         provider._provider, "client", lambda: type("C", (), {"messages": Messages()})()
     )
     assert provider.gloss(["פנה"], "he", "he")["פנה"].gloss == "הסתובב"
+
+
+def test_a_definition_that_writes_the_word_itself_is_dropped(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ling-he's read, 2026-11-16: יושב was defined with יושב, עומק with העומק. Such a
+    definition explains nothing, so it is not filed and the card keeps the meaning in the
+    reader's own language. A translation pair is never held to it."""
+
+    class Usage:
+        input_tokens = 10
+        output_tokens = 5
+
+    said = {
+        "יושב": "נמצא במקום, יושב ולא זז",
+        "עומק": "מידת העומק של דבר",
+        "ים": "מקום עם מים רבים",
+        "בית": "מקום שגרים בו",
+    }
+
+    class Messages:
+        def parse(self, **kwargs: Any) -> Any:
+            entries = [
+                gloss_module._Entry(lemma=form, gloss=said[form], part_of_speech="noun")
+                for form in [
+                    line[6:]
+                    for line in kwargs["messages"][0]["content"].split("\n")
+                    if line.startswith("form: ")
+                ]
+            ]
+            return type(
+                "R", (), {"parsed_output": gloss_module._Batch(entries=entries), "usage": Usage()}
+            )()
+
+    provider = gloss_module.AnthropicGlosses(gloss_module.GLOSS_MODEL)
+    monkeypatch.setattr(
+        provider._provider, "client", lambda: type("C", (), {"messages": Messages()})()
+    )
+    assert set(provider.gloss(list(said), "he", "he")) == {"ים", "בית"}, "ים is not in מים"
+    assert set(provider.gloss(list(said), "he", "en")) == set(said), "a pair is never held"
+    names = gloss_module.names_itself
+    assert names("עומק (noun)", "מידת העומק", "he") and names("ספר", "וספר", "he")
+    assert not names("ים", "מים", "he") and not names("כל", "הכל", "he")
+    assert names("maison", "une maison", "fr") and not names("maison", "un logement", "fr")
+
+
+def test_the_prompt_keeps_the_headword_out_and_asks_for_nothing_it_cannot_place() -> None:
+    """ling-he's two prompt points (#538): the word never in its own definition, and an
+    empty gloss, never a note about it, for a form the model cannot place."""
+    prompt = system_for("he", "he")
+    assert "Never write the word itself anywhere in the definition" in prompt
+    assert "return it with an empty gloss. Never" in prompt
+    assert "write a note about the form" in prompt
+    assert system_for("he", "en") == SYSTEM.format(source="Hebrew", target="English")
