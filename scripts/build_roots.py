@@ -69,6 +69,12 @@ def main() -> int:
     parser.add_argument("--registers", help="Registers to draw from, comma-separated.")
     parser.add_argument("--models", default=",".join(topics.MODELS))
     parser.add_argument("--per-request", type=int)
+    parser.add_argument(
+        "--split",
+        type=int,
+        help="Send each unanswered request as parts of this many rows, merged back into it"
+        " (a request that ran out of tokens; the run's own chunks are kept).",
+    )
     parser.add_argument("--cap", type=float, help="Dollars, never passed. Needed to spend.")
     parser.add_argument("--dry-run", action="store_true", help="Quote, and spend nothing.")
     parser.add_argument("--retries", type=int, default=1, help="Re-sends of failed rows.")
@@ -135,6 +141,7 @@ def main() -> int:
                 system,
                 system_tokens,
                 args.cap,
+                split=args.split,
             ):
                 return 3
         for model in models:
@@ -303,10 +310,17 @@ def _submit(
     system: str,
     system_tokens: int,
     cap: float,
+    split: int | None = None,
 ) -> bool:
     """One batch for one model, unless one is open already: checked against the cap with
     what is spent and what every open batch could still cost, then created, and its id
-    written before anything else."""
+    written before anything else.
+
+    With `split`, each pending request goes as parts of that many rows, numbered as the
+    run numbers them, and `_collect` merges the parts back into the one request: a
+    request that hit `max_tokens` is re-asked in pieces without re-cutting the run's
+    chunks, which would leave every answer already paid for under the wrong key
+    (targum-internal#592, rows 7700–7799)."""
     from anthropic.types.messages.batch_create_params import Request
 
     open_batch = next(
@@ -314,14 +328,16 @@ def _submit(
     )
     if open_batch is not None:
         return True
+    parts = {i: _parts(chunks[i], split) for i in pending}
     worst = 0.0
     for i in pending:
-        # The counted system prompt, and the rows at a token a character, which no line
-        # reaches: a ceiling, not an estimate.
-        rows = rl.user_message(language, [lemmas[j] for j in chunks[i]], chunks[i][0])
-        worst += topics.worst_case(
-            model, system_tokens + len(rows), rl.MAX_TOKENS[language], batch=True
-        )
+        for part in parts[i]:
+            # The counted system prompt, and the rows at a token a character, which no
+            # line reaches: a ceiling, not an estimate.
+            rows = rl.user_message(language, [lemmas[j] for j in part], part[0])
+            worst += topics.worst_case(
+                model, system_tokens + len(rows), rl.MAX_TOKENS[language], batch=True
+            )
     spent = _spent(state)
     owed = sum(b["worst"] for b in state["batches"] if b["status"] != "ended")
     if spent + owed + worst > cap:
@@ -332,10 +348,11 @@ def _submit(
         return False
     requests = [
         Request(
-            custom_id=_custom_id(model, i),
-            params=_params(language, model, system, lemmas, chunks[i]),
+            custom_id=_custom_id(model, i) + (f"-p{k}" if split else ""),
+            params=_params(language, model, system, lemmas, part),
         )
         for i in pending
+        for k, part in enumerate(parts[i])
     ]
     batch = client.messages.batches.create(requests=requests)
     state["batches"].append(
@@ -345,6 +362,7 @@ def _submit(
             "chunks": pending,
             "status": batch.processing_status,
             "worst": round(worst, 4),
+            **({"split": split} if split else {}),
         }
     )
     _save(run, state)
@@ -369,32 +387,87 @@ def _collect(
         print(f"{model}: {counts.processing} processing, {counts.succeeded} done")
         time.sleep(POLL_SECONDS)
 
-    by_id = {_custom_id(model, i): i for i in open_batch["chunks"]}
-    answers = state["answers"].setdefault(model, {})
+    split = open_batch.get("split")
+    by_id: dict[str, int] = {}
+    for i in open_batch["chunks"]:
+        if split:
+            for k in range(len(_parts(chunks[i], split))):
+                by_id[f"{_custom_id(model, i)}-p{k}"] = i
+        else:
+            by_id[_custom_id(model, i)] = i
+    got: dict[int, list[dict[str, Any]]] = {}
     for result in client.messages.batches.results(open_batch["id"]):
         index = by_id.get(result.custom_id)
         if index is None:
             continue
+        if result.result.type == "succeeded":
+            message = result.result.message
+            got.setdefault(index, []).append(
+                {
+                    "type": "succeeded",
+                    "text": "".join(b.text for b in message.content if b.type == "text"),
+                    "stop_reason": message.stop_reason,
+                    "usage": message.usage.model_dump(),
+                }
+            )
+        else:
+            error = getattr(result.result, "error", None)
+            got.setdefault(index, []).append(
+                {"type": result.result.type, "usage": {}, "error": str(error or "")}
+            )
+    answers = state["answers"].setdefault(model, {})
+    for index, pieces in got.items():
         key = str(chunks[index][0])
         if key in answers and answers[key].get("usage"):
             # A re-send replaces an answer that was paid for: keep its cost counted.
             state.setdefault("replaced", {}).setdefault(model, []).append(
                 {"usage": answers[key]["usage"]}
             )
-        if result.result.type == "succeeded":
-            message = result.result.message
-            text = "".join(b.text for b in message.content if b.type == "text")
-            answers[key] = {
-                "type": "succeeded",
-                "text": text,
-                "stop_reason": message.stop_reason,
-                "usage": message.usage.model_dump(),
-            }
-        else:
-            error = getattr(result.result, "error", None)
-            answers[key] = {"type": result.result.type, "usage": {}, "error": str(error or "")}
+        answers[key] = pieces[0] if len(pieces) == 1 and not split else merged(pieces)
     open_batch["status"] = "ended"
     _save(run, state)
+
+
+def _parts(chunk: list[int], split: int | None) -> list[list[int]]:
+    """A request's rows as the parts `--split` sends, or the request whole."""
+    if not split or split >= len(chunk):
+        return [chunk]
+    return [chunk[k : k + split] for k in range(0, len(chunk), split)]
+
+
+def merged(pieces: list[dict[str, Any]]) -> dict[str, Any]:
+    """The parts of one split request as the one answer `_done` and `_answers` read: their
+    rows together, their token counts summed (so `_spent` counts every part), and
+    `max_tokens` if any part ran out. A part that failed adds no rows, so the request
+    reads as unanswered and a retry asks it again; its cost, if any, is still summed."""
+    rows: list[Any] = []
+    usage: Counter[str] = Counter()
+    stops: list[str] = []
+    for piece in pieces:
+        for name, value in (piece.get("usage") or {}).items():
+            if isinstance(value, int) and not isinstance(value, bool):
+                usage[name] += value
+        if piece.get("type") != "succeeded":
+            continue
+        stops.append(str(piece.get("stop_reason") or ""))
+        try:
+            held = json.loads(piece.get("text") or "")["rows"]
+        except (ValueError, KeyError, TypeError):
+            continue
+        rows.extend(held if isinstance(held, list) else [])
+    if not stops:
+        return {
+            "type": pieces[0].get("type", "errored"),
+            "usage": dict(usage),
+            "parts": len(pieces),
+        }
+    return {
+        "type": "succeeded",
+        "text": json.dumps({"rows": rows}, ensure_ascii=False),
+        "stop_reason": "max_tokens" if "max_tokens" in stops else stops[-1],
+        "usage": dict(usage),
+        "parts": len(pieces),
+    }
 
 
 def _measure_thinking(client: Any, run: Path, state: dict[str, Any], models: list[str]) -> None:

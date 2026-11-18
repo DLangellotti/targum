@@ -132,6 +132,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   - **Speed:** at 5,000 accounts every order and filter answers in well under a second.
     Last seen is one grouped join, not four subqueries a row.
   - It replaces the Readers page's Accounts table and its thirty-day strip.
+- `scripts/build_roots.py --split N` re-asks a request that ran out of tokens as parts
+  of N rows. The parts merge back into the run's own request, and every part's tokens
+  are counted (targum-internal#592). Rows 7700–7799 of the 2026-10-31 Hebrew run went
+  this way, at $0.62. `root_lexicon.score_against_wiktionary` scores a Hebrew lexicon
+  against Wiktionary under the gold set's weak-letter rules.
 - One reader's page in the back office, `/back-office/readers/<id>` (design's plan,
   2026-11-17, PR 5). Its sections, in order:
   1. Who they are: plan, joined, came from, last seen, leaving, and Write or Send again.
