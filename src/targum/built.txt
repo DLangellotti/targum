@@ -5,6 +5,11 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-11-17
+The Grammar tab practises French past tenses, the subjunctive, object pronouns, register and false friends.
+Tell us is now called Send feedback, wherever it appears.
+A cancelled text stays on Your targums long enough to read, and Connect says when an app is already connected.
+
 2026-11-16
 French nouns can be practised as masculine or feminine on the Grammar tab, in lines you have read.
 A Russian verb's card says what its prefix adds, as вы- · out, where the prefix keeps its meaning.
