@@ -170,7 +170,7 @@ def test_each_page_is_its_own(world) -> None:  # type: ignore[no-untyped-def]
     port, _, _, admin, who = world
     one = {
         "/back-office": "<h2>Follow up",
-        "/back-office/readers": "<h2>Accounts",
+        "/back-office/readers": "<h2>Readers",
         "/back-office/waitlist": "<h2>The waitlist",
         "/back-office/traffic": '<h2 id="visitors">',
         "/back-office/shelf": "<h2>Proposed for the shelf",
@@ -260,7 +260,7 @@ def test_the_searches_are_named_so_the_log_can_drop_them(world) -> None:  # type
     port, _, _, admin, _ = world
     readers = ask(port, "GET", "/back-office/readers?bq=reader%40example", admin)[2]
     assert 'name="bq" value="reader@example"' in readers and "reader@example.com" in readers
-    assert "ops@example.com" not in readers[readers.index("<h2>Accounts") :]
+    assert "ops@example.com" not in readers[readers.index("<h2>Readers") :]
     # The old name searches nothing.
     old = ask(port, "GET", "/back-office/readers?q=reader%40example", admin)[2]
     assert 'name="bq" value=""' in old
