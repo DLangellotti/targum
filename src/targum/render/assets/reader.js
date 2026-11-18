@@ -3206,7 +3206,7 @@ var targumReader = function () {
   /* A free word list's cap (design.md §12, "Free and Plan, behind a switch",
      2026-10-09): the words being learned, stages 1 to 3 across every language, up to
      `/account/me`'s `plan.words`. Null — no cap — until the server says one, and always
-     with plans off, so nothing here changes anything for a reader who has none. A word
+     with plans off or in the operator's preview, so nothing here changes anything for a reader who has none. A word
      already on the list moves freely, and known and ignored are never held. */
   var planWords = null;
   var LIST_FULL = "full";
@@ -6252,7 +6252,10 @@ var targumReader = function () {
           itselfChosen = chose;
         }
         var plan = (me && me.plan) || {};
-        planWords = plan.on && plan.words ? Number(plan.words) || null : null;
+        // The operator's preview draws the plan and never holds anyone to it: the server
+        // still counts the operator as Plan (`plans.paid`), so a cap here refused words
+        // the server would have saved, on the one account nobody pays for.
+        planWords = plan.on && plan.words && !plan.preview ? Number(plan.words) || null : null;
         if (then) then();
       })
       .catch(function () {
