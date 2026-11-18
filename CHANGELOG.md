@@ -20,6 +20,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   root, and 94 roots change. A language with no line
   ships `~/.targum/roots-<language>.json` as before, and `TARGUM_ROOTS_HE` still names a
   file outright. The deploy prints which file it took.
+- Taking money no longer needs a quarterly price (`billing.REQUIRED_PRICES`: the month and
+  the top-up). Plan is monthly only and the box names no quarter, and `configured()` still
+  asked for one, so with plans on every pay press, top-up and Manage would have stayed off.
+  Found walking the Paddle go-live checklist (2026-11-18). The billing tests now run as the
+  box is, with no quarter named.
 - The level card's footnote drops "A guide, not a placement." (David, 2026-11-18): "Ulpan
   classes in Israel go from aleph, for beginners, to vav." and "The European scale goes
   from A1, for beginners, to C2." Russian drops the matching sentence. The `ladder.note`

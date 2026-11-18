@@ -136,7 +136,8 @@ def api_key() -> str:
 
 
 def prices() -> dict[str, str]:
-    """The price ids by what they buy: `month`, `quarter` and `top-up`."""
+    """The price ids by what they buy: `month`, `quarter` and `top-up`. The quarter is
+    "" wherever the deployment names none, which is every deployment now."""
     return {
         "month": _env(PRICE_MONTH_ENV),
         "quarter": _env(PRICE_QUARTER_ENV),
@@ -152,10 +153,23 @@ def client_token() -> str:
     return token if token.startswith(wanted) else ""
 
 
+#: The prices an install needs before it can take money: Plan's month and the top-up.
+#: The quarter is not one of them: Plan is monthly only (David, 2026-11-18), the box names
+#: no quarter, and `configured` asking for it kept every pay press off (builder-3's
+#: go-live walk, 2026-11-18). A quarter a deployment still names is read by the webhook.
+REQUIRED_PRICES = ("month", "top-up")
+
+
 def configured() -> bool:
-    """Whether this install can take money: every setting there. Until then nothing is
-    offered, and the webhook is a 404 like any address that is not there."""
-    return bool(api_key() and webhook_secret() and all(prices().values()) and client_token())
+    """Whether this install can take money: the key, the webhook secret, the client token
+    and the prices in `REQUIRED_PRICES`. Until then nothing is offered."""
+    named = prices()
+    return bool(
+        api_key()
+        and webhook_secret()
+        and all(named[one] for one in REQUIRED_PRICES)
+        and client_token()
+    )
 
 
 # -- the signature --------------------------------------------------------------------

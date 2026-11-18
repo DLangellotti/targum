@@ -41,11 +41,12 @@ def configure(monkeypatch: pytest.MonkeyPatch) -> None:
         billing.WEBHOOK_SECRET_ENV: "pdl_ntfset_01test",
         billing.ENVIRONMENT_ENV: "sandbox",
         billing.PRICE_MONTH_ENV: "pri_month",
-        billing.PRICE_QUARTER_ENV: "pri_quarter",
         billing.PRICE_TOP_UP_ENV: "pri_top_up",
         billing.CLIENT_TOKEN_ENV: TOKEN,
     }.items():
         monkeypatch.setenv(name, value)
+    # As the box is: Plan is monthly only, so no quarter is named (David, 2026-11-18).
+    monkeypatch.delenv(billing.PRICE_QUARTER_ENV, raising=False)
 
 
 def unconfigure(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -99,12 +100,27 @@ def test_nothing_is_configured_until_every_setting_is_there(
     for name in (
         billing.API_KEY_ENV,
         billing.WEBHOOK_SECRET_ENV,
+        billing.PRICE_MONTH_ENV,
         billing.PRICE_TOP_UP_ENV,
         billing.CLIENT_TOKEN_ENV,
     ):
         configure(monkeypatch)
         monkeypatch.delenv(name)
         assert not billing.configured(), name
+        monkeypatch.setenv(name, "")
+        assert not billing.configured(), f"{name} set but empty"
+
+
+def test_no_quarter_is_needed_to_take_money(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Plan is monthly only (David, 2026-11-18) and the box names no quarter price, which
+    `configured` used to ask for, so every pay press stayed off (builder-3's go-live walk,
+    2026-11-18). A quarter a deployment still names changes nothing."""
+    configure(monkeypatch)
+    assert billing.prices()["quarter"] == ""
+    assert billing.configured()
+    monkeypatch.setenv(billing.PRICE_QUARTER_ENV, "pri_quarter")
+    assert billing.configured()
+    assert billing.REQUIRED_PRICES == ("month", "top-up")
 
 
 def test_a_key_for_the_other_environment_is_no_key(monkeypatch: pytest.MonkeyPatch) -> None:
