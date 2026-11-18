@@ -418,7 +418,8 @@ def comp_beta(
     Run once, on the day `TARGUM_PLANS` goes on (design.md §12, "Signup opens before
     payments, and the beta is comped to Plan", 2026-11-15): every account, and every
     invitation not used yet, is on Plan until `--until`, and on that day the comp simply
-    ends. Somebody let in from the waitlist afterwards is comped by Let in itself.
+    ends. Somebody let in from the waitlist while plans are still off is comped by Let in
+    itself; once they are on, Let in comps nobody (2026-11-18) and only this command comps.
 
     Safe to run again: an account already comped as long is left alone, so a second run
     comps nobody. A comp running longer is never shortened. `--dry-run` says who would be

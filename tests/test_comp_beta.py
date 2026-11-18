@@ -3,6 +3,7 @@ comped to Plan", 2026-11-15; targum-internal#59).
 
 Every account that exists on switch day, and anybody let in from the waitlist while
 invitations are still going out, is on Plan until 2027-03-04; a new sign-up is on Free.
+Once plans are on, Let in comps nobody either (amended 2026-11-18).
 With `TARGUM_PLANS` off a comp changes nothing anybody sees. On its day the comp simply
 ends: no mail, nothing automatic."""
 
@@ -261,7 +262,10 @@ def test_the_comp_is_said_in_russian() -> None:
 # -- let in from the waitlist ----------------------------------------------------------
 
 
-def test_let_in_from_the_waitlist_is_comped(tmp_path: Path) -> None:
+def test_let_in_from_the_waitlist_is_comped(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("TARGUM_PLANS", raising=False)
     store = Store(tmp_path / "targum.db")
     waiting(store, "one@example.com", "few@example.com")
     opened = let_in(store, Postbox(), "https://targum.page", "one@example.com")
@@ -282,6 +286,56 @@ def test_let_in_after_the_comp_day_comps_nobody(tmp_path: Path) -> None:
     store.invite("late@example.com")
     _comp(store, "late@example.com", today=date(2027, 3, 4))
     assert signed_up(store, "late@example.com").plan_until == ""
+
+
+# -- once plans are on, Let in comps nobody (design.md §12, amended 2026-11-18) ---------
+
+
+def test_let_in_with_plans_on_is_not_comped(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Paid has opened: somebody let in starts on Free, one by one or a few at a time."""
+    monkeypatch.setenv("TARGUM_PLANS", "1")
+    store = Store(tmp_path / "targum.db")
+    waiting(store, "one@example.com", "few@example.com")
+    opened = let_in(store, Postbox(), "https://targum.page", "one@example.com")
+    assert opened is not None and opened.ok
+    one = signed_up(store, "one@example.com")
+    assert one.plan_until == "" and not plans.paid(one) and plans.free(one)
+    assert [row.email for row in open_the_door(store, Postbox(), "https://targum.page", 5)] == [
+        "few@example.com"
+    ]
+    assert signed_up(store, "few@example.com").plan_until == ""
+    assert "comp" not in plans.summary(one)
+
+
+def test_an_existing_comp_survives_the_switch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Comps made while plans were off run to their day once plans go on: on an account,
+    and on an invitation let in before the switch but opened after it. And the operator
+    can still comp by hand."""
+    monkeypatch.delenv("TARGUM_PLANS", raising=False)
+    store = Store(tmp_path / "targum.db")
+    waiting(store, "early@example.com", "pending@example.com")
+    signed_up(store, "early@example.com")
+    for email in ("early@example.com", "pending@example.com"):
+        assert let_in(store, Postbox(), "https://targum.page", email) is not None
+    monkeypatch.setenv("TARGUM_PLANS", "1")
+    early = store.person_by_email("early@example.com")
+    assert early is not None and early.plan_until == plans.BETA_UNTIL
+    pending = signed_up(store, "pending@example.com")
+    assert pending.plan_until == plans.BETA_UNTIL
+    for who in (early, pending):
+        assert plans.comped(who, today=date(2026, 11, 23)) and plans.paid(who)
+    # Let in again with plans on neither cuts nor touches it.
+    _comp(store, "early@example.com")
+    assert store.person_by_email("early@example.com").plan_until == plans.BETA_UNTIL  # type: ignore[union-attr]
+    # `targum comp-beta`, the operator's own press, still comps with plans on.
+    later = signed_up(store, "later@example.com")
+    assert later.plan_until == ""
+    assert store.comp_everyone(UNTIL) == (["later@example.com"], [])
+    assert store.person_by_email("later@example.com").plan_until == UNTIL  # type: ignore[union-attr]
 
 
 # -- the plans page --------------------------------------------------------------------
