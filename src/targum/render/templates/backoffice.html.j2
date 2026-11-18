@@ -285,6 +285,19 @@
     {%- endif %}
   </div>
   <p class="quiet count">The box's spend is everyone's, yours included, as its ceiling counts it. Everything else here leaves out your own and test accounts.</p>
+  {#- A row a language over thirty days, counted across readers and naming none: drawn
+      only since the Notice allows it (clauses 3.2 and 3.7 as amended 2026-11-17). -#}
+  {%- if o.languages %}
+  <h2 class="row-head">Languages</h2>
+  <table class="languages">
+    <thead><tr><th>Language, last 30 days</th><th class="n">Readers active</th><th class="n">Texts opened</th><th class="n">Minutes played</th><th class="n">Builds</th></tr></thead>
+    <tbody>
+      {%- for row in o.languages %}
+      <tr><td>{{ row.language }}</td><td class="n">{{ row.active }}</td><td class="n">{{ row.texts }}</td><td class="n">{{ '%.0f'|format(row.minutes) }}</td><td class="n">{{ row.builds }}</td></tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+  {%- endif %}
   {%- endif %}
 
   {#- First what to do, then how the weeks went, then where readers get to (2026-10-15).

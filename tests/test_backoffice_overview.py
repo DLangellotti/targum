@@ -296,9 +296,11 @@ def test_five_thousand_accounts_in_under_300_ms(tmp_path: Path) -> None:
     db.execute("COMMIT")
     kept.close()
 
-    overview_store(path, at=AT, operators=(), ceiling=40.0, rail=10.0)  # warm the page cache
+    overview_store(
+        path, at=AT, operators=(), ceiling=40.0, rail=10.0, languages=True
+    )  # warm the page cache
     began = time.perf_counter()
-    found = overview_store(path, at=AT, operators=(), ceiling=40.0, rail=10.0)
+    found = overview_store(path, at=AT, operators=(), ceiling=40.0, rail=10.0, languages=True)
     took = time.perf_counter() - began
     assert found.active_month.now == 5000
     assert took < 0.3, f"the overview took {took:.3f}s over 5,000 accounts"
@@ -349,3 +351,42 @@ def test_without_a_rail_nobody_is_near_it(store: Store) -> None:
     found = overview(store.db, AT, ceiling=50.0, rail=0.0)
     assert found.near_rail == []
     assert "of their" not in back_office_page(Survey(), 30, overview=found)
+
+
+def test_a_row_a_language_counts_readers_and_names_none(store: Store) -> None:
+    """Readers active in each language over thirty days, texts opened, minutes played and
+    builds; staff left out; drawn only when asked for, as the Notice now allows."""
+    db = store.db
+    db.execute("UPDATE word SET language = 'he' WHERE person = 1")
+    db.execute("UPDATE doc SET language = 'ru' WHERE person IN (2, 3)")
+    db.execute(
+        "INSERT INTO word (person, language, lemma, at) VALUES (6, 'fr', 'staff', ?)", (AT - 1000,)
+    )
+    for person, seconds in ((1, 600.0), (6, 6000.0)):
+        db.execute(
+            "INSERT INTO event (person, kind, day, language, amount)"
+            " VALUES (?, 'play', ?, 'he', ?)",
+            (person, TODAY.isoformat(), seconds),
+        )
+    db.commit()
+    job(store, "b", 2, AT - 1000, 0.1, kind="build")
+    job(store, "s", 6, AT - 1000, 0.1, kind="build")
+    store.db.execute("UPDATE job SET language = 'ru' WHERE id IN ('b', 's')")
+    store.db.commit()
+    hidden = overview(store.db, AT, operators=["operator@gmail.com"])
+    assert hidden.languages == []
+    found = overview(store.db, AT, operators=["operator@gmail.com"], languages=True)
+    rows = {row.language: row for row in found.languages}
+    assert set(rows) == {"he", "ru"}, "the admin's French is not a reader's"
+    assert (rows["ru"].active, rows["ru"].texts, rows["ru"].builds) == (2, 3, 1)
+    assert (rows["he"].active, rows["he"].minutes) == (1, 10.0)
+    page = back_office_page(Survey(), 30, overview=found)
+    assert '<h2 class="row-head">Languages</h2>' in page
+    assert "Languages</h2>" not in back_office_page(Survey(), 30, overview=hidden)
+
+
+def test_the_server_asks_the_notice_before_the_languages() -> None:
+    served = Path(__file__).resolve().parent.parent / "src" / "targum" / "serve.py"
+    text = served.read_text(encoding="utf-8")
+    start = text.index("overview_store(\n")
+    assert "languages=languages_shown()" in text[start : start + 800]

@@ -53,7 +53,9 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   up and Tell us stay below the figures; the full weekly table and the reach fold under
   one `<details>`. `overview_store` reads a bounded span of days, with new indexes on
   `word.at`, `doc.opened`, `doc.updated` and `day.day`, and is under 300 ms at 5,000
-  accounts. The Languages row waits for the Notice's 3.7 to land.
+  accounts. A fifth row, Languages, counts readers active, texts opened, minutes played
+  and builds per language over thirty days, drawn only while `NOTICE_ALLOWS_LANGUAGES` is
+  on (clauses 3.2 and 3.7 as amended, #1311).
   - A press under `/back-office/` with `Origin: null` and no `Sec-Fetch-Site` is refused
     403 too (qa on targum#1308).
 - The French chat contract keeps spoken French as written (version 2,

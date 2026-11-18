@@ -1819,25 +1819,42 @@ class Overview:
     #: Readers past `NEAR_THE_RAIL` of their own day's `rail`: id, address, $ in 24 h.
     near_rail: list[tuple[int, str, float]] = field(default_factory=list)
     rail: float = 0.0
+    #: A row a language over the thirty days, most readers first; empty unless the
+    #: Notice allows it (`languages_shown`, clauses 3.2 and 3.7 as amended 2026-11-17).
+    languages: list[LanguageRow] = field(default_factory=list)
+
+
+@dataclass
+class LanguageRow:
+    """One language over the last thirty days, counted across readers and naming none."""
+
+    language: str
+    #: Readers who opened a text or saved a word in it.
+    active: int = 0
+    #: Texts in it whose latest opening fell in the window.
+    texts: int = 0
+    #: Minutes of its recordings played, listened or watched.
+    minutes: float = 0.0
+    #: Texts brought and built in it (builds and subscriptions).
+    builds: int = 0
 
 
 #: Each reader and each day they did anything, over a span of days: a `day` row, or a
 #: text opened or updated, or a word saved, that day. A `day` row is the reader's own
-#: date and the rest UTC, the rule the readers' strip has always used.
-ACTIVE_PAIRS = """
-WITH staff(e) AS (SELECT value FROM json_each(:staff)),
-acts(person, d) AS (
-  SELECT person, day FROM day WHERE gone = 0 AND day BETWEEN :first AND :last
-  UNION SELECT person, date(opened / 1000, 'unixepoch') FROM doc
-    WHERE gone = 0 AND opened >= :since AND opened < :until
-  UNION SELECT person, date(updated / 1000, 'unixepoch') FROM doc
-    WHERE gone = 0 AND updated >= :since AND updated < :until
-  UNION SELECT person, date(at / 1000, 'unixepoch') FROM word
-    WHERE gone = 0 AND at >= :since AND at < :until
+#: date and the rest UTC, the rule the readers' strip has always used. One query a table,
+#: each read from its covering index alone and the day kept as a number (milliseconds
+#: over a day's), since `date()` on every row and a `UNION`'s sort were most of the
+#: overview's time at 5,000 accounts.
+ACTIVE_DAYS = (
+    "SELECT DISTINCT person, day, '' FROM day WHERE gone = 0 AND day BETWEEN :first AND :last",
+    "SELECT DISTINCT person, opened / 86400000, language FROM doc"
+    " WHERE gone = 0 AND opened >= :since AND opened < :until",
+    "SELECT DISTINCT person, updated / 86400000, language FROM doc"
+    " WHERE gone = 0 AND updated >= :since AND updated < :until",
+    "SELECT DISTINCT person, at / 86400000, language FROM word"
+    " WHERE gone = 0 AND at >= :since AND at < :until",
 )
-SELECT acts.person, acts.d FROM acts JOIN person p ON p.id = acts.person
-WHERE bare(p.email) NOT IN (SELECT e FROM staff)
-"""
+EPOCH = date(1970, 1, 1)
 
 
 def box_spent(db: sqlite3.Connection, since: int, until: int | None = None) -> float:
@@ -1863,6 +1880,7 @@ def overview(
     ceiling: float = 0.0,
     rail: float = 0.0,
     hours: int = 24,
+    languages: bool = False,
 ) -> Overview:
     """The overview's figures at `at` (milliseconds): who is active, who is new, and what
     the box has spent, each against a day earlier and a week earlier. Days are UTC.
@@ -1887,18 +1905,34 @@ def overview(
     by_day: dict[str, set[int]] = {
         (first + timedelta(days=n)).isoformat(): set() for n in range(span)
     }
-    for row in db.execute(
-        ACTIVE_PAIRS,
-        {
-            "staff": staff,
-            "first": first.isoformat(),
-            "last": today.isoformat(),
-            "since": _midnight(first),
-            "until": _midnight(today + timedelta(days=1)),
-        },
-    ):
-        if row["d"] in by_day:
-            by_day[str(row["d"])].add(int(row["person"]))
+    bounds = {
+        "first": first.isoformat(),
+        "last": today.isoformat(),
+        "since": _midnight(first),
+        "until": _midnight(today + timedelta(days=1)),
+    }
+    staffed = {
+        int(row[0])
+        for row in db.execute(
+            "SELECT id FROM person WHERE bare(email) IN (SELECT value FROM json_each(?))",
+            (staff,),
+        )
+    }
+    named_day = {
+        (day - EPOCH).days: day.isoformat()
+        for day in (first + timedelta(days=n) for n in range(span))
+    }
+    month_from_day = (today - timedelta(days=OVERVIEW_DAYS - 1)).isoformat()
+    by_language: dict[str, set[int]] = {}
+    for sql in ACTIVE_DAYS:
+        for person, when, language in db.execute(sql, bounds):
+            if person in staffed:
+                continue
+            key = when if isinstance(when, str) else named_day.get(int(when))
+            if key in by_day:
+                by_day[key].add(int(person))
+                if language and key >= month_from_day:
+                    by_language.setdefault(str(language), set()).add(int(person))
 
     def active(end: date, days: int) -> int:
         seen: set[int] = set()
@@ -1989,6 +2023,15 @@ def overview(
         (kind, seconds) for kind, seconds in sorted(kinds.items()) if kind not in KINDS
     ]
 
+    if languages:
+        found.languages = _languages(
+            db,
+            by_language,
+            staffed,
+            _midnight(today - timedelta(days=OVERVIEW_DAYS - 1)),
+            month_from_day,
+        )
+
     # Readers near their own day's rail, as `claim` sums it for them.
     if rail:
         found.near_rail = [
@@ -2006,6 +2049,51 @@ def overview(
     return found
 
 
+def _languages(
+    db: sqlite3.Connection,
+    active: Mapping[str, set[int]],
+    staffed: set[int],
+    since: int,
+    first: str,
+) -> list[LanguageRow]:
+    """The Languages row, over the thirty days from `since` (milliseconds) and `first`
+    (the same day as text): readers active in each, texts opened, minutes played and
+    builds. Grouped by reader as well, so staff are left out the way the rest are."""
+    rows: dict[str, LanguageRow] = {
+        language: LanguageRow(language, active=len(people)) for language, people in active.items()
+    }
+
+    def add(sql: str, args: Sequence[object], into: str) -> None:
+        with contextlib.suppress(sqlite3.Error):
+            for language, person, n in db.execute(sql, args):
+                if person in staffed:
+                    continue
+                row = rows.setdefault(
+                    str(language or "not said"), LanguageRow(str(language or "not said"))
+                )
+                setattr(row, into, getattr(row, into) + n)
+
+    add(
+        "SELECT language, person, COUNT(*) FROM doc WHERE gone = 0 AND opened >= ?"
+        " GROUP BY language, person",
+        (since,),
+        "texts",
+    )
+    add(
+        "SELECT language, person, SUM(amount) / 60.0 FROM event"
+        " WHERE day >= ? AND kind = 'play' GROUP BY language, person",
+        (first,),
+        "minutes",
+    )
+    add(
+        "SELECT language, owner, COUNT(*) FROM job WHERE made >= ?"
+        " AND kind IN ('build', 'subscription') AND owner IS NOT NULL GROUP BY language, owner",
+        (since,),
+        "builds",
+    )
+    return sorted(rows.values(), key=lambda row: (-row.active, -row.texts, row.language))
+
+
 def overview_store(
     store: Path,
     at: int | None = None,
@@ -2013,6 +2101,7 @@ def overview_store(
     ceiling: float = 0.0,
     rail: float = 0.0,
     hours: int = 24,
+    languages: bool = False,
 ) -> Overview:
     """`overview`, opening the database read-only, as `survey_store` does."""
     db = sqlite3.connect(f"file:{store}?mode=ro", uri=True)
@@ -2024,6 +2113,7 @@ def overview_store(
             ceiling=ceiling,
             rail=rail,
             hours=hours,
+            languages=languages,
         )
     finally:
         db.close()

@@ -10423,6 +10423,7 @@ class Handler(BaseHTTPRequestHandler):
             WAITING_SORTS,
             Listing,
             ReaderFilter,
+            languages_shown,
             overview_store,
             readers_store,
             survey_store,
@@ -10489,6 +10490,8 @@ class Handler(BaseHTTPRequestHandler):
                     ceiling=self.library.budget,
                     rail=self.library.account_budget or 0.0,
                     hours=BUDGET_HOURS,
+                    # Only once the Notice says so (clauses 3.2 and 3.7, 2026-11-17).
+                    languages=languages_shown(),
                 )
                 if overview
                 else None
