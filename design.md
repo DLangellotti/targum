@@ -8409,6 +8409,9 @@ and is sharpened (targum-internal#399):
 - **"Talk to targum" shows its chat on a phone, drawn as /chat draws it** (§9): turns at
   opposite edges in one ink, the correction in small capitals, why folded under a
   hairline, no bubbles. Claude and ChatGPT are one line beside it.
+  *(Amended 2026-11-15, David: for the reader's lines, superseded by "Talk is a sheet
+  over a dimmed page", 2026-10-09 — the reader's lines are in the teal wash at the end
+  edge, targum's on the card.)*
 - **Every colour the page draws is a named token** in its `:root`, and `test_landing.py`
   keeps literals out of the rules; spacing takes eight steps (`--space-1` to `--space-8`);
   the page breaks at 30, 40 and 56rem only.
