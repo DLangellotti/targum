@@ -241,6 +241,53 @@ def test_a_google_sign_in_finishes_in_the_browser_that_started_it(
     assert f"{serve.GOOGLE_STATE_COOKIE}=;" in headers["set-cookie"], "cleared once read"
 
 
+def test_a_google_signup_keeps_the_tag_of_the_link_it_came_by(
+    tmp_path: Path, free_port: Callable[[], int], client: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """targum-internal#676: Continue with Google under the join form carries the form's
+    `from`, and the account Google opens keeps it as the emailed signup does, narrowed
+    the same way. An account that was already there keeps what brought it first."""
+    port, store = _box(tmp_path, free_port, [])
+
+    def through_google(address: str, start: str) -> None:
+        store.invite(address)
+        _proved(monkeypatch, address)
+        _, started, _ = _exchange(port, "GET", start)
+        state = parse_qs(urlparse(started["location"]).query)["state"][0]
+        status, headers, _ = _exchange(
+            port, "GET", f"/account/google/back?state={state}&code=x", cookie=_bound(started)
+        )
+        assert status in (302, 303) and serve.SESSION_COOKIE in headers["set-cookie"]
+
+    def came(address: str) -> str:
+        row = store.db.execute(
+            "SELECT came_from FROM person WHERE email = ?", (address,)
+        ).fetchone()
+        return str(row["came_from"])
+
+    through_google("dina@example.com", "/account/google?from=meta.after-duolingo")
+    assert came("dina@example.com") == "meta.after-duolingo"
+    through_google("page@example.com", "/account/google?from=https%3A//targum.page/aliyah")
+    assert came("page@example.com") == "/aliyah"
+    through_google("odd@example.com", "/account/google?from=%3Cscript%3E")
+    assert came("odd@example.com") == ""
+    through_google("dina@example.com", "/account/google?from=other")
+    assert came("dina@example.com") == "meta.after-duolingo"
+
+
+def test_a_refused_google_sign_in_keeps_the_tag_on_sign_in_again(
+    tmp_path: Path, free_port: Callable[[], int], client: None
+) -> None:
+    """A sign-in left too long or not finished offers Sign in again; the press it links
+    to carries the tag the first one did (targum-internal#676)."""
+    port, _ = _box(tmp_path, free_port, [])
+    _, started, _ = _exchange(port, "GET", "/account/google?from=meta.after-duolingo&next=%2Fadd")
+    state = parse_qs(urlparse(started["location"]).query)["state"][0]
+    status, _, page = _exchange(port, "GET", f"/account/google/back?state={state}&code=x")
+    assert status == 200 and "That sign-in didn" in page
+    assert 'href="/account/google?next=/add&amp;from=meta.after-duolingo"' in page
+
+
 # -- the mailed link ---------------------------------------------------------------------
 
 

@@ -16121,6 +16121,11 @@ class Handler(BaseHTTPRequestHandler):
     #: The room each of those was started from, by the same `state` (QA 2026-10-11, D2),
     #: kept beside rather than on `Begun`, which is Google's half and knows no pages.
     _google_next: ClassVar[dict[str, str]] = {}
+    #: The page or link tag each of those was started from, by the same `state`
+    #: (targum-internal#676), narrowed by `joined_from` as the email form's `from` is, so
+    #: an account Google opens is counted by the channel that brought it. Beside `Begun`
+    #: for the same reason as `_google_next`, and in memory only, as both are.
+    _google_came: ClassVar[dict[str, str]] = {}
     #: The sign-ins started from Account's Link rather than from a door (targum-internal
     #: #502), by the same `state`: the person whose account Google is to be linked to.
     #: One of these never signs anybody in.
@@ -16179,6 +16184,7 @@ class Handler(BaseHTTPRequestHandler):
             if google_module.stale(old):
                 self._google_begun.pop(state, None)
                 self._google_next.pop(state, None)
+                self._google_came.pop(state, None)
                 self._google_linking.pop(state, None)
         self._google_begun[begun.state] = begun
         if linking is not None:
@@ -16187,6 +16193,10 @@ class Handler(BaseHTTPRequestHandler):
             back = safe_next(query.get("next", [""])[0])
             if back:
                 self._google_next[begun.state] = back
+            # The join form's `from`, carried on its Google press (targum-internal#676).
+            came = joined_from(query.get("from", [""])[0])
+            if came:
+                self._google_came[begun.state] = came
         # Bound to this browser, Link as much as a door (targum-internal#729).
         self._go(begun.where, google_state_cookie(begun.state, self.address))
 
@@ -16318,6 +16328,7 @@ class Handler(BaseHTTPRequestHandler):
         ours = bool(state and bound) and secrets.compare_digest(bound, google_state_digest(state))
         begun = self._google_begun.pop(state, None) if state else None
         back = self._google_next.pop(state, "") if state else ""
+        came = self._google_came.pop(state, "") if state else ""
         linking = self._google_linking.pop(state, None) if state else None
         cleared = google_state_cookie("", self.address)
         if linking is not None:
@@ -16340,8 +16351,13 @@ class Handler(BaseHTTPRequestHandler):
             # (arrival QA, 2026-10-18): on the form underneath, on Google's button and on
             # Sign in again. It was dropped here, so a cancelled Google sign-in that was
             # tried again landed on home rather than on the page they had asked for.
-            if again and back:
-                again += "?next=" + quote(back, safe="/")
+            # And the tag it came by, so a second press is counted as the first would
+            # have been (targum-internal#676).
+            if again:
+                carried = [("next", back)] if back else []
+                carried += [("from", came)] if came else []
+                if carried:
+                    again += "?" + urlencode(carried, safe="/")
             page = signin_page(language=self._page_language(), said=said, again=again, back=back)
             return self._send(200, page.encode("utf-8"), HTML, cookie=cleared)
 
@@ -16393,7 +16409,7 @@ class Handler(BaseHTTPRequestHandler):
         elif self.require_account and not self.store.may_join(email):
             return refuse(self._not_open())
         try:
-            got = self.store.sign_in_verified(email, via="google")
+            got = self.store.sign_in_verified(email, via="google", came_from=came)
         except GoogleOff:
             # Unlinked from Account (targum-internal#502): only Account links it again,
             # and the form beside this line is the way in meanwhile.

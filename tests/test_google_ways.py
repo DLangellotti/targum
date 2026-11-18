@@ -474,8 +474,11 @@ def test_the_front_door_draws_google_only_while_signup_is_open(
     shut = _front(monkeypatch, TARGUM_FRONT_DOOR="1")
     assert "join-google" not in shut and "/account/google" not in shut
     opened = _front(monkeypatch, TARGUM_FRONT_DOOR="1", TARGUM_OPEN_SIGNUP="1", TARGUM_PLANS="1")
-    press = 'class="btn join-google" href="/account/google"'
+    press = 'class="btn join-google" href="/account/google?from=/"'
     assert opened.count(press) == 1, "under the ending's form"
+    # The press carries the form's `from`, the link's tag where it had one (#676).
+    tagged = builder.front_page("en", PUBLIC, "", came="meta.after-duolingo")
+    assert 'class="btn join-google" href="/account/google?from=meta.after-duolingo"' in tagged
     # Not under a tried link's form: the link rides /signup, and Google's state carries none.
     tried = builder.front_page(
         "en", PUBLIC, "", tried={"door": "page", "site": "x", "link": "https://x.org/a"}

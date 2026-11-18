@@ -34,10 +34,12 @@
       is shut the field joins the waitlist, and a Google press beside it could only be
       refused, so a shut front door draws no Google. An anchor, never a Google script. Not
       under a tried link either: the link rides `/signup`, and Google's `state` carries
-      no link, so the popup that holds one keeps the one field. -#}
+      no link, so the popup that holds one keeps the one field. It carries the form's
+      `from`, so a Google signup is counted by the page or tag it came by as the field's
+      is (targum-internal#676). -#}
   {%- if door_is_open() and google_is_configured() and not link|default('') %}
   <p class="join-or">{{ t("signin.page.or", "or") }}</p>
-  <a class="btn join-google" href="/account/google">{{ t("signin.page.continue-with-google", "Continue with Google") }}</a>
+  <a class="btn join-google" href="/account/google?from={{ joined_from|default(canonical|default(''))|urlencode }}">{{ t("signin.page.continue-with-google", "Continue with Google") }}</a>
   {%- endif %}
   {%- if note|default(false) and not door_is_open() %}
   <p class="join-note">{{ t("landing.page.we-re-opening-in-small-groups-we-ll", "We’re opening in small groups. We’ll email you when your turn comes.") }}</p>

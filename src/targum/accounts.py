@@ -5045,7 +5045,9 @@ class Store:
             )
         return token
 
-    def sign_in_verified(self, email: str, via: str = "") -> tuple[Person, str] | None:
+    def sign_in_verified(
+        self, email: str, via: str = "", came_from: str = ""
+    ) -> tuple[Person, str] | None:
         """Sign in an address somebody else has proved, and hand back a session.
 
         The mailed link proves an address by sending something to it. A sign-in provider
@@ -5066,12 +5068,16 @@ class Store:
         does and the press is the consent; every one records when it was last used. An
         account whose person unlinked Google raises `GoogleOff` and gets no session: only
         Account links it again (design.md §12, 2026-11-14).
+
+        `came_from` is kept on an account made here, as `start_sign_in` keeps it
+        (`_open_account`, #676): a Google signup is counted by the page or link tag it
+        came by exactly as an emailed one is.
         """
         address = tidy(email)
         if not address:
             return None
         with self.write() as db:
-            _open_account(db, address)
+            _open_account(db, address, came_from)
             row = db.execute(
                 "SELECT id, email, leaving, google FROM person WHERE email = ?", (address,)
             ).fetchone()
