@@ -418,3 +418,57 @@ def test_an_answer_that_added_a_mark_lands_on_the_bare_form(
         is None
     )
     assert gloss_module.answered_for({"בית": "בית"}, "בית (plural)") is None, "not a mark"
+
+
+@pytest.mark.parametrize("stray_first", [True, False], ids=["stray-first", "exact-first"])
+def test_a_stray_mark_never_overwrites_the_exact_answer(
+    monkeypatch: pytest.MonkeyPatch, stray_first: bool
+) -> None:
+    """qa on targum#1325: with עם and עם (noun) both asked, a stray `עם (verb)` falls back
+    to the bare form; it must not replace the bare answer, in either order, and the
+    marked noun keeps its own."""
+
+    class Usage:
+        input_tokens = 10
+        output_tokens = 5
+
+    exact = gloss_module._Entry(lemma="עם", gloss="ביחד", part_of_speech="preposition")
+    stray = gloss_module._Entry(lemma="עם (verb)", gloss="שגוי", part_of_speech="verb")
+    noun = gloss_module._Entry(lemma="עם (noun)", gloss="אומה", part_of_speech="noun")
+
+    class Messages:
+        def parse(self, **kwargs: Any) -> Any:
+            entries = [stray, exact, noun] if stray_first else [exact, stray, noun]
+            return type(
+                "R", (), {"parsed_output": gloss_module._Batch(entries=entries), "usage": Usage()}
+            )()
+
+    provider = gloss_module.AnthropicGlosses(gloss_module.GLOSS_MODEL)
+    monkeypatch.setattr(
+        provider._provider, "client", lambda: type("C", (), {"messages": Messages()})()
+    )
+    found = provider.gloss(["עם", "עם (noun)"], "he", "he")
+    assert found["עם"].gloss == "ביחד"
+    assert found["עם (noun)"].gloss == "אומה"
+    assert set(found) == {"עם", "עם (noun)"}
+
+
+def test_a_fallback_alone_still_lands(monkeypatch: pytest.MonkeyPatch) -> None:
+    class Usage:
+        input_tokens = 10
+        output_tokens = 5
+
+    class Messages:
+        def parse(self, **kwargs: Any) -> Any:
+            entries = [
+                gloss_module._Entry(lemma="פנה (verb)", gloss="הסתובב", part_of_speech="verb")
+            ]
+            return type(
+                "R", (), {"parsed_output": gloss_module._Batch(entries=entries), "usage": Usage()}
+            )()
+
+    provider = gloss_module.AnthropicGlosses(gloss_module.GLOSS_MODEL)
+    monkeypatch.setattr(
+        provider._provider, "client", lambda: type("C", (), {"messages": Messages()})()
+    )
+    assert provider.gloss(["פנה"], "he", "he")["פנה"].gloss == "הסתובב"

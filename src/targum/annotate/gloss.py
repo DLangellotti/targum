@@ -338,10 +338,16 @@ class AnthropicGlosses:
                 if isinstance(parsed, _Batch):
                     wanted = filed_as(part)
                     for entry in parsed.entries:
-                        asked = answered_for(wanted, entry.lemma.strip())
+                        returned = entry.lemma.strip()
+                        asked = answered_for(wanted, returned)
                         said = entry.gloss.strip()
                         if bare:
                             said = unpointed(said).strip()
+                        # A form filed by taking off a mark the model added is a fallback:
+                        # it never overwrites an answer already filed, and an exact answer
+                        # arriving after it replaces it (qa on targum#1325).
+                        if asked and asked in out and returned not in wanted:
+                            continue
                         if asked and said:
                             out[asked] = Sense(
                                 said,
