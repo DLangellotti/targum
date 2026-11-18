@@ -98,8 +98,10 @@ OCCURRENCES = "occurrences.json"
 #: (targum-internal#698, #700, #702); 16 reads `russian_check` 1, so a Russian word is
 #: counted under the lemma and the grammar OpenRussian witnesses: пирах under пир, будет
 #: as a future, войди as an imperative and строга with no case (targum-internal#708,
-#: #709, #710).
-VERSION = 16
+#: #709, #710); 17 reads `lemma_check` 7, so a noun's or an adjective's plural or
+#: feminine that DICTA gave as its own lemma is counted under its headword: עצים under
+#: עץ, לירות under לירה (targum-internal#697e).
+VERSION = 17
 
 
 @dataclass(frozen=True)

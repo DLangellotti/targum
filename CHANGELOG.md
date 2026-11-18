@@ -19,6 +19,23 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   from A1, for beginners, to C2." Russian drops the matching sentence. The `ladder.note`
   that `my_progress` hands the chat and the connector says "The ladder's name only, never
   the reader's level." instead, so it is a model's label and not the page's dropped line.
+- A Hebrew noun's plural or an adjective's feminine or plural that DICTA gave as its own
+  lemma is filed under its headword, so the card finds its meaning: עצים under עץ, לירות
+  under לירה, מלאה under מלא (targum-internal#697e, from ling-he's analyser read).
+  - `annotate/nouns.json.gz` (98 KB, CC0): Wikidata's lexemes, the same source as the
+    verb tables, written by `scripts/hebrew_nouns.py`. It maps a noun's plurals and an
+    adjective's feminine and plural forms to their one headword, and only where the form
+    belongs to one headword, is no Hebrew headword of any part of speech itself (חנות,
+    מלכות, חיים and מים stay), is no construct form (על גבי), and ends as an inflection
+    does. A noun's feminine singular is never reduced: חברה is more than חבר's.
+  - Measured over the laptop's 483 Hebrew texts: 2,802 of 320,723 noun and adjective
+    tokens change, across 495 spellings. Every spelling was read, and the ones the table
+    gets wrong in context are kept as DICTA gave them (`nouns.KEPT`: ימות, אמהות, אמות,
+    שניים, רבות, לחיים, בעלים and a few more). צעירה stays: it is a noun of its own.
+  - `lemma_check` 7 and `occurrences` 17: a free recount at page-build and count time.
+    No annotator rename, and `SCHEMA_VERSION` is untouched. The root stays, since a
+    plural's root is its singular's. A headword with no meaning bought yet gets one at
+    the next `rebuild --gloss`, a few cents.
 - "Tell us" is "Send feedback" to readers, «Отправить отзыв» in Russian (David,
   2026-11-17): the account menu's row, the box's title, the reader's ⋯ row and the press
   on every fault panel, all `fault.tell-us`. Code, routes and the back office keep

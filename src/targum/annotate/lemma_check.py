@@ -61,8 +61,10 @@ if TYPE_CHECKING:
 #: already shows off the lemma, keeps a fixed word (היום, הכי, למשל) and של's pronoun
 #: whole, gives an auxiliary and אין no binyan or root, files מציע under הציע of
 #: י־צ־ע, checks a name's lemma, and gives a title's split-off letter the title's
-#: (targum-internal#698, #700, #702).
-VERSION = 6
+#: (targum-internal#698, #700, #702); 7 files a noun's or an adjective's plural or
+#: feminine that DICTA gave as its own lemma under its headword, from Wikidata's CC0
+#: lexemes (`nouns`, targum-internal#697e: עצים under עץ, לירות under לירה).
+VERSION = 7
 
 #: The annotator this checks: DICTA, and nothing that put a hand tagging in front of it.
 DICTA = "dicta/"
@@ -943,9 +945,32 @@ def mend_token(token: Token, objected: bool = False, title: str = "") -> Token:
                 "word_register": None,
             }
         )
+    else:
+        token = _headword(token)
     if rootless(token.lemma, token.pos) and (token.root or token.binyan):
         token = token.model_copy(update={"root": None, "binyan": None})
     return token
+
+
+def _headword(token: Token) -> Token:
+    """A noun or adjective DICTA filed under one of its own other forms, filed under its
+    headword (`nouns`, targum-internal#697e): עצים under עץ. Its root is the headword's
+    too, so it stays; the pointed headword and the lexeme were the form's, and go. The
+    same object where the lemma is a headword already."""
+    from .nouns import headword
+
+    found = headword(token.lemma, token.pos)
+    if found is None:
+        return token
+    return token.model_copy(update={"lemma": found, "headword": None, "lexeme": None})
+
+
+def _row_headword(row: dict[str, Any]) -> dict[str, Any]:
+    """`_headword` for a stored row; the same dict where nothing changes."""
+    from .nouns import headword
+
+    found = headword(str(row.get("lemma") or ""), row.get("pos"))
+    return row if found is None else row | {"lemma": found}
 
 
 def mended(annotation: Annotation, segmented: Any = None) -> Annotation:
@@ -1022,6 +1047,8 @@ def mend_row(row: dict[str, Any], objected: bool = False, title: str = "") -> di
             "root": mend.root or None,
             "binyan": mend.binyan or None,
         }
+    else:
+        row = _row_headword(row)
     if rootless(str(row.get("lemma") or ""), row.get("pos")) and (
         row.get("root") or row.get("binyan")
     ):
