@@ -526,3 +526,65 @@ def test_the_prompt_keeps_the_headword_out_and_asks_for_nothing_it_cannot_place(
     assert "return it with an empty gloss. Never" in prompt
     assert "write a note about the form" in prompt
     assert system_for("he", "en") == SYSTEM.format(source="Hebrew", target="English")
+
+
+@pytest.mark.parametrize("why", ["empty", "names itself"])
+def test_a_word_with_no_meaning_in_itself_is_asked_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, why: str
+) -> None:
+    """qa on targum#1328: a meaning the model left empty, or one the headword guard
+    dropped, was cached as nothing at all, so every later tap on the word paid again. It
+    is kept as "asked, no meaning": the next tap asks nobody, nothing shows it, and a
+    translation pair is untouched by it."""
+
+    class Usage:
+        input_tokens = 10
+        output_tokens = 5
+
+    calls: list[str] = []
+
+    class Messages:
+        def parse(self, **kwargs: Any) -> Any:
+            calls.append(kwargs["messages"][0]["content"])
+            said = "" if why == "empty" else "נמצא במקום, יושב ולא זז"
+            entries = [gloss_module._Entry(lemma="יושב", gloss=said, part_of_speech="verb")]
+            return type(
+                "R", (), {"parsed_output": gloss_module._Batch(entries=entries), "usage": Usage()}
+            )()
+
+    provider = gloss_module.AnthropicGlosses(gloss_module.GLOSS_MODEL)
+    monkeypatch.setattr(
+        provider._provider, "client", lambda: type("C", (), {"messages": Messages()})()
+    )
+    cache = Cache(tmp_path / "cache")
+    line = "הוא יושב על הכיסא"
+    assert gloss_one("יושב", "he", "he", provider, cache=cache, context=line) is None
+    assert len(calls) == 1
+    assert gloss_one("יושב", "he", "he", provider, cache=cache, context=line) is None
+    assert len(calls) == 1, "the second tap asks nobody"
+    assert gloss_module.cached_gloss("יושב", "he", "he", provider.name, cache=cache) is None
+    stored = cache.get("gloss", gloss_key(cache, "יושב", "he", "he", provider.name))
+    assert stored == {"gloss": "", gloss_module.NO_MEANING: True, "grounded": True}
+    # Forgetting it lets the word be asked again, as forgetting any meaning does.
+    gloss_module.forget_gloss("יושב", "he", "he", provider.name, cache=cache)
+    assert gloss_one("יושב", "he", "he", provider, cache=cache, context=line) is None
+    assert len(calls) == 2
+
+
+def test_a_bare_no_meaning_is_asked_once_more_with_a_sentence(tmp_path: Path) -> None:
+    class Empty(FakeGlosses):
+        def gloss(self, lemmas, source_language, target_language, on_progress=None, contexts=None):  # type: ignore[no-untyped-def]
+            self.asked.append((list(lemmas), source_language, target_language))
+            return {}
+
+    provider = Empty()
+    cache = Cache(tmp_path / "cache")
+    assert gloss_one("זור", "he", "he", provider, cache=cache) is None
+    assert gloss_one("זור", "he", "he", provider, cache=cache) is None
+    assert len(provider.asked) == 1
+    assert gloss_one("זור", "he", "he", provider, cache=cache, context="משפט") is None
+    assert gloss_one("זור", "he", "he", provider, cache=cache, context="משפט") is None
+    assert len(provider.asked) == 2, "grounded once, then settled"
+    # A translation pair keeps its old way: nothing is written for an empty answer.
+    assert gloss_one("זור", "he", "en", provider, cache=cache, context="משפט") is None
+    assert cache.get("gloss", gloss_key(cache, "זור", "he", "en", provider.name)) is None

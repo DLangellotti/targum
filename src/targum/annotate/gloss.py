@@ -660,6 +660,11 @@ def fill_from_cache(
     return grown
 
 
+#: The cache's mark for a meaning in the language itself that was asked for and could not
+#: be given (qa on targum#1328). Its record has an empty `gloss`, so nothing shows it.
+NO_MEANING = "no_meaning"
+
+
 def gloss_one(
     lemma: str,
     source_language: str,
@@ -701,6 +706,19 @@ def gloss_one(
     held = _sense_of(stored) if isinstance(stored, dict) and stored.get("gloss") else None
     if held is not None and (held.grounded or not context):
         return held
+    itself = _same(source_language, target_language)
+    # Asked already, and no meaning came back that could be shown (qa on targum#1328):
+    # answered as nothing, never asked again, so a word the model cannot define in its
+    # own language costs once and not on every tap. Bare, it is asked once more with a
+    # sentence, as a bare sense is grounded.
+    if (
+        itself
+        and held is None
+        and isinstance(stored, dict)
+        and stored.get(NO_MEANING)
+        and (stored.get("grounded") or not context)
+    ):
+        return None
 
     try:
         if context:
@@ -718,6 +736,11 @@ def gloss_one(
         raise
     found = fresh.get(lemma)
     if not found:
+        if itself and held is None:
+            # The model left it empty, or `names_itself` dropped what it wrote: kept as
+            # "asked, no meaning", which no reader of the cache shows (each wants a
+            # `gloss`), so the card keeps the meaning in the reader's language.
+            cache.put("gloss", key, {"gloss": "", NO_MEANING: True, "grounded": bool(context)})
         return held
     sense = Sense(*found)._replace(grounded=bool(context))
     cache.put("gloss", key, _record(sense, grounded=sense.grounded))
