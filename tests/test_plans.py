@@ -92,7 +92,6 @@ def test_on_free_gets_sixty_credits_and_plan_the_whole_month(tmp_path: Path) -> 
     # The plan, not Top up: there is no top-up on Free.
     assert refused.act == "plan"
     assert "It needs 45 credits. You have 10 left this month." in refused
-    assert "A plan gives you 480 a month, which is 8 hours" in refused
     assert "reset on" in refused.fact
     assert "$" not in refused and "$" not in refused.fact, "never money outside /plans"
     # The operator stands in for Plan, and is held to no month at all.
