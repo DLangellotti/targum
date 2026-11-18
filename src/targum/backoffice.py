@@ -499,6 +499,12 @@ class Survey:
     #: How many accounts came in by each page or link tag (targum-internal#676): the
     #: open door's signups, and those let in from the waitlist. "" is unknown.
     accounts_by_came_from: dict[str, int] = field(default_factory=dict)
+    #: Of those, how many pay their own money today (`plans.subscribed`), by the same
+    #: keys, a tag past the shown ten under other: the go/no-go's question, per channel
+    #: (design.md §12, 2026-11-18). Comped beta readers are not paying and are counted
+    #: apart, in `comped_by_came_from`; a comped reader who pays is paying.
+    paying_by_came_from: dict[str, int] = field(default_factory=dict)
+    comped_by_came_from: dict[str, int] = field(default_factory=dict)
     #: What came in through the connector in the window (targum-internal#408): texts
     #: quoted from a host, how many of those the reader pressed, how many finished, and
     #: sets made there. Read off the job and playlist rows, which say so themselves, so
@@ -1149,6 +1155,13 @@ def survey(
         waitlist or Listing(sort="oldest"),
         let_in or Listing(sort=(waitlist.sort if waitlist else "oldest")),
     )
+    _paying(
+        db,
+        found,
+        named,
+        now,
+        datetime.now(UTC) if today is None else datetime.fromtimestamp((until - 1) / 1000, UTC),
+    )
     ids = _accounts(db, found, named, accounts or Listing(sort="joined"))
     _credits(db, found, named, allowance, plan_allowance)
     for who in found.accounts:
@@ -1343,6 +1356,69 @@ def _waitlist(
                 )
             }
         )
+
+
+def _paying(
+    db: sqlite3.Connection, found: Survey, named: Mapping[str, object], now: date, at: datetime
+) -> None:
+    """Who pays, and who is comped, by the page or link tag their account came in by
+    (design.md §12, 2026-11-18). Asked of `plans.subscribed` and `plans.comped`
+    themselves, so this line cannot disagree with the reader's own plan page; only the
+    accounts with a plan row or a comp day are read, which is few. Keyed as
+    `accounts_by_came_from` is, and a tag it folded into other is counted there too."""
+    from .accounts import Billing, Person
+    from .plans import comped, subscribed
+
+    shown = found.accounts_by_came_from
+
+    def key(tag: object) -> str:
+        said = str(tag or "")
+        return said if said in shown or not shown else OTHER_TAGS
+
+    has_plan = _has_table(db, "plan")
+    plan = (
+        "pl.status, pl.cadence, pl.period_end, pl.past_due_since, pl.person AS planned"
+        if has_plan
+        else "NULL AS status, NULL AS cadence, NULL AS period_end,"
+        " NULL AS past_due_since, NULL AS planned"
+    )
+    joined = " LEFT JOIN plan pl ON pl.person = p.id" if has_plan else ""
+    paying: Counter[str] = Counter()
+    kept: Counter[str] = Counter()
+    # A store from before schema 72 has no comp, and before 63 no tag: nothing to count.
+    with contextlib.suppress(sqlite3.Error):
+        for row in db.execute(
+            f"SELECT p.id, p.came_from, p.plan_until, {plan} FROM person p{joined}"  # noqa: S608 - fixed text
+            f" WHERE {NOT_MINE.format(column='p.email')}"
+            f" AND ({'pl.person IS NOT NULL OR ' if has_plan else ''}p.plan_until != '')",
+            named,
+        ):
+            billing = (
+                Billing(
+                    status=str(row["status"] or ""),
+                    cadence=str(row["cadence"] or ""),
+                    period_end=str(row["period_end"] or ""),
+                    past_due_since=(
+                        int(row["past_due_since"]) if row["past_due_since"] is not None else None
+                    ),
+                )
+                if row["planned"] is not None
+                else None
+            )
+            reader = Person(
+                id=int(row["id"]),
+                email="",
+                plan_until=str(row["plan_until"] or ""),
+                billing=billing,
+            )
+            if subscribed(reader, at):
+                paying[key(row["came_from"])] += 1
+            elif comped(reader, now):
+                kept[key(row["came_from"])] += 1
+    # In the accounts line's order, so the two lines read across.
+    order = {tag: n for n, tag in enumerate(shown)}
+    found.paying_by_came_from = dict(sorted(paying.items(), key=lambda each: order.get(each[0], 0)))
+    found.comped_by_came_from = dict(sorted(kept.items(), key=lambda each: order.get(each[0], 0)))
 
 
 def _accounts(

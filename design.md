@@ -387,6 +387,16 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### The back office counts paying readers by source tag — 2026-11-18
+
+2026-11-18, David: paying readers by source tag, for the go/no-go. The go/no-go on
+2027-02-18 asks how many readers pay their own money, per channel. Under "Accounts from"
+on Waitlist, "Paying from" gives each tag's paying readers as "n of m" against that line,
+paying meaning `plans.subscribed` holds today. A comped beta reader is not paying and is
+counted on a "Comped from" line of their own; a comped reader who also pays is paying.
+Tags fold into other as the line above does, no tag reads as unknown, the operator's
+addresses are counted nowhere, and each line shows only once somebody is on it.
+
 ### The back office is an overview, a list of readers and a page each — 2026-11-17
 
 David, 2026-11-17: the back office "requires scrolling forever" and is "super
