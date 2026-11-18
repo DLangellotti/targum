@@ -506,6 +506,9 @@ class Survey:
     connector: dict[str, int] = field(default_factory=dict)
     #: Who to write to (2026-10-15), oldest first.
     follow_up: list[FollowUp] = field(default_factory=list)
+    #: Every address Follow up would name, however many are shown: the Readers table's
+    #: "Follow-up due" filter (design's plan, 2026-11-17, PR 4).
+    follow_up_due: set[str] = field(default_factory=set)
     #: Each week's people, newest first, and how far they got.
     batches: list[Batch] = field(default_factory=list)
     #: Every week from `BETA_FROM` on, added up: the beta's gate in one row
@@ -1622,6 +1625,7 @@ def _growth(
             follow.append(FollowUp(email, f"Last read {_said(last)}", "write", last))
     found.follow_up_total = len(follow)
     found.follow_up = sorted(follow, key=lambda each: each.since)[:FOLLOW_UP_SHOWN]
+    found.follow_up_due = {each.email.strip().lower() for each in follow}
 
     # Each week's people. The week they were let in, or joined where there was no
     # guest list yet.
@@ -2137,5 +2141,410 @@ def fit_counts_store(
     db = sqlite3.connect(f"file:{store}?mode=ro", uri=True)
     try:
         return fit_counts(db, documents, operators_from_env() if operators is None else operators)
+    finally:
+        db.close()
+
+
+# -- the Readers table (design's plan, 2026-11-17, §1 and PR 4) -------------------------
+
+#: How the Readers table may be ordered, each in the direction an operator wants first.
+#: The first is the default: the reader seen last is the one to look at.
+READER_SORTS = {
+    "seen": "Last seen",
+    "joined": "Newest",
+    "words": "Most words",
+    "texts": "Most texts",
+    "credits": "Most credits",
+    "spend": "Most spend",
+    "flags": "Most flags",
+}
+#: Who was active when: any time, in the last 7 or 30 days, or not in the last 30.
+READER_ACTIVITY = {
+    "": "Any time",
+    "7": "Active in 7 days",
+    "30": "Active in 30 days",
+    "inactive": "Not active in 30 days",
+}
+#: Which plan a reader is on: Plan paid through Paddle, the beta's comp, or Free.
+READER_PLANS = {"": "Any plan", "plan": "Plan", "beta": "Beta", "free": "Free"}
+#: How many days the sparkline draws, oldest on the left.
+SPARK_DAYS = 14
+
+
+def languages_shown() -> bool:
+    """Whether the published Privacy Notice lets the back office show the languages an
+    account reads in: `render.builder.NOTICE_ALLOWS_LANGUAGES`, set beside
+    `LEGAL_CHANGED` by the PR that lands the approved clauses 3.2 and 3.7 (qa on
+    targum#1309: reading the Notice's template for the words could be tripped by a
+    comment or a draft). Until it is True the column and its filter are not drawn."""
+    from .render.builder import NOTICE_ALLOWS_LANGUAGES
+
+    return bool(NOTICE_ALLOWS_LANGUAGES)
+
+
+@dataclass
+class ReaderFilter:
+    """Which readers the table is narrowed to, read off the address."""
+
+    language: str = ""
+    active: str = ""
+    follow: bool = False
+    flagged: bool = False
+    plan: str = ""
+
+    @classmethod
+    def read(cls, query: Mapping[str, Sequence[str]]) -> ReaderFilter:
+        """Anything unknown is no filter: an address is typed by hand as often as clicked."""
+
+        def first(name: str) -> str:
+            return (query.get(name) or [""])[0].strip()
+
+        language = first("lang").lower()
+        return cls(
+            language=language
+            if language.isascii() and language.isalpha() and len(language) <= 8
+            else "",
+            active=first("active") if first("active") in READER_ACTIVITY else "",
+            follow=first("follow") == "1",
+            flagged=first("flagged") == "1",
+            plan=first("plan") if first("plan") in READER_PLANS else "",
+        )
+
+
+@dataclass
+class ReaderRow:
+    """One reader in the table: counts and dates, never a word, a title or a source."""
+
+    id: int
+    email: str
+    name: str
+    #: "Plan", "Beta until March 4" or "Free".
+    plan: str
+    #: The last day anything of theirs moved or a session of theirs was seen.
+    last_seen: str
+    #: The last `SPARK_DAYS` days, oldest first: whether they were active on each.
+    spark: list[bool]
+    texts: int
+    words: int
+    learned: int
+    #: This month's credits used in seconds, their allowance (None for none), and the
+    #: model spend of their jobs this month in dollars.
+    used: float
+    allowance: float | None
+    spent: float
+    #: The languages they read in, where the Notice allows it; else empty.
+    languages: list[str]
+    flags: list[str]
+    leaving: str = ""
+
+
+@dataclass
+class ReadersPage:
+    """The Readers table's page: the rows, how they were asked for, and what the filters
+    can offer."""
+
+    rows: list[ReaderRow]
+    listing: Listing
+    filter: ReaderFilter
+    #: Every reader, however many match.
+    total: int
+    languages_shown: bool
+    #: The languages any reader reads in, for the filter; empty when not shown.
+    languages: list[str]
+
+
+#: The last time anything of an account moved, or a session of theirs was seen: each
+#: table read once and grouped, then joined, never a subquery per person. `session` has
+#: no index on its person, and a subquery a row made last seen some 25 million row reads
+#: at five thousand accounts.
+LAST_SEEN_FROM = (
+    "WITH moved(person, at) AS ("
+    " SELECT person, MAX(at) FROM word WHERE gone = 0 GROUP BY person"
+    " UNION ALL SELECT person, MAX(at) FROM phrase WHERE gone = 0 GROUP BY person"
+    " UNION ALL SELECT person, MAX(MAX(updated), MAX(opened)) FROM doc WHERE gone = 0"
+    " GROUP BY person"
+    " UNION ALL SELECT person, MAX(seen) FROM session GROUP BY person),"
+    " last(person, at) AS (SELECT person, MAX(at) FROM moved GROUP BY person) "
+)
+LAST_SEEN = "IFNULL(l.at, 0)"
+
+#: This month's credits and spend, the sums `_credits` reads, for ordering the whole list.
+MONTH_LENGTH = (
+    "(SELECT IFNULL(SUM(CASE WHEN length > 0 THEN length ELSE 0 END), 0) FROM job j"
+    " WHERE j.owner = p.id AND j.made >= :month)"
+)
+MONTH_SPENT = "(SELECT IFNULL(SUM(spent), 0) FROM job j WHERE j.owner = p.id AND j.made >= :month)"
+
+READER_ORDERS = {
+    "seen": f"{LAST_SEEN} DESC, p.id DESC",
+    "joined": "p.made DESC, p.id DESC",
+    "words": ACCOUNT_ORDERS["words"],
+    "texts": ACCOUNT_ORDERS["texts"],
+    "credits": f"{MONTH_LENGTH} DESC, p.id DESC",
+    "spend": f"{MONTH_SPENT} DESC, p.id DESC",
+    "flags": "{score} DESC, p.made DESC, p.id DESC",
+}
+
+
+def _columns(db: sqlite3.Connection, table: str) -> set[str]:
+    with contextlib.suppress(sqlite3.Error):
+        return {str(row[1]) for row in db.execute(f"PRAGMA table_info({table})")}  # noqa: S608
+    return set()
+
+
+def _plan_kind(db: sqlite3.Connection) -> str:
+    """SQL naming each reader's plan, `plan`, `beta` or `free`, as far as this store can
+    say: a Paddle plan that holds (active, trialing, or a failed renewal inside its
+    grace), else a comp whose day has not come, else Free."""
+    from .plans import GRACE_DAYS
+
+    paid = "0"
+    if _has_table(db, "plan"):
+        paid = (
+            "EXISTS (SELECT 1 FROM plan pl WHERE pl.person = p.id AND (pl.status IN"
+            " ('active', 'trialing') OR (pl.status = 'past_due'"
+            f" AND pl.past_due_since > :now_ms - {GRACE_DAYS} * {DAY_MS})))"
+        )
+    comped = "p.plan_until > :today" if "plan_until" in _columns(db, "person") else "0"
+    return f"(CASE WHEN {paid} THEN 'plan' WHEN {comped} THEN 'beta' ELSE 'free' END)"
+
+
+def readers(
+    db: sqlite3.Connection,
+    listing: Listing,
+    wanted: ReaderFilter,
+    now: datetime | None = None,
+    operators: Iterable[str] = (),
+    allowance: float | None = None,
+    plan_allowance: float | None = None,
+    languages_on: bool | None = None,
+) -> ReadersPage:
+    """The Readers table (design's plan, 2026-11-17, §1): every account but staff
+    (`_staff`: the operators, the admins and the test accounts), searched, filtered,
+    ordered and paged in the store, and each row on the page with its plan, last seen, a
+    sparkline of `SPARK_DAYS`, texts, words, credits, spend, languages and flags.
+
+    Per-row figures are read for the page's rows only; what orders or filters the whole
+    list is asked of the store, never of rows pulled out of it. Nothing read here is a
+    word, a title, a source or a note (clause 3.2): counts, dates and language codes."""
+    _functions(db)
+    moment = now or datetime.now(UTC)
+    today = moment.date()
+    now_ms = int(moment.timestamp() * 1000)
+    staff = _staff(db, frozenset(bare(each) for each in operators))
+    shown = languages_shown() if languages_on is None else languages_on
+    named: dict[str, object] = {
+        "staff": json.dumps(sorted(staff)),
+        "month": month_from(today),
+        "today": today.isoformat(),
+        "now_ms": now_ms,
+    }
+    clause = "bare(p.email) NOT IN (SELECT value FROM json_each(:staff))"
+    total = _one(db, f"SELECT COUNT(*) FROM person p WHERE {clause}", named)  # noqa: S608
+    args = dict(named)
+    if listing.q:
+        clause += (
+            " AND (fold(p.email) LIKE :like ESCAPE '\\' OR fold(p.name) LIKE :like ESCAPE '\\')"
+        )
+        args["like"] = _like(listing.q)
+    reasons = _flag(db, now_ms, frozenset(staff))
+    score = SCORE.format(column="p.email")
+    if wanted.flagged:
+        clause += f" AND {score} >= {FAKE_AT}"
+    if wanted.active:
+        days = 30 if wanted.active == "inactive" else int(wanted.active)
+        cut = (today - timedelta(days=days - 1)).isoformat()
+        args["cut_day"] = cut
+        args["cut_ms"] = int(
+            datetime.combine(date.fromisoformat(cut), datetime.min.time(), UTC).timestamp() * 1000
+        )
+        recent = (
+            "p.id IN (SELECT person FROM day WHERE gone = 0 AND day >= :cut_day"
+            " UNION SELECT person FROM doc WHERE gone = 0"
+            " AND (opened >= :cut_ms OR updated >= :cut_ms)"
+            " UNION SELECT person FROM word WHERE gone = 0 AND at >= :cut_ms)"
+        )
+        clause += f" AND {'NOT ' if wanted.active == 'inactive' else ''}{recent}"
+    if wanted.plan:
+        clause += f" AND {_plan_kind(db)} = :plan"
+        args["plan"] = wanted.plan
+    if wanted.language and shown:
+        clause += (
+            " AND p.id IN (SELECT person FROM doc WHERE gone = 0 AND language = :lang"
+            " UNION SELECT person FROM word WHERE gone = 0 AND language = :lang)"
+        )
+        args["lang"] = wanted.language
+    if wanted.follow:
+        scratch = Survey()
+        _growth(db, scratch, today, frozenset(bare(each) for each in operators))
+        args["due"] = json.dumps(sorted(scratch.follow_up_due))
+        clause += " AND lower(trim(p.email)) IN (SELECT value FROM json_each(:due))"
+    listing.matches = _one(db, f"SELECT COUNT(*) FROM person p WHERE {clause}", args)  # noqa: S608
+    listing.page = min(listing.page, listing.pages())
+    order = READER_ORDERS.get(listing.sort, READER_ORDERS["seen"]).replace("{score}", score)
+    people = db.execute(
+        f"{LAST_SEEN_FROM}"  # noqa: S608 - every part is ours
+        f"SELECT p.id, p.email, p.name, p.made, p.leaving, {_plan_kind(db)} AS kind,"
+        f" {LAST_SEEN} AS seen"
+        " FROM person p LEFT JOIN last l ON l.person = p.id"
+        f" WHERE {clause} ORDER BY {order} LIMIT :per OFFSET :skip",
+        {**args, "per": listing.per, "skip": listing.offset()},
+    ).fetchall()
+    rows = _reader_rows(db, people, named, today, allowance, plan_allowance, shown, reasons)
+    languages: list[str] = []
+    if shown:
+        # From readers' rows only: a language only staff read in is no reader's.
+        languages = sorted(
+            {
+                str(row[0])
+                for row in db.execute(
+                    "SELECT language FROM ("
+                    " SELECT person, language FROM doc WHERE gone = 0 AND language != ''"
+                    " UNION SELECT person, language FROM word WHERE gone = 0 AND language != '')"
+                    " JOIN person p ON p.id = person"
+                    " WHERE bare(p.email) NOT IN (SELECT value FROM json_each(:staff))"
+                    " GROUP BY language",
+                    named,
+                )
+            }
+        )
+    return ReadersPage(
+        rows=rows,
+        listing=listing,
+        filter=wanted,
+        total=total,
+        languages_shown=shown,
+        languages=languages,
+    )
+
+
+def _reader_rows(
+    db: sqlite3.Connection,
+    people: Sequence[sqlite3.Row],
+    named: Mapping[str, object],
+    today: date,
+    allowance: float | None,
+    plan_allowance: float | None,
+    shown: bool,
+    reasons: Mapping[str, list[str]],
+) -> list[ReaderRow]:
+    """The figures for the page's rows, asked of the store for those ids only."""
+    if not people:
+        return []
+    among = ",".join(str(int(row["id"])) for row in people)
+    counted = {
+        name: {
+            int(row["person"]): int(row["n"])
+            for row in _rows(db, sql.format(among=among))  # noqa: S608 - ids are ints
+        }
+        for name, sql in (
+            (
+                "words",
+                "SELECT person, COUNT(*) n FROM word"
+                " WHERE gone = 0 AND person IN ({among}) GROUP BY person",
+            ),
+            (
+                "learned",
+                "SELECT person, COUNT(*) n FROM word WHERE gone = 0 AND learned = 1"
+                " AND person IN ({among}) GROUP BY person",
+            ),
+            (
+                "texts",
+                "SELECT person, COUNT(*) n FROM doc"
+                " WHERE gone = 0 AND person IN ({among}) GROUP BY person",
+            ),
+        )
+    }
+    month: dict[int, tuple[float, float]] = {}
+    with contextlib.suppress(sqlite3.Error):
+        for row in db.execute(
+            "SELECT owner, SUM(CASE WHEN length > 0 THEN length ELSE 0 END) AS used,"  # noqa: S608 - ids are ints
+            f" SUM(spent) AS spent FROM job WHERE made >= :month AND owner IN ({among})"
+            " GROUP BY owner",
+            named,
+        ):
+            month[int(row["owner"])] = (float(row["used"] or 0), float(row["spent"] or 0))
+    # The sparkline: which of the last SPARK_DAYS days each was active on, by the same
+    # rule as the overview's (a day row, a text opened or updated, a word saved).
+    first = today - timedelta(days=SPARK_DAYS - 1)
+    since = int(datetime.combine(first, datetime.min.time(), UTC).timestamp() * 1000)
+    active: dict[int, set[str]] = {}
+    for row in db.execute(
+        "SELECT person, day AS d FROM day"  # noqa: S608 - ids are ints
+        f" WHERE gone = 0 AND day >= :first AND person IN ({among})"
+        " UNION SELECT person, date(opened / 1000, 'unixepoch') FROM doc"
+        f" WHERE gone = 0 AND opened >= :since AND person IN ({among})"
+        " UNION SELECT person, date(updated / 1000, 'unixepoch') FROM doc"
+        f" WHERE gone = 0 AND updated >= :since AND person IN ({among})"
+        " UNION SELECT person, date(at / 1000, 'unixepoch') FROM word"
+        f" WHERE gone = 0 AND at >= :since AND person IN ({among})",
+        {"first": first.isoformat(), "since": since},
+    ):
+        active.setdefault(int(row["person"]), set()).add(str(row["d"]))
+    window = [(first + timedelta(days=n)).isoformat() for n in range(SPARK_DAYS)]
+    spoken: dict[int, set[str]] = {}
+    if shown:
+        for row in db.execute(
+            "SELECT person, language FROM doc"  # noqa: S608 - ids are ints
+            f" WHERE gone = 0 AND language != '' AND person IN ({among})"
+            " UNION SELECT person, language FROM word"
+            f" WHERE gone = 0 AND language != '' AND person IN ({among})"
+        ):
+            spoken.setdefault(int(row["person"]), set()).add(str(row["language"]))
+    comps: dict[int, str] = {}
+    if "plan_until" in _columns(db, "person"):
+        comps = {
+            int(row["id"]): str(row["plan_until"] or "")
+            for row in _rows(db, f"SELECT id, plan_until FROM person WHERE id IN ({among})")  # noqa: S608 - ids are ints
+        }
+    out: list[ReaderRow] = []
+    for row in people:
+        who = int(row["id"])
+        kind = str(row["kind"])
+        used, spent = month.get(who, (0.0, 0.0))
+        label = {"plan": "Plan", "free": "Free"}.get(kind, "")
+        if kind == "beta":
+            label = f"Beta until {_said(comps.get(who, ''))}" if comps.get(who) else "Beta"
+        out.append(
+            ReaderRow(
+                id=who,
+                email=str(row["email"]),
+                name=str(row["name"] or ""),
+                plan=label,
+                last_seen=_day(int(row["seen"])) if int(row["seen"] or 0) else "",
+                spark=[day in active.get(who, set()) for day in window],
+                texts=counted["texts"].get(who, 0),
+                words=counted["words"].get(who, 0),
+                learned=counted["learned"].get(who, 0),
+                used=used,
+                allowance=plan_allowance if kind in ("plan", "beta") else allowance,
+                spent=spent,
+                languages=sorted(spoken.get(who, set())),
+                flags=[FLAGS[key] for key in reasons.get(flag_key(str(row["email"])), [])],
+                leaving=_day(int(row["leaving"])) if row["leaving"] else "",
+            )
+        )
+    return out
+
+
+def readers_store(
+    store: Path,
+    listing: Listing,
+    wanted: ReaderFilter,
+    operators: Iterable[str] | None = None,
+    allowance: float | None = None,
+    plan_allowance: float | None = None,
+) -> ReadersPage:
+    """`readers`, opening the database read-only."""
+    db = sqlite3.connect(f"file:{store}?mode=ro", uri=True)
+    try:
+        return readers(
+            db,
+            listing,
+            wanted,
+            operators=operators_from_env() if operators is None else operators,
+            allowance=allowance,
+            plan_allowance=plan_allowance,
+        )
     finally:
         db.close()

@@ -10418,15 +10418,29 @@ class Handler(BaseHTTPRequestHandler):
             ACCOUNT_SEARCH,
             ACCOUNT_SORTS,
             DAYS,
+            READER_SORTS,
             WAITING_SEARCH,
             WAITING_SORTS,
             Listing,
+            ReaderFilter,
             overview_store,
+            readers_store,
             survey_store,
         )
 
         found = None
-        if section in ("overview", "readers", "waitlist", "traffic"):
+        listed = None
+        if section == "readers":
+            # The Readers table (design's plan, 2026-11-17, PR 4): staff left out, searched
+            # as `bq`, filtered, ordered by last seen unless asked otherwise, fifty a page.
+            listed = readers_store(
+                self.store.path,
+                Listing.read(query, ACCOUNT_SEARCH, "sort", "page", READER_SORTS),
+                ReaderFilter.read(query),
+                allowance=self.library.allowance(paid_plan=False),
+                plan_allowance=self.library.allowance(paid_plan=True),
+            )
+        if section in ("overview", "waitlist", "traffic"):
             # Which page of each list, searched and ordered how (targum-internal#542): a
             # GET form and plain links, so the page still carries no script of its own.
             found = survey_store(
@@ -10482,6 +10496,7 @@ class Handler(BaseHTTPRequestHandler):
             finds=self._finds_survey() if operations else None,
             fit=self._fit_survey() if operations else None,
             withheld=withheld_survey(self.library.out) if operations else None,
+            listed=listed,
             section=section,
         )
         self._send(200, page.encode("utf-8"), HTML)

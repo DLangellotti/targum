@@ -87,17 +87,10 @@ def test_accounts_are_drawn_fifty_at_a_time_newest_first(five_hundred: sqlite3.C
         1,
         50,
     )
-    page = back_office_page(found, 30, section="readers")
-    assert 'rel="next" href="/back-office/readers?page=2"' in page
-    assert 'rel="prev"' not in page[page.index("<h2>Accounts") :]
-    assert "1–50 of 500" in page, "the count is every account, not the page"
 
     second = survey(five_hundred, today=TODAY, accounts=accounts(page="2"))
     assert second.accounts[0].email == "reader051@example.com"
-    drawn = back_office_page(second, 30, section="readers")
-    drawn = drawn[drawn.index("<h2>Accounts") :]
-    assert 'rel="prev" href="/back-office/readers"' in drawn, "page one is the bare address"
-    assert 'href="/back-office/readers?page=3"' in drawn
+    # The Readers page draws its own table (`readers`); see test_backoffice_readers.py.
 
     # A page past the end is the last page, not an empty one.
     past = survey(five_hundred, today=TODAY, accounts=accounts(page="99"))
@@ -125,15 +118,6 @@ def test_accounts_are_searched_by_address_or_name(five_hundred: sqlite3.Connecti
     assert [who.email for who in named.accounts] == ["reader250@example.com"]
     # The search's own wildcards are only characters.
     assert survey(five_hundred, today=TODAY, accounts=accounts(q="%")).accounts == []
-    nothing = survey(five_hundred, today=TODAY, accounts=accounts(q="nobody"))
-    page = back_office_page(nothing, 30, section="readers")
-    assert "No account matches “nobody”." in page
-    assert 'name="bq" value="nobody"' in page
-    # What is typed is drawn as text.
-    odd = back_office_page(
-        survey(five_hundred, today=TODAY, accounts=accounts(q="<b>")), 30, section="readers"
-    )
-    assert "&lt;b&gt;" in odd and 'value="<b>"' not in odd
 
 
 def test_accounts_sort_by_what_is_asked(five_hundred: sqlite3.Connection) -> None:
@@ -149,9 +133,6 @@ def test_accounts_sort_by_what_is_asked(five_hundred: sqlite3.Connection) -> Non
     )
     for sort in ACCOUNT_SORTS:
         assert len(survey(five_hundred, today=TODAY, accounts=accounts(sort=sort)).accounts) == 50
-    page = back_office_page(most, 30, section="readers")
-    assert '<option value="words" selected>Most words</option>' in page
-    assert 'href="/back-office/readers?sort=words&amp;page=2"' in page, "the order rides along"
 
 
 def test_the_address_is_read_and_anything_odd_is_the_default() -> None:
@@ -186,9 +167,6 @@ def test_the_waitlist_pages_its_two_lists_apart(five_hundred: sqlite3.Connection
     drawn = back_office_page(later, 30, section="waitlist")
     assert 'rel="prev" href="/back-office/waitlist?bwq=waiting"' in drawn
     assert "reader1" not in drawn and 'name="q"' not in drawn and 'name="wq"' not in drawn
-    readers = back_office_page(later, 30, section="readers")
-    assert 'rel="prev" href="/back-office/readers?bq=reader1"' in readers
-    assert "bwq" not in readers
 
     searched = survey(
         five_hundred,
