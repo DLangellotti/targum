@@ -106,6 +106,10 @@ TOLD_STATES = ("open", "fixed", "won't", "asked")
 TOLD_CLOSED = ("fixed", "won't")
 #: How long a fault report is kept (clause 3.14; the schedule says thirty days).
 FAULT_KEEP_DAYS = 30
+#: How long an address on the waitlist that never confirmed is kept, from its latest
+#: request to join (the retention schedule, as David approved it on 2026-11-17): thirty
+#: days, whereupon the address and the link it tried on the front page are deleted.
+UNCONFIRMED_KEEP_DAYS = 30
 
 #: How many prompts one reader may keep, and how long each may be. Enough for somebody
 #: who has worked out a handful of ways they like to be asked; not a place to keep an
@@ -8146,6 +8150,23 @@ class Store:
             db.execute("DELETE FROM fault_fixed WHERE at < ?", (cutoff,))
             return gone
 
+    def sweep_unconfirmed(self, days: int = UNCONFIRMED_KEEP_DAYS) -> int:
+        """Delete every waitlist address that never confirmed and last asked more than
+        `days` ago, with the link it tried (the row is the whole of it), and say how many.
+
+        Never one that confirmed (`joined`), or was let in, confirmed or not (`invited`):
+        those are kept on the consent confirming gave, or on the guest list's own terms.
+        An address turned off before it confirmed is unconfirmed too, and goes the same
+        way. Run again, it finds nothing: what it deleted is gone."""
+        cutoff = now() - days * 24 * 60 * 60 * 1000
+        with self.write() as db:
+            return int(
+                db.execute(
+                    "DELETE FROM waiting WHERE joined = 0 AND invited = 0 AND asked < ?",
+                    (cutoff,),
+                ).rowcount
+            )
+
     # -- what the services have left ---------------------------------------------
 
     def balance_read(self, service: str, said: str) -> None:
@@ -8176,6 +8197,7 @@ class Store:
             db.execute("DELETE FROM asked WHERE made < ?", (now() - 60 * 60 * 1000,))
         self.sweep_told()
         self.sweep_faults()
+        self.sweep_unconfirmed()
 
     # -- the work queue ---------------------------------------------------------
 

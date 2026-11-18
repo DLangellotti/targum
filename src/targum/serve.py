@@ -974,6 +974,17 @@ def keep_purging(
                 log.info("purge: %d account(s) deleted", len(gone))
         except Exception as error:  # noqa: BLE001 - never takes the server down
             log.warning("purge: deleting the departed failed: %s", error)
+        # The waitlist's unconfirmed addresses, thirty days after they asked (the
+        # retention schedule, 2026-11-17). Counted in the log and never named. Start-up
+        # runs it too, in `Store.sweep`.
+        try:
+            if library.store is not None:
+                swept = library.store.sweep_unconfirmed()
+                if swept:
+                    log.info("waitlist: %d unconfirmed address(es) deleted", swept)
+        except Exception:  # noqa: BLE001 - never takes the server down
+            # The error's own words may name an address; the kind is enough to look.
+            log.warning("waitlist: the unconfirmed sweep failed")
 
 
 #: A file inside a published edition's built reader.
@@ -10452,6 +10463,9 @@ class Handler(BaseHTTPRequestHandler):
                 ),
                 let_in=Listing.read(
                     query, WAITING_SEARCH, "wsort", "ipage", WAITING_SORTS, "wfake"
+                ),
+                unconfirmed=Listing.read(
+                    query, WAITING_SEARCH, "wsort", "upage", WAITING_SORTS, "wfake"
                 ),
                 # A reader's month and an admin's, which is Plan's (targum-internal#543).
                 allowance=self.library.allowance(paid_plan=False),

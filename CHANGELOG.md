@@ -29,6 +29,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     SameSite=Lax alone would have sent the admin's cookie (qa on targum#1308). When a
     press fails, its reason goes to Incidents. The page says only that it did not go
     through. The Caddy filters also delete the old `q` and `wq` for now.
+- The waitlist keeps what the Retention Schedule says (PR 6 of the back-office plan,
+  2026-11-17). An address that never confirmed is deleted thirty days after it last asked,
+  with the link it tried on the front page: `Store.sweep_unconfirmed`, run at start-up in
+  `Store.sweep` and nightly beside the departed accounts' purge, logging a count and never
+  an address. Nothing confirmed or let in is touched. The Waitlist page shows "waiting to
+  be let in" first, keeps those who confirmed (or left, or were turned off) in view, and
+  folds the unconfirmed under "Unconfirmed (n)", paged on their own (`upage`), beside
+  "Let in (n)".
 - The Privacy Notice and the Data Retention Schedule say what the back office shows, in
   David's words (approved word for word on 2026-11-17; PR 1 of the back-office plan).
   Clause 3.2 now names the counts, dates, languages, credits and their cost, and the

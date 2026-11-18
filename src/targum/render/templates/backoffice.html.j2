@@ -528,7 +528,8 @@
       of this page names nobody either. `on` is the number that matters — an address
       that answered its confirmation — and `pending` is how many have not yet. -#}
   {%- if survey.waiting %}
-  <p class="taken">{{ survey.waiting.on }} confirmed their email &middot;
+  <p class="taken">{{ survey.waiting_for_a_way_in }} waiting to be let in &middot;
+    {{ survey.waiting.on }} confirmed their email &middot;
     {{ survey.waiting.pending }} not yet confirmed &middot;
     {{ survey.waiting.off }} left the list &middot;
     {{ survey.waiting_let_in or survey.waiting_list|selectattr('invited')|list|length }} let in
@@ -591,8 +592,12 @@
       <tr><th>Address</th><th>Asked</th><th>Confirmed</th><th>State</th><th>Let in</th><th>Reads</th><th>From</th></tr>
     </thead>
   {%- endmacro %}
-  {%- if survey.waiting_list or waiting_listing.q or survey.waiting_let_in %}
-  {%- set still = survey.waiting_list|rejectattr('invited')|list %}
+  {%- if survey.waiting_list or waiting_listing.q or survey.waiting_let_in or unconfirmed_listing.matches %}
+  {#- Three lists (design.md §12, 2026-11-17): those who confirmed, or left, or were
+      turned off, in view; those who never confirmed, and those let in, folded. -#}
+  {%- set waiting_rows = survey.waiting_list|rejectattr('invited')|list %}
+  {%- set still = waiting_rows|rejectattr('state', 'equalto', 'pending')|list %}
+  {%- set unconfirmed = waiting_rows|selectattr('state', 'equalto', 'pending')|list %}
   {%- set done = survey.waiting_list|selectattr('invited')|list %}
   <h2>The waitlist</h2>
   {#- With the door open nobody joins (targum-internal#477, C): the list is the history
@@ -621,7 +626,22 @@
   {%- elif waiting_listing.q %}
   <p class="quiet">Nobody still waiting matches “{{ waiting_listing.q }}”.</p>
   {%- else %}
-  <p class="quiet">Everybody who joined has been let in.</p>
+  <p class="quiet">Nobody who confirmed is still waiting.</p>
+  {%- endif %}
+  {%- if unconfirmed %}
+  {#- Never confirmed, so never consented: each is deleted thirty days after it asked,
+      with the link it tried (`Store.sweep_unconfirmed`, the retention schedule). -#}
+  <details class="let-in"{% if unconfirmed_listing.page > 1 or (waiting_listing.q and not still) %} open{% endif %}>
+    <summary>Unconfirmed ({{ unconfirmed_listing.matches }})</summary>
+    <p class="quiet count">Each is deleted thirty days after it asked, with any link it tried.</p>
+    <table>
+      {{ waiting_head() }}
+      <tbody>
+        {% for who in unconfirmed %}{{ waiting_row(who) }}{% endfor %}
+      </tbody>
+    </table>
+    {{ pager(unconfirmed_listing, 'upage', 'Unconfirmed pages') }}
+  </details>
   {%- endif %}
   {%- if done %}
   {#- Open when it is being paged through, or holds the only rows a search found. -#}
