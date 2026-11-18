@@ -365,7 +365,7 @@ def test_a_tool_answers_for_the_person_the_token_names(box: tuple[int, str]) -> 
     said = rpc(port, token, "tools/call", {"name": "my_progress", "arguments": {}})["result"]
     assert said["isError"] is False
     ladder = json.loads(said["content"][0]["text"])
-    assert ladder["ladder"]["note"] == "A guide, not a placement."
+    assert ladder["ladder"]["note"] == "The ladder's name only, never the reader's level."
 
 
 def test_a_schema_comes_over_as_the_registry_wrote_it(box: tuple[int, str]) -> None:

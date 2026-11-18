@@ -2126,9 +2126,9 @@ one line of "Your level, v3" (2026-10-29), "No ulpan explainer", and only that l
   in the cefr's size and `--ink-soft`, hidden from a screen reader, which still hears
   "Ulpan level dalet" from the hidden name. The letter keeps its step and its face.
 - **Under the card, the scale in one quiet line**, the copy audit's own (2026-09-28): "Ulpan
-  classes in Israel run from aleph, for beginners, to vav. A guide, not a placement." A
-  language on the European scale says "The European scale runs from A1, for beginners, to
-  C2. A guide, not a placement."
+  classes in Israel go from aleph, for beginners, to vav." A language on the European
+  scale says "The European scale goes from A1, for beginners, to C2." (David, 2026-11-18:
+  "A guide, not a placement." is dropped from both, and "run" is "go".)
 - **A binyan on a word card says what it usually does**, as a noun's mishkal has since
   2026-11-02 ("A noun's card names its root and mishkal"): "פִּעֵל · often doing it actively
   or with force", in the same soft ink after a middle dot. Seven lines, one a binyan, each a

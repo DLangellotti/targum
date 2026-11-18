@@ -736,9 +736,7 @@ def test_the_card_is_the_level_and_nothing_else() -> None:
         # 2026-11-03; design.md §12, "The ulpan letter says what it is").
         "scale": "Ulpan level",
     }
-    assert drawn["basis"] == (
-        "Ulpan classes in Israel run from aleph, for beginners, to vav. A guide, not a placement."
-    )
+    assert drawn["basis"] == ("Ulpan classes in Israel go from aleph, for beginners, to vav.")
     assert drawn["head"] == "" and drawn["step"] == "" and drawn["known"] == ""
     assert drawn["go"] == "Show texts you can read now"
     assert drawn["goHref"] == "/library?k=k#see/now"
@@ -908,7 +906,7 @@ def test_the_european_scale_leads_with_itself() -> None:
         "scale": "",
     }
     # The scale it is on, under the card (2026-11-03).
-    assert drawn["basis"].startswith("The European scale runs from A1, for beginners, to C2.")
+    assert drawn["basis"] == "The European scale goes from A1, for beginners, to C2."
     assert drawn["toward"]["line"] == "237 more dictionary words to B2"
     assert drawn["toward"]["letter"] is None
 

@@ -501,8 +501,8 @@
     }
     if (basis) {
       basis.textContent = ulpan
-        ? t("progress.basis.ulpan", "Ulpan classes in Israel run from aleph, for beginners, to vav. A guide, not a placement.")
-        : t("progress.basis.cefr", "The European scale runs from A1, for beginners, to C2. A guide, not a placement.");
+        ? t("progress.basis.ulpan", "Ulpan classes in Israel go from aleph, for beginners, to vav.")
+        : t("progress.basis.cefr", "The European scale goes from A1, for beginners, to C2.");
     }
     // The letter alone with its geresh, in its own right-to-left run and hidden from a
     // screen reader, which hears its name instead; a European level is itself.

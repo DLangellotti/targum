@@ -14,6 +14,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   "learned on targum" is gone; the label stays. `progress.ear.start` and
   `progress.count.learned.note` are retired; `lists.ear.tip` is new, its Russian a draft
   for ling-ru.
+- The level card's footnote drops "A guide, not a placement." (David, 2026-11-18): "Ulpan
+  classes in Israel go from aleph, for beginners, to vav." and "The European scale goes
+  from A1, for beginners, to C2." Russian drops the matching sentence. The `ladder.note`
+  that `my_progress` hands the chat and the connector says "The ladder's name only, never
+  the reader's level." instead, so it is a model's label and not the page's dropped line.
 - "Tell us" is "Send feedback" to readers, «Отправить отзыв» in Russian (David,
   2026-11-17): the account menu's row, the box's title, the reader's ⋯ row and the press
   on every fault panel, all `fault.tell-us`. Code, routes and the back office keep

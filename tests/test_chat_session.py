@@ -184,7 +184,10 @@ def test_tool_results_go_back_in_one_message_in_order(tmp_path: Path) -> None:
     results = client.requests[1]["messages"][-1]["content"]
     assert [r["tool_use_id"] for r in results] == ["t1", "t2"], "all of them, in one message"
     assert results[0]["is_error"] is False and results[1]["is_error"] is True
-    assert json.loads(results[0]["content"])["ladder"]["note"] == "A guide, not a placement."
+    assert (
+        json.loads(results[0]["content"])["ladder"]["note"]
+        == "The ladder's name only, never the reader's level."
+    )
     assert [role for role, _, _ in kept] == ["assistant", "user", "assistant"]
     assert kept[0][2] == "" and kept[2][2] == "You know nothing yet.", "said is the text alone"
     assert [kind for kind, _ in feed.events if kind == "tool"] == ["tool", "tool"]

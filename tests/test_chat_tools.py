@@ -370,7 +370,7 @@ def test_vocabulary_and_progress_are_counts(world) -> None:
     assert [w["lemma"] for w in words["recent"]] == ["מלך", "בית"], "newest first"
     progress = tools.my_progress(ctx, {})
     assert progress["known"] == 2
-    assert progress["ladder"]["note"] == "A guide, not a placement."
+    assert progress["ladder"]["note"] == "The ladder's name only, never the reader's level."
 
 
 def test_suggest_next_leaves_out_what_is_already_mine(world) -> None:
@@ -2438,7 +2438,7 @@ def test_my_progress_hands_over_no_streak_and_no_rung(world) -> None:
     got = tools.my_progress(context(library, store, person, home), {})
     assert "streak" not in got and "longest_run_of_days" in got
     assert "reach" not in got["ladder"] and "cefr" not in got["ladder"]
-    assert got["ladder"]["note"] == "A guide, not a placement."
+    assert got["ladder"]["note"] == "The ladder's name only, never the reader's level."
     assert "never say a level" in tools.BY_NAME["my_progress"].description
 
 
