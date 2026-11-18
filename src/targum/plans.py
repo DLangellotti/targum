@@ -13,11 +13,15 @@ nobody can buy Plan, so on means the operator (`Person.admin`), which is how a b
 be tried with plans on before anybody can buy one, and the beta comped to Plan.
 
 **The comp** (design.md §12, "Signup opens before payments, and the beta is comped to
-Plan", 2026-11-15; targum-internal#59). Every account that exists on switch day, and
-anyone let in from the waitlist while invitations are still going out, is on Plan until
-`BETA_UNTIL` (`Person.plan_until`, set by `targum comp-beta` and by `doorway`'s Let in).
-On that day the comp simply ends and the reader is on Free: no mail, nothing automatic,
-because what happens then is not decided yet.
+Plan", 2026-11-15, amended 2026-11-18; targum-internal#59). Every account that exists on
+switch day, and anyone let in from the waitlist while plans are still off, is on Plan
+until `BETA_UNTIL` (`Person.plan_until`, set by `targum comp-beta` and by `doorway`'s Let
+in). **Once plans are on, nothing comps by itself:** Let in comps nobody, and a sign-up,
+by the open door or by Google, never did, so a new account starts on Free, because a comp
+hides whether a reader would pay and the go/no-go counts paying readers. A comp already
+stored, on an account or on an invitation not yet used, runs to its day, and `targum
+comp-beta` still comps by hand. On that day the comp simply ends and the reader is on
+Free: no mail, nothing automatic, because what happens then is not decided yet.
 
 **A plan paid for** (design.md §12, "Payments are Paddle's, by a hosted checkout",
 2026-11-15; targum-internal#59 phase 2). Paddle's webhooks keep the account's `plan` row

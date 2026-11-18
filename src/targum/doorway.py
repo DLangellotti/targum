@@ -17,10 +17,12 @@ failure is the one to choose.
 `waiting_for_a_way_in`: confirmed, not yet invited, oldest first. There is no argument
 for an arbitrary address, because `targum invite` is already that and says so.
 
-**And they are comped to Plan** (targum-internal#59; design.md §12, 2026-11-15): while
-invitations are still going out, anybody let in here — one by one or a few at a time —
-is on Plan until `plans.BETA_UNTIL`, as the accounts of switch day are. `targum invite`
-is not the waitlist, and comps nobody.
+**And, until plans are on, they are comped to Plan** (targum-internal#59; design.md §12,
+2026-11-15, amended 2026-11-18): while invitations are still going out, anybody let in
+here — one by one or a few at a time — is on Plan until `plans.BETA_UNTIL`, as the
+accounts of switch day are. Once `TARGUM_PLANS` is on, Let in comps nobody and the new
+reader starts on Free, because a comp hides whether they would pay. `targum invite` is not
+the waitlist, and comps nobody; `targum comp-beta` still comps by hand.
 
 **And then their saved link is built** (targum-internal#399; David, 2026-10-01). Somebody
 who tried a link on the front page joined with it, and the door promised it would be
@@ -157,12 +159,20 @@ def resend(store: Store, mailer: Mailer | None, address: str, email: str) -> Ope
 def _comp(store: Store, email: str, today: date | None = None) -> None:
     """Comp somebody let in to Plan, while invitations are still going out (design.md
     §12, "Signup opens before payments, and the beta is comped to Plan", 2026-11-15).
-    Only before the comp's day: an address let in on or after it is not comped to a day
-    already past. On the invitation, so the account they open takes it, and on the
-    account if they already have one. Stored whether plans are on or off; with them off
-    it changes nothing anybody sees."""
+    On the invitation, so the account they open takes it, and on the account if they
+    already have one; with plans off it changes nothing anybody sees.
+
+    **Only while plans are off** (amended 2026-11-18, David): once `TARGUM_PLANS` is on,
+    paid has opened and somebody let in starts on Free, so the go/no-go counts readers
+    who would pay. `plans.on()` is the signal rather than a date because it is the switch
+    itself: switch day is the day it goes on, whenever that turns out to be, and a test or
+    a box tried with plans on behaves as the box after switch day will. A comp already
+    stored is left alone: it runs to its day. And only before the comp's day: an address
+    let in on or after it is not comped to a day already past."""
     from . import plans
 
+    if plans.on():
+        return
     if (today or datetime.now(UTC).date()) < date.fromisoformat(plans.BETA_UNTIL):
         store.comp(email, plans.BETA_UNTIL)
 

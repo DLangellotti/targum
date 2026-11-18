@@ -718,7 +718,12 @@ lasts" (both 2026-10-09), each in place.
 - **`TARGUM_PLANS=1` from switch day.** Free and Plan are as the 2026-10-09 entry draws
   them.
 - **Comped to Plan until 2027-03-04:** every account that exists on switch day, and
-  anyone let in from the waitlist while invitations are still going out.
+  anyone let in from the waitlist while invitations are still going out. *(Amended
+  2026-11-18, David: once plans are on, Let in and signup no longer comp; existing comps
+  run to 03-04; `targum comp-beta` still comps by hand.)* Paid opens on Monday 2026-11-23,
+  with open signup the same day, and anyone let in or signing up from then starts on
+  Free: a comp hides whether a reader would pay, and the go/no-go on 2027-02-18 counts
+  paying readers.
 - **A new sign-up gets Free:** 60 credits a month, a word list of 300 words, and no
   subscriptions to a channel or a podcast.
 
