@@ -766,6 +766,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     `progress.count.ear`, `sentences.open-word`); the Russian waits on ling-ru's first
     pass.
 ### Fixed
+- `test_progress_goal_browser.py` no longer fails across midnight UTC
+  (targum-internal#748). Its totals were dated from `date.today()` when the module was
+  imported, while the page read the browser's own clock, so a suite crossing midnight
+  drew "today" a day off. The day is now a fixed `TODAY`, and the browser's clock and
+  time zone are pinned to it. A new test draws the page a second after midnight and a
+  second before the next.
 - A Sefaria range that starts mid-chapter keeps its verse numbers (targum-internal#530).
   `Genesis 1:20-2:3` was numbered from one, so its first verse was called 1:1, and a
   verse's ref is what the reader, a recording and Onkelos's names are keyed by
