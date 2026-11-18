@@ -218,6 +218,26 @@ def filed_as(batch: list[str]) -> dict[str, str]:
     return wanted
 
 
+def answered_for(wanted: Mapping[str, str], returned: str) -> str | None:
+    """The form a returned entry answers, from `filed_as`'s table: itself, or the bare
+    form it was asked as where the model added a mark of its own (#538, 2026-11-18).
+
+    The other way round from the dropped mark `filed_as` already catches: asked for עשה,
+    the model answered `עשה (verb)`, because the prompt lists the marks. Seven of eleven
+    common Hebrew words came back so in the in-language read, and each was paid for and
+    then dropped, so a third of the read showed no meaning. Filed under the bare form
+    only where the batch did not ask for that marked form itself."""
+    asked = wanted.get(returned)
+    if asked is not None:
+        return asked
+    for mark in MARKS:
+        if returned.endswith(mark):
+            bare = returned[: -len(mark)].strip()
+            if wanted.get(bare) == bare:
+                return bare
+    return None
+
+
 def entries_for(lemmas: list[str], contexts: Mapping[str, str] | None = None) -> str:
     """One entry per form, with the sentence it was met in where there is one.
 
@@ -318,10 +338,16 @@ class AnthropicGlosses:
                 if isinstance(parsed, _Batch):
                     wanted = filed_as(part)
                     for entry in parsed.entries:
-                        asked = wanted.get(entry.lemma.strip())
+                        returned = entry.lemma.strip()
+                        asked = answered_for(wanted, returned)
                         said = entry.gloss.strip()
                         if bare:
                             said = unpointed(said).strip()
+                        # A form filed by taking off a mark the model added is a fallback:
+                        # it never overwrites an answer already filed, and an exact answer
+                        # arriving after it replaces it (qa on targum#1325).
+                        if asked and asked in out and returned not in wanted:
+                            continue
                         if asked and said:
                             out[asked] = Sense(
                                 said,
