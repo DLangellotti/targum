@@ -251,6 +251,12 @@
       </form>
       {%- endif %}
     </div>
+    {%- if which == 'words' %}
+    {#- How to make a first Known by ear mark (design.md §12, "A word can be known by ear,
+        and only the reader says so"; David, 2026-11-18): a quiet note under the head,
+        drawn by `lists.js` only while no word is known by ear. -#}
+    <p class="note words-ear-tip" id="words-ear-tip" hidden></p>
+    {%- endif %}
   </div>
   {#- The list as this browser holds it, said as that when the account's could not be had
       (targum-internal#725): `yours.js` puts a fault line here with Try again. -#}

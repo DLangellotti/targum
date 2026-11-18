@@ -76,14 +76,6 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
 @media (hover: none) and (pointer: coarse) {
   .progress .ledger .counts a.count-ear { display: inline-flex; align-items: center; min-block-size: 44px; }
 }
-/* The story's second line, in the ledger's own quiet note (targum-internal#536). */
-.progress .ledger-ear {
-  margin: 1rem 0 0;
-  font-size: 0.8125rem;
-  line-height: 1.5;
-  color: var(--page-max);
-}
-.progress .ledger-ear + .ledger-note { margin-block-start: 0.35rem; }
 
 /* §9 makes this block the only surface --leaf-bright and --sun are allowed on: neither
    reaches 3:1 against paper. §4 says which is which — leaf for what has been reached,
@@ -136,15 +128,6 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
 .spent-vs, .spent-under { color: var(--ink-soft); }
 .spent-vs.up { color: color-mix(in srgb, var(--leaf) 70%, var(--ink)); }
 .spent-arrow { font-size: 0.6875rem; }
-/* The ledger's quiet last line, on its own ground at the meta size and in the muted mix
-   its labels use: it sat under the ledger on the desk ground, outside any card
-   (targum-internal#522; §9, §13). */
-.progress .ledger-note {
-  margin: 1rem 0 0;
-  font-size: 0.8125rem;
-  line-height: 1.5;
-  color: color-mix(in srgb, var(--page-max) 62%, var(--ink-max));
-}
 /* The days active and the period's words, under a hairline when the figures stand above. */
 .progress .how-lower {
   display: grid;
@@ -803,8 +786,6 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
   /* The phone board's three: on your list, known, finished; the rest are the desk's. */
   .progress .ledger .counts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .progress .ledger .counts > :not(.count-saved, .count-known, .count-finished) { display: none; }
-  /* "Learned on targum" is one of the desk's, so its line goes with it (qa on #858). */
-  .progress .ledger-note { display: none; }
   .progress .spent-amount, .progress .ledger .counts b { font-size: 1.5rem; }
   /* The Upload row's aside under its term, not cut to "A link, a file, or a …" (polish 9). */
   .progress .next-stack .next-link { flex-direction: column; align-items: flex-start; gap: 0.1rem; padding-block: 0.25rem; }

@@ -22,6 +22,8 @@ install({
   TARGUM_KEY: "k",
   TARGUM_LIST: payload.which || "words",
   TARGUM_LANGUAGES: { he: "Hebrew", en: "English", ru: "Russian" },
+  // A language's words, as the page hands them to `strings.js`, when the payload has them.
+  TARGUM_STRINGS: payload.strings,
   stored: payload.stored || {},
   TargumLang: {
     HOME: "he",
@@ -66,6 +68,7 @@ if (payload.filter) global.localStorage.setItem("targum:words-stage", payload.fi
 document.getElementById("claim-panel").hidden = true;
 const claimBody = document.getElementById("claim-body");
 
+if (payload.strings) require(path.join(assets, "strings.js"));
 require(path.join(assets, "charts.js"));
 require(path.join(assets, "vocab.js"));
 global.window.TargumVocab.migrate = () => {};
@@ -392,6 +395,8 @@ function phrases() {
       // The head (design.md §12, 2026-10-09): what the list adds up to, the tab counts,
       // and the stage chips with the one pressed.
       summary: at("words-summary").textContent,
+      // How to make a first Known by ear mark, under the head while there is none.
+      earTip: at("words-ear-tip").hidden ? "" : at("words-ear-tip").textContent,
       counts: { words: at("count-words").textContent, phrases: at("count-phrases").textContent },
       chips: at("stage-chips").children.map((c) => c.textContent),
       chipOn: (at("stage-chips").children.find((c) => c.getAttribute("aria-pressed") === "true") || {}).textContent || "",

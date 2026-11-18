@@ -310,11 +310,11 @@
   }
 
   /* Known by ear (targum-internal#536; design.md §12, "A word can be known by ear, and
-     only the reader says so", 2026-11-14). Two things, both counts and never a share: a
+     only the reader says so", 2026-11-14). A count and never a share: a
      second figure under "words known" (and under its roots line), which opens Your Words
-     with the filter on (the way a stage is reached from here), and, before the first
-     mark only, a line under the totals saying how to make one. Nothing else on the page moves: the
-     level, what you can read and every percentage stay the reading marks. */
+     with the filter on (the way a stage is reached from here). How to make a first mark
+     is said on Your Words, where the words are (David, 2026-11-18). Nothing else on the
+     page moves: the level, what you can read and every percentage stay the reading marks. */
   function drawEar(host, ear) {
     var tile = host.querySelector(".count-known");
     if (tile) {
@@ -330,13 +330,6 @@
         tile.appendChild(go);
       }
     }
-    // The start line, only before the first ear mark: after it the linked figure says it,
-    // and "You know 11 words by ear." straight under "11 known by ear" said it twice
-    // (design's §14 pass on #1243).
-    var line = document.getElementById("ear-line");
-    if (!line) return;
-    line.textContent = ear > 0 ? "" : t("progress.ear.start", "Mark a word Known by ear on its card when you know it by sound.");
-    line.hidden = ear > 0;
   }
 
   /* "from N roots" under "words known" (design.md §12, '"from N roots" is a label on the

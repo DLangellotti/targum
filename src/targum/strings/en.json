@@ -4612,7 +4612,6 @@
   "mail.weekly.label": "Weekly News Digest",
   "mail.weekly.level-note": "If you know {figure} words",
   "progress.story.failed": "We couldn't load this part.",
-  "progress.count.learned.note": "“Learned on targum” counts the words you marked here as anything other than known and have since marked known.",
   "progress.where.loading": "We're working out your level.",
   "progress.level.go-first": "Show texts at this level",
   "progress.rung.A1": "Beginner · A1",
@@ -5040,7 +5039,7 @@
   "lists.csv.by-ear": "known by ear",
   "lists.csv.yes": "yes",
   "lists.ear.label": "Known by ear: {word}",
-  "progress.ear.start": "Mark a word Known by ear on its card when you know it by sound.",
+  "lists.ear.tip": "Know a word when you hear it but not when you read it? Open the word and press {press}.",
   "progress.count.ear.one": "{n} known by ear",
   "progress.count.ear.other": "{n} known by ear",
   "sentences.open-word": "Open the card for {word}"

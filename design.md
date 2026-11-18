@@ -950,6 +950,12 @@ especially, or the other way round. Your Words and Your Progress count both.
   the control. The result still writes nothing and scores nothing, and fill the gap is
   unchanged.
 - **Anki gets a tag, `targum::ear`, not a listening card type (D7).**
+- **How to make a first mark is said on Your Words (David, 2026-11-18).** "Know a word
+  when you hear it but not when you read it? Open the word and press Known by ear." is a
+  quiet note under the list's head while no word is known by ear, and gone after the
+  first. Your Progress keeps only the "{n} known by ear" figure under words known; the
+  start line under its totals is gone, and so is the note under the ledger explaining
+  "learned on targum", whose label stands on its own.
 
 ### A daily goal counts days, never a run — 2026-11-14
 

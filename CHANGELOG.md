@@ -6,6 +6,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Changed
+- How to mark a word Known by ear moved from Your Progress to Your Words (David,
+  2026-11-18; design.md §12): "Know a word when you hear it but not when you read it?
+  Open the word and press Known by ear." stands as a quiet note under the list's head
+  while no word is known by ear, and goes after the first. Your Progress keeps the
+  "{n} known by ear" figure and drops the line under its totals, and the note explaining
+  "learned on targum" is gone; the label stays. `progress.ear.start` and
+  `progress.count.learned.note` are retired; `lists.ear.tip` is new, its Russian a draft
+  for ling-ru.
 - "Tell us" is "Send feedback" to readers, «Отправить отзыв» in Russian (David,
   2026-11-17): the account menu's row, the box's title, the reader's ⋯ row and the press
   on every fault panel, all `fault.tell-us`. Code, routes and the back office keep

@@ -1581,7 +1581,7 @@ def test_progress_says_how_many_words_are_known_by_ear_beside_the_reading_count(
     assert drawn["ear"]["href"].startswith("/words?ear=1")
     # Said once (design's §14 pass on #1243): the linked figure, and no sentence under the
     # totals repeating it.
-    assert drawn["ear"]["line"] == ""
+    assert not drawn["ear"]["lineAsked"]
     assert draw(_with_ear(1))["ear"]["figure"] == "1 known by ear"
 
 
@@ -1595,12 +1595,12 @@ def test_the_ear_figure_stands_below_the_roots_line() -> None:
     assert order.index("count-roots") < order.index("count-ear")
 
 
-def test_before_the_first_word_known_by_ear_progress_says_how_to_mark_one() -> None:
+def test_before_the_first_word_known_by_ear_progress_says_nothing_about_it() -> None:
+    """David, 2026-11-18: how to make a first ear mark is said on Your Words, where the
+    words are, so Progress draws no figure and no line under its totals."""
     drawn = draw({"targum:vocab:he": vocab(known=3)})
     assert drawn["ear"]["figure"] == ""
-    assert drawn["ear"]["line"] == (
-        "Mark a word Known by ear on its card when you know it by sound."
-    )
+    assert not drawn["ear"]["lineAsked"]
 
 
 @pytest.mark.parametrize("ear", [1, 3, 5, 11])
@@ -1610,7 +1610,5 @@ def test_russian_says_the_ear_figure(ear: int) -> None:
     russian = strings.catalogue("ru")
     keys = {key: text for key, text in russian.items() if "ear" in key}
     drawn = draw(_with_ear(ear, known=ear), strings={"strings": keys, "language": "ru"})
-    assert drawn["ear"]["line"] == ""
+    assert not drawn["ear"]["lineAsked"]
     assert drawn["ear"]["figure"] == f"на слух: {ear}"
-    start = draw({"targum:vocab:he": vocab(known=3)}, strings={"strings": keys, "language": "ru"})
-    assert start["ear"]["line"] == russian["progress.ear.start"]

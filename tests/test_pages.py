@@ -147,10 +147,10 @@ def test_the_progress_page_is_only_the_numbers() -> None:
 
 
 def test_the_progress_page_says_what_its_figures_count_on_the_page() -> None:
-    """targum-internal#471, B1, pinned on qa's ask (#858): what a figure counts is a line
-    on the page, never a title a phone and a keyboard never show. "Learned on targum" is
-    explained under the totals and outside part 2's time and words, which is hidden
-    signed out, with recording stopped or with no record, while the figure always shows."""
+    """targum-internal#471, B1: what a figure counts is said by its label, never a title a
+    phone and a keyboard never show. Since 2026-11-18 (David) the label "learned on
+    targum" stands on its own: the note that explained it under the totals is gone, and
+    so is the Known by ear start line, which moved to Your Words."""
     progress = PAGES["progress"]
     # "Words you knew" carries no footnote since 2026-10-29 (design.md §12, "Your level,
     # v3"): its sentence says what it counts.
@@ -158,25 +158,23 @@ def test_the_progress_page_says_what_its_figures_count_on_the_page() -> None:
     # Nor does "Words read" since 2026-10-30 (design.md §12, "How you got here: two
     # figures, the days active and the words of the period"): the note is gone.
     assert "We count a word as read when you turn past its page" not in progress
-    assert "counts the words you marked here as anything other than known" in progress
-    spent = re.search(r'<div class="spent" id="spent" hidden>.*?\n    </div>', progress, re.S)
-    assert spent is not None
-    assert 'id="learned-note"' not in spent.group(0)
-    note = re.search(r'<p class="note ledger-note" id="learned-note"[^>]*>', progress)
-    assert note is not None and "hidden" not in note.group(0)
-    assert progress.index('id="ledger"') < note.start() < progress.index('id="where"')
-
-
-def test_the_learned_note_goes_where_the_learned_figure_goes() -> None:
-    """qa on #858: a phone shows three of the totals and "learned on targum" is not one of
-    them, so the line explaining it goes at the same width."""
+    assert "counts the words you marked here as anything other than known" not in progress
+    assert 'id="learned-note"' not in progress
+    assert 'id="ear-line"' not in progress
     css = (
         Path(__file__).parents[1] / "src" / "targum" / "render" / "assets" / "progress.css"
     ).read_text(encoding="utf-8")
-    phone = re.search(r"@media \(max-width: 40rem\) \{(.*?)\n\}", css, re.S)
-    assert phone is not None
-    assert ":not(.count-saved, .count-known, .count-finished) { display: none; }" in phone.group(1)
-    assert ".progress .ledger-note { display: none; }" in phone.group(1)
+    assert ".ledger-note" not in css and ".ledger-ear" not in css
+
+
+def test_your_words_carries_the_known_by_ear_tip_under_its_head() -> None:
+    """David, 2026-11-18: how to make a first ear mark is said where the words are, as a
+    quiet note under the head and outside the list's card, hidden until `lists.js` says it."""
+    words = PAGES["words"]
+    tip = re.search(r'<p class="note words-ear-tip" id="words-ear-tip"[^>]*>', words)
+    assert tip is not None and "hidden" in tip.group(0)
+    assert words.index('id="words-summary"') < tip.start() < words.index('class="card words-card"')
+    assert 'id="words-ear-tip"' not in PAGES["phrases"]
 
 
 def test_the_progress_page_says_it_is_empty_above_its_foot() -> None:
