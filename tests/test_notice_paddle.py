@@ -20,7 +20,7 @@ def said(markup: str) -> str:
 
 
 def test_the_notice_is_dated_the_day_david_approved_it() -> None:
-    assert LEGAL_CHANGED == "17 November 2026"
+    assert LEGAL_CHANGED == "18 November 2026"
 
 
 PRIVACY = [
