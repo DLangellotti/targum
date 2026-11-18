@@ -33,6 +33,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   recording now come straight after its own purposes, and the operator's view, with its
   6(1)(f), after them (David, 2026-11-18: "Yes, move it"). No word changes;
   `LEGAL_CHANGED` stays 18 November 2026, since nothing deployed in between.
+- The waitlist keeps what the Retention Schedule says (PR 6 of the back-office plan,
+  2026-11-17). An address that never confirmed is deleted thirty days after it last asked,
+  with the link it tried on the front page: `Store.sweep_unconfirmed`, run at start-up in
+  `Store.sweep` and nightly beside the departed accounts' purge, logging a count and never
+  an address. Nothing confirmed or let in is touched. The Waitlist page shows "waiting to
+  be let in" first, keeps those who confirmed (or left, or were turned off) in view, and
+  folds the unconfirmed under "Unconfirmed (n)", paged on their own (`upage`), beside
+  "Let in (n)".
 - The Privacy Notice and the Data Retention Schedule say what the back office shows, in
   David's words (approved word for word on 2026-11-17; PR 1 of the back-office plan).
   Clause 3.2 now names the counts, dates, languages, credits and their cost, and the

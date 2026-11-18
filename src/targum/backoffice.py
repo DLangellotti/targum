@@ -476,6 +476,9 @@ class Survey:
     #: those let in, folded beneath (design.md §12, 2026-10-15).
     waiting_listing: Listing = field(default_factory=lambda: Listing(sort="oldest"))
     let_in_listing: Listing = field(default_factory=lambda: Listing(sort="oldest"))
+    #: Those who never confirmed their address, folded away (design.md §12, 2026-11-17):
+    #: each is deleted thirty days after it asked (`Store.sweep_unconfirmed`).
+    unconfirmed_listing: Listing = field(default_factory=lambda: Listing(sort="oldest"))
     #: How many on the waitlist have been let in.
     waiting_let_in: int = 0
     #: Waitlist sign-ups by the day they asked, over the window.
@@ -1106,6 +1109,7 @@ def survey(
     let_in: Listing | None = None,
     allowance: float | None = None,
     plan_allowance: float | None = None,
+    unconfirmed: Listing | None = None,
 ) -> Survey:
     """Everything the page shows, asked of the store.
 
@@ -1148,6 +1152,7 @@ def survey(
         since,
         waitlist or Listing(sort="oldest"),
         let_in or Listing(sort=(waitlist.sort if waitlist else "oldest")),
+        unconfirmed or Listing(sort=(waitlist.sort if waitlist else "oldest")),
     )
     ids = _accounts(db, found, named, accounts or Listing(sort="joined"))
     _credits(db, found, named, allowance, plan_allowance)
@@ -1235,9 +1240,14 @@ def _waitlist(
     since: int,
     still: Listing,
     done: Listing,
+    unconfirmed: Listing | None = None,
 ) -> None:
-    """The front door's counts, and the page asked for of each of its two lists."""
+    """The front door's counts, and the page asked for of each of its three lists: those
+    still waiting who confirmed (or left, or were turned off), those who never confirmed,
+    and those let in."""
+    unconfirmed = unconfirmed or Listing(sort=still.sort)
     found.waiting_listing, found.let_in_listing = still, done
+    found.unconfirmed_listing = unconfirmed
     # The front door, if this database has one yet. A store written before schema 17
     # has no such table, and the page is not the place to find that out.
     if not _has_table(db, "waiting"):
@@ -1272,7 +1282,11 @@ def _waitlist(
             )
         }
         rows: list[sqlite3.Row] = []
-        for listing, which in ((still, "invited = 0"), (done, "invited != 0")):
+        for listing, which in (
+            (still, "invited = 0 AND state != 'pending'"),
+            (unconfirmed, "invited = 0 AND state = 'pending'"),
+            (done, "invited != 0"),
+        ):
             clause = f"{mine} AND {which}"
             args = dict(named)
             if listing.q:
@@ -1738,6 +1752,7 @@ def survey_store(
     let_in: Listing | None = None,
     allowance: float | None = None,
     plan_allowance: float | None = None,
+    unconfirmed: Listing | None = None,
 ) -> Survey:
     """`survey`, opening the database read-only.
 
@@ -1756,6 +1771,7 @@ def survey_store(
             let_in=let_in,
             allowance=allowance,
             plan_allowance=plan_allowance,
+            unconfirmed=unconfirmed,
         )
     finally:
         db.close()

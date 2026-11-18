@@ -3379,6 +3379,7 @@ def back_office_page(
     accounts = getattr(found, "account_listing", None) or Listing(sort="joined")
     still = getattr(found, "waiting_listing", None) or Listing(sort="oldest")
     let_in = getattr(found, "let_in_listing", None) or Listing(sort="oldest")
+    unconfirmed = getattr(found, "unconfirmed_listing", None) or Listing(sort="oldest")
     here: dict[str, object] = {}
     if section == "readers" and listed is not None:
         # The Readers table's settings (design's plan, 2026-11-17, PR 4), so its pages
@@ -3402,6 +3403,7 @@ def back_office_page(
             "wfake": "1" if still.fake else "",
             "wpage": still.page,
             "ipage": let_in.page,
+            "upage": unconfirmed.page,
         }
 
     def bo_url(**changes: object) -> str:
@@ -3453,6 +3455,7 @@ def back_office_page(
             accounts_listing=accounts,
             waiting_listing=still,
             let_in_listing=let_in,
+            unconfirmed_listing=unconfirmed,
             account_sorts=ACCOUNT_SORTS,
             waiting_sorts=WAITING_SORTS,
             # The Readers table (design's plan, 2026-11-17, PR 4): a
