@@ -3222,8 +3222,7 @@ var targumReader = function () {
     var was = card.querySelector(".list-full");
     if (was) was.parentNode.removeChild(was);
     var full = window.TargumFault.upgrade(
-      t("fault.plan.words", "Your word list holds {n} words on Free, and it's full. A plan keeps every word you meet, however long the list gets.", { n: planWords }),
-      t("fault.plan.words-fact", "Marking a word known still works, and so does everything already on your list.")
+      t("fault.plan.words", "Your free word list is full.")
     );
     full.classList.add("list-full");
     card.appendChild(full);

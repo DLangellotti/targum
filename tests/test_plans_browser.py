@@ -3,7 +3,7 @@
 
 Off, `/account/me` says `{"on": false}` and the 301st word is kept as every word always
 was. On, for a free reader with 300 words being learned, the press is refused in the card
-as a panel in place, with Start a plan greyed and See plans, and nothing is kept.
+as a panel in place, with Upgrade greyed and See plans, and nothing is kept.
 
 Skips itself unless Playwright and its Chromium are installed, as
 `test_reader_browser.py` does, whose browser this borrows.
@@ -83,7 +83,7 @@ def test_on_a_full_free_list_refuses_in_the_card(browser: Any, verb_page: Path) 
     plan = {"on": True, "plan": "free", "credits": 60, "planCredits": 480, "words": 300}
     got = press_just_met(browser, verb_page, {**plan, "listed": 300, "topUps": []})
     assert got["kept"] is False
-    assert got["panel"] and "holds 300 words on Free" in got["panel"]
+    assert got["panel"] and "Your free word list is full." in got["panel"]
     assert "Payments open soon" in got["panel"] and got["start"] is True
     assert got["see"].startswith("/plans")
     assert got["card"], "the card stays where the press was"

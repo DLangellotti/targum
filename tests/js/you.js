@@ -223,7 +223,6 @@ setTimeout(() => {
           wordsMore: at("plan-words-more").hidden,
           see: at("plan-see").hidden,
           paidName: at("plan-paid-name").textContent,
-          switchRow: at("plan-switch-row").hidden,
           cancelRow: at("plan-cancel-row").hidden,
           paidSays: at("plan-paid-says").textContent,
           back: at("plan-back").textContent,

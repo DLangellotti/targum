@@ -48,7 +48,6 @@ PLAN_CREDITS = 480
 FREE_WORDS = 300
 #: What Plan costs, for the one page that says it: whole US dollars.
 PRICE_MONTH = 16
-PRICE_QUARTER = 39
 #: What an hour of top-up costs, said on the pricing page only.
 TOP_UP_HOUR = 3
 #: The top-ups a reader on Plan is offered, in credits. Greyed until there is a provider.

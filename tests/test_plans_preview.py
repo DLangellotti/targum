@@ -171,7 +171,7 @@ def fetch(port: int, path: str, session: str = "") -> tuple[int, Any, dict[str, 
 def test_plans_is_there_for_the_operator_and_nobody_else(box: tuple[int, str, str]) -> None:
     port, reader, operator = box
     status, page, _ = fetch(port, "/plans", operator)
-    assert status == 200 and "Start the plan" in page
+    assert status == 200 and "Upgrade</button>" in page
     assert fetch(port, "/plans", reader)[0] == 404
     assert fetch(port, "/plans")[0] == 404, "signed out: not even a sign-in redirect"
 

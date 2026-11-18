@@ -101,7 +101,7 @@
   {#- The plan, with plans on (board PlanAccount; design.md §12, "Free and Plan, behind a
       switch", 2026-10-09). Drawn by `you.js` from `/account/me`'s `plan` in place of the
       early-access card above, which is what every account sees while the switch is off.
-      Free: what it holds, what a plan gives, and Start a plan greyed. Plan: the month,
+      Free: what it holds, what a plan gives, and Upgrade greyed. Plan: the month,
       when the credits come back, Top up, Switch and Cancel, every one greyed until there
       is a payment provider. Receipts and a card are not drawn: there are none. -#}
   <section class="card plan plan-on" id="plan-on" aria-labelledby="plan-on-title" hidden>
@@ -127,7 +127,7 @@
       </ul>
       <p class="plan-offer" id="plan-offer"></p>
       <p class="plan-pay-row">
-        <button type="button" class="btn soon" disabled aria-describedby="soon-free">{{ t("fault.start-a-plan", "Start a plan") }}</button>
+        <button type="button" class="btn soon" disabled aria-describedby="soon-free">{{ t("fault.start-a-plan", "Upgrade") }}</button>
         <span class="acct-soon" id="soon-free"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="5.75"/><path d="M8 5v3.2l2 1.3"/></svg>{{ t("fault.payments-soon", "Payments open soon") }}</span>
       </p>
     </div>
@@ -166,15 +166,8 @@
             <button type="button" class="btn soon" disabled aria-describedby="soon-paid">{{ t("you.page.top-up", "Top up") }}</button>
           </span>
         </li>
-        {#- Neither row is drawn for a beta reader comped to Plan (targum-internal#59): a
-            comp has no renewal to switch and nothing to cancel. -#}
-        <li class="row" id="plan-switch-row">
-          <span class="row-main">
-            <span class="acct-name">{{ t("you.page.plan-quarterly", "Pay every 3 months instead") }}</span>
-            <span class="acct-says">{{ t("you.page.plan-quarterly-says", "From your next renewal") }}</span>
-          </span>
-          <span class="acct-end"><button type="button" class="btn ghost outline" disabled aria-describedby="soon-paid">{{ t("you.page.plan-switch", "Switch") }}</button></span>
-        </li>
+        {#- Not drawn for a beta reader comped to Plan (targum-internal#59): a comp has
+            nothing to cancel. -#}
         <li class="row" id="plan-cancel-row">
           <span class="row-main">
             <span class="acct-name">{{ t("you.page.plan-cancel", "Cancel your plan") }}</span>

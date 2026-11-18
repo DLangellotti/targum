@@ -49,7 +49,8 @@ WEBHOOK_SECRET_ENV = "PADDLE_WEBHOOK_SECRET"
 #: before the rotation and paid after it. Paddle signs with both while it rotates.
 WEBHOOK_SECRET_PREVIOUS_ENV = "PADDLE_WEBHOOK_SECRET_PREVIOUS"
 ENVIRONMENT_ENV = "PADDLE_ENVIRONMENT"
-#: Plan, paid every month and every three months: Paddle's price ids (`pri_...`).
+#: Plan's Paddle price ids (`pri_...`). Only the month is offered (David, 2026-11-18);
+#: the quarter is read where a deployment still names one, and the box does not.
 PRICE_MONTH_ENV = "PADDLE_PRICE_MONTH"
 PRICE_QUARTER_ENV = "PADDLE_PRICE_QUARTER"
 #: One hour of top-up, 60 credits: a top-up of 180 is three of it. One price rather than
