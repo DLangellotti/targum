@@ -29,6 +29,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     SameSite=Lax alone would have sent the admin's cookie (qa on targum#1308). When a
     press fails, its reason goes to Incidents. The page says only that it did not go
     through. The Caddy filters also delete the old `q` and `wq` for now.
+- Clause 3.6's own legal basis, Article 6(1)(b), and the way to stop and erase the
+  recording now come straight after its own purposes, and the operator's view, with its
+  6(1)(f), after them (David, 2026-11-18: "Yes, move it"). No word changes;
+  `LEGAL_CHANGED` stays 18 November 2026, since nothing deployed in between.
 - The waitlist keeps what the Retention Schedule says (PR 6 of the back-office plan,
   2026-11-17). An address that never confirmed is deleted thirty days after it last asked,
   with the link it tried on the front page: `Store.sweep_unconfirmed`, run at start-up in
