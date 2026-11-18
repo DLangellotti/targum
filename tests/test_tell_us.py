@@ -391,8 +391,13 @@ def test_the_back_office_lists_messages_and_counts_faults(tmp_path: Path) -> Non
     store.settle_told(closed, "fixed")
     for _ in range(3):
         store.fault(None, "TypeError: boom", "at f (/texts:1:2)", "/texts", "abc")
-    people = back_office_page(Survey(), 30, told=store.told(), faults=store.faults())
-    assert "1 message waiting on us" in people
+    from targum.backoffice import Overview
+
+    people = back_office_page(
+        Survey(), 30, told=store.told(), faults=store.faults(), overview=Overview()
+    )
+    assert '<span class="figure">1</span> <span class="label">feedback waiting</span>' in people
+    assert '<span class="figure">1</span> <span class="label">open browser faults</span>' in people
     assert '<h2 id="told">Tell us</h2>' in people and ">first<" in people
     assert "Closed (1)" in people and ">second<" in people
     assert 'action="/back-office/told"' in people

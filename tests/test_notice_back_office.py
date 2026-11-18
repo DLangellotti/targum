@@ -65,9 +65,25 @@ def test_clause_3_2_says_what_the_operator_sees_word_for_word() -> None:
     assert "the words, phrases, notes and titles themselves are not shown" not in page
 
 
+#: Clause 3.6's own basis and the way out of its recording, which stay with its own
+#: purposes (David, 2026-11-18: "Yes, move it").
+CLAUSE_3_6_OWN = (
+    "Legal basis: Article 6(1)(b). The Data Subject may at any time cease such recording,"
+    " and erase the records held, from the account page."
+)
+
+
 def test_clause_3_6_adds_the_operators_purpose_after_its_own() -> None:
+    """The operator's purpose, with its own basis, comes after 3.6's purposes and their
+    basis, so 6(1)(b) is never read as the basis of the operator's view."""
     page = said(legal_page("privacy"))
-    assert "the texts the Service suggests to the Data Subject. " + CLAUSE_3_6 in page
+    assert (
+        "the texts the Service suggests to the Data Subject. "
+        + CLAUSE_3_6_OWN
+        + " "
+        + CLAUSE_3_6
+        + " Aggregate records of use."
+    ) in page
     assert page.count("Also processed for the purpose of showing the Controller") == 1
 
 

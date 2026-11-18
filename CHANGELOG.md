@@ -29,6 +29,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     SameSite=Lax alone would have sent the admin's cookie (qa on targum#1308). When a
     press fails, its reason goes to Incidents. The page says only that it did not go
     through. The Caddy filters also delete the old `q` and `wq` for now.
+- Clause 3.6's own legal basis, Article 6(1)(b), and the way to stop and erase the
+  recording now come straight after its own purposes, and the operator's view, with its
+  6(1)(f), after them (David, 2026-11-18: "Yes, move it"). No word changes;
+  `LEGAL_CHANGED` stays 18 November 2026, since nothing deployed in between.
 - The Privacy Notice and the Data Retention Schedule say what the back office shows, in
   David's words (approved word for word on 2026-11-17; PR 1 of the back-office plan).
   Clause 3.2 now names the counts, dates, languages, credits and their cost, and the
@@ -37,6 +41,27 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   read and practice. Clause 3.7 counts how many were active on each day and in each
   language. A new schedule entry deletes an unconfirmed waitlist address thirty days after
   it asked. `LEGAL_CHANGED` is 18 November 2026.
+- The back office's Overview is one desk screen of figures (design.md §12, 2026-11-17, PR 3
+  of the back-office plan). It has four rows:
+  - Needs doing: feedback waiting, follow-ups due, open browser faults and incidents in
+    24 hours, each linked.
+  - Active: readers today, in 7 days and in 30, with a bar a day, plus new accounts with
+    twelve weekly bars.
+  - Funnel: the beta and the last four weeks, each step "n of m", ending on days 8–14
+    (`WEEK_TWO`).
+  - Spend: the box's last 24 hours against $40, summed as `Store.claim` sums it
+    (`box_spent`), then the month with daily bars, readers' credits by kind, and readers
+    over $7 of their $10 a day, each linked to their page.
+  Every "today" figure and window is said against yesterday and the same day last week.
+  Operator, admin and test accounts are counted nowhere, save in the box's spend. Follow
+  up and Tell us stay below the figures; the full weekly table and the reach fold under
+  one `<details>`. `overview_store` reads a bounded span of days, with new indexes on
+  `word.at`, `doc.opened`, `doc.updated` and `day.day`, and is under 300 ms at 5,000
+  accounts. A fifth row, Languages, counts readers active, texts opened, minutes played
+  and builds per language over thirty days, drawn only while `NOTICE_ALLOWS_LANGUAGES` is
+  on (clauses 3.2 and 3.7 as amended, #1311).
+  - A press under `/back-office/` with `Origin: null` and no `Sec-Fetch-Site` is refused
+    403 too (qa on targum#1308).
 - The French chat contract keeps spoken French as written (version 2,
   `hebrew.FRENCH_CONTRACT_VERSION`). The first French chat eval (2026-11-17, $1.78, David's
   go) "corrected" two spoken lines in the recast, *je sais pas* and *j'ai jamais vu ça*,
@@ -794,6 +819,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     `progress.count.ear`, `sentences.open-word`); the Russian waits on ling-ru's first
     pass.
 ### Fixed
+- `test_progress_goal_browser.py` no longer fails across midnight UTC
+  (targum-internal#748). Its totals were dated from `date.today()` when the module was
+  imported, while the page read the browser's own clock, so a suite crossing midnight
+  drew "today" a day off. The day is now a fixed `TODAY`, and the browser's clock and
+  time zone are pinned to it. A new test draws the page a second after midnight and a
+  second before the next. And the Readers table's 5,000-account timing gives Follow-up
+  due a bar of its own (2.5 s): it reads all readers through `_growth`, and took 1.01 s
+  on CI's 3.12 runner against a 1 s bar.
 - A Sefaria range that starts mid-chapter keeps its verse numbers (targum-internal#530).
   `Genesis 1:20-2:3` was numbered from one, so its first verse was called 1:1, and a
   verse's ref is what the reader, a recording and Onkelos's names are keyed by

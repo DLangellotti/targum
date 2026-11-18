@@ -10441,6 +10441,8 @@ class Handler(BaseHTTPRequestHandler):
             WAITING_SORTS,
             Listing,
             ReaderFilter,
+            languages_shown,
+            overview_store,
             readers_store,
             survey_store,
         )
@@ -10491,12 +10493,27 @@ class Handler(BaseHTTPRequestHandler):
             # Counted off the access log by `targum roll-visits`, beside the store.
             visits=(
                 visits.survey(self.store.path.parent / visits.FILE, days=DAYS)
-                if overview or section == "traffic"
+                if section == "traffic"
                 else None
             ),
             # What readers wrote to us, and what broke in their browsers (#456, #457).
             told=self.store.told() if overview else None,
-            faults=self.store.faults() if operations else None,
+            faults=self.store.faults() if overview or operations else None,
+            # The overview's figures (design.md §12, 2026-11-17): the box's spend summed
+            # as `claim` sums it, against the ceilings this server's `claim` is actually
+            # held to, which `--budget` may have set (qa on targum#1310: the box runs 50).
+            overview=(
+                overview_store(
+                    self.store.path,
+                    ceiling=self.library.budget,
+                    rail=self.library.account_budget or 0.0,
+                    hours=BUDGET_HOURS,
+                    # Only once the Notice says so (clauses 3.2 and 3.7, 2026-11-17).
+                    languages=languages_shown(),
+                )
+                if overview
+                else None
+            ),
             finds=self._finds_survey() if operations else None,
             fit=self._fit_survey() if operations else None,
             withheld=withheld_survey(self.library.out) if operations else None,
@@ -15674,11 +15691,16 @@ class Handler(BaseHTTPRequestHandler):
         `Sec-Fetch-Site` decides wherever a browser sends it: `same-origin`, or `none`
         for a post nobody's page made. `same-site` is refused, unlike `_cross_site`,
         because every name under the domain is the same site. A browser that sends no
-        `Sec-Fetch-Site` is judged by `Origin` as `_cross_site` judges it, `null` and
-        none passing for the reasons given there."""
+        `Sec-Fetch-Site` is judged by `Origin` as `_cross_site` judges it, save that
+        `null` is refused; no `Origin` at all (curl) passes."""
         fetched = (self.headers.get("Sec-Fetch-Site") or "").strip().lower()
         if fetched:
             return fetched in ("same-origin", "none")
+        # Unlike `_cross_site`, `Origin: null` is refused here (qa on targum#1308): an old
+        # browser's sandboxed frame says it too, and nobody runs the back office in a
+        # browser too old to send `Sec-Fetch-Site`.
+        if (self.headers.get("Origin") or "").strip().lower() == "null":
+            return False
         return not self._cross_site()
 
     def _json_body(self) -> bool:
