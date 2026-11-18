@@ -2711,12 +2711,8 @@
           // free reader meets the plan where they reach for it", 2026-10-09).
           var spent = plan.on && plan.plan === "free"
             ? window.TargumFault.upgrade(
-                t("fault.plan.used", "You've used this month's {credits} credits. A plan gives you {plan} credits a month, which is {hours} hours of audio or video.", {
-                  credits: plan.credits,
-                  plan: plan.planCredits,
-                  hours: Math.round(plan.planCredits / 60),
-                }),
-                t("fault.plan.fact", "Uploading text uses none, and your credits reset on {date}.", { date: hours.ends || "" })
+                t("fault.plan.used", "You've used this month's free credits."),
+                t("fault.plan.fact", "They reset on {date}.", { date: hours.ends || "" })
               )
             : window.TargumFault.refusal(
             t("add.credits.none", "You've used all your credits this month. Top up, or they reset on {date}.", {

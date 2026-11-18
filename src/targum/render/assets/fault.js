@@ -409,7 +409,7 @@
     start.type = "button";
     start.className = "fault-go";
     start.disabled = true;
-    start.textContent = t("fault.start-a-plan", "Start a plan");
+    start.textContent = t("fault.start-a-plan", "Upgrade");
     row.appendChild(start);
     var soon = document.createElement("span");
     soon.className = "fault-fact fault-soon";

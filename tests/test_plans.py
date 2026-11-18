@@ -188,13 +188,13 @@ def test_the_plans_page_says_both_plans_and_greys_every_pay_button(on: None) -> 
     page = plans_page(plans.summary(None))
     assert "Free" in page and "$0" in page and "$16" in page and "$39" not in page
     assert "60 credits a month" in page and "up to 300 words" in page
-    assert "480 credits a month, which is 8 hours of audio or video" in page
-    assert "Start the plan</button>" in page and 'class="btn soon plan-start" disabled' in page
-    assert "Payments open soon" in page and "Prices are in US dollars." in page
+    assert "480 credits a month" in page and "(8 hours of audio or video)" in page
+    assert "Upgrade</button>" in page and 'class="btn soon plan-start" disabled' in page
+    assert "Payments open soon" in page and "Prices in US dollars." in page
     assert "Your channel and podcast subscriptions pause" in page
     assert "Your plan</span>" in page
     russian = plans_page(plans.summary(None), language="ru")
-    assert "Тарифы" in russian and "Оформить тариф" in russian
+    assert "Тарифы" in russian and "Оформить" in russian
 
 
 def test_the_foot_links_the_plans_only_while_they_are_on(
@@ -301,7 +301,7 @@ def test_on_the_server_says_which_plan_and_serves_the_page(
     status, op, _ = send(port, "GET", "/account/me", session=operator)
     assert op["plan"]["plan"] == "plan" and op["plan"]["words"] is None
     status, page, _ = send(port, "GET", "/plans", session=mine)
-    assert status == 200 and "Start the plan" in page
+    assert status == 200 and "Upgrade</button>" in page
     status, _, headers = send(port, "GET", "/plans")
     assert status in (302, 303) and headers.get("Location", "").endswith("/account/signin")
 

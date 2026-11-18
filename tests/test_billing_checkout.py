@@ -232,7 +232,7 @@ def test_configured_start_is_a_form_to_our_own_server() -> None:
     assert '<form class="plan-pay" id="plan-start-form" method="post" action="/plans/start">' in (
         page
     )
-    assert '<button type="submit" class="btn plan-start">Start the plan</button>' in page
+    assert '<button type="submit" class="btn plan-start">Upgrade</button>' in page
     assert 'name="cadence" value="month"' in page and 'value="quarter"' not in page
     assert "Payments open soon" not in page
     assert "paddle" not in page.lower(), "nothing of Paddle's on our page"
