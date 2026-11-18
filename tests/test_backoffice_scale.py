@@ -87,8 +87,6 @@ def test_accounts_are_drawn_fifty_at_a_time_newest_first(five_hundred: sqlite3.C
         1,
         50,
     )
-    overview = back_office_page(found, 30)
-    assert "500 accounts," in overview, "the headline counts every account, not the page"
 
     second = survey(five_hundred, today=TODAY, accounts=accounts(page="2"))
     assert second.accounts[0].email == "reader051@example.com"

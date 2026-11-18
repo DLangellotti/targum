@@ -101,6 +101,22 @@
   .bo p.flags { margin: 0.2rem 0 0; font-size: 0.75rem; color: var(--ink-soft); }
   .bo p.flags .flag-count { color: var(--ink); font-weight: 600; }
   .bo label.fake { font-size: 0.8125rem; display: inline-flex; gap: 0.3rem; align-items: center; }
+  /* The overview's tiles (design.md §12, 2026-11-17): four to a row at the desk, each a
+     figure in serif numerals over what it counts, on a card. */
+  .bo h2.row-head { font-size: 0.875rem; color: var(--ink-soft); margin: 1rem 0 0.5rem; }
+  .bo .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: 0.75rem; margin: 0 0 0.75rem; }
+  .bo .tile { display: block; padding: 0.6rem 0.9rem; border: 1px solid var(--rule); border-radius: var(--radius-card);
+              background: var(--paper); color: var(--ink); text-decoration: none; }
+  .bo a.tile:hover { border-color: var(--ink-soft); }
+  .bo .tile .figure { display: block; font-size: 1.5rem; font-variant-numeric: tabular-nums; line-height: 1.2; }
+  .bo .tile .label { font-size: 0.875rem; color: var(--ink-soft); }
+  .bo .tile .delta { margin: 0.25rem 0 0; font-size: 0.75rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+  .bo .tile .days { block-size: 2rem; margin: 0.4rem 0 0; }
+  .bo .tiles + .days { block-size: 3rem; }
+  .bo .tile table { font-size: 0.8125rem; margin-block-start: 0.25rem; }
+  .bo .tile td { padding: 0.15rem 0; border: 0; font-size: 0.8125rem; }
+  .bo .tile ul.near a { color: inherit; }
+  .bo .tile ul.near { margin: 0.25rem 0 0; padding: 0; list-style: none; font-size: 0.8125rem; overflow-wrap: anywhere; }
   .bo .decide button[value="accept"] { background: var(--ink); color: var(--paper); border-color: var(--ink); font-weight: 600; }
 </style>
 </head>
@@ -129,6 +145,18 @@
     {%- if listing.page < listing.pages() %}<a rel="next" href="{{ bo_url(**{key: listing.page + 1}) }}">Next</a>{% endif %}
   </nav>
   {%- endif %}
+  {%- endmacro %}
+  {#- Bars, one a day or a week, oldest on the left, drawn as the visitors' are: sized by
+      attribute, since the page's policy admits no style attribute, and each with its
+      figure in a title. -#}
+  {%- macro bars(rows, label, prefix='', money=False) %}
+  {%- set tallest = rows|map(attribute=1)|max if rows else 0 %}
+  <svg class="days" viewBox="0 0 {{ (rows|length or 1) * 10 }} 40" preserveAspectRatio="none" role="img" aria-label="{{ label }}">
+    {%- for key, value in rows %}
+    {%- set high = ((value / tallest * 38) if tallest else 0)|round(1) %}
+    <rect x="{{ loop.index0 * 10 + 1 }}" y="{{ '%.1f'|format(40 - high) }}" width="8" height="{{ high }}"><title>{{ prefix }}{{ key }}: {% if money %}${{ '%.2f'|format(value) }}{% else %}{{ value }}{% endif %}</title></rect>
+    {%- endfor %}
+  </svg>
   {%- endmacro %}
   {#- What might make a sign-up fake (targum-internal#544): each flag a plain reason, from
       what the store already holds. A reason to look, never a verdict. -#}
@@ -185,18 +213,97 @@
 
   {%- if bo_page == 'overview' %}
   <section class="bo-page" aria-label="Overview">
-  {#- The numbers that say whether anything needs doing, first (2026-09-28). -#}
-  <p class="taken">{{ survey.waiting_for_a_way_in }} waiting to be let in &middot;
-    {% if visits and visits.any() %}{{ '%.1f'|format(visits.a_day()) }} visitors a day this week &middot; {% endif %}
-    {%- set account_count = survey.accounts_total or survey.accounts|length %}
-    {{ account_count }} account{{ '' if account_count == 1 else 's' }},
-    {{ survey.active() }} active in the last {{ days }} days &middot;
-    {{ told_open }} message{{ '' if told_open == 1 else 's' }} waiting on us &middot;
-    {{ incidents|length }} incident{{ '' if incidents|length == 1 else 's' }} &middot; taken {{ survey.taken }}</p>
+  {#- The overview (design.md §12, 2026-11-17): one desk screen of figures, each linking
+      to what is behind it, before the lists that need doing. Every "today" figure is
+      said against yesterday and the same day last week, and a window against the window
+      of the same length ending on those days. Readers only, save the box's spend, which
+      is money and counted as `claim` counts it. -#}
+  {%- if overview %}
+  {%- set o = overview %}
+  {%- macro against(figure, money=False) %}<p class="delta">{{ signed(figure.against_yesterday(), money) }} vs yesterday &middot; {{ signed(figure.against_last_week(), money) }} vs last {{ o.weekday }}</p>{% endmacro %}
+  <h2 class="row-head">Needs doing</h2>
+  <div class="tiles">
+    <a class="tile" href="#told"><span class="figure">{{ told_open }}</span> <span class="label">feedback waiting</span></a>
+    <a class="tile" href="#follow"><span class="figure">{{ survey.follow_up_total }}</span> <span class="label">follow-ups due</span></a>
+    <a class="tile" href="{{ bo_route('operations') }}#faults"><span class="figure">{{ faults_open }}</span> <span class="label">open browser faults</span></a>
+    <a class="tile" href="{{ bo_route('operations') }}#incidents"><span class="figure">{{ incidents_today }}</span> <span class="label">incidents in 24 hours</span></a>
+  </div>
+
+  <h2 class="row-head">Active</h2>
+  <div class="tiles">
+    <div class="tile"><span class="figure">{{ o.active_today.now|int }}</span> <span class="label">active today</span>{{ against(o.active_today) }}</div>
+    <div class="tile"><span class="figure">{{ o.active_week.now|int }}</span> <span class="label">in 7 days</span>{{ against(o.active_week) }}</div>
+    <div class="tile"><span class="figure">{{ o.active_month.now|int }}</span> <span class="label">in 30 days, of {{ survey.readers }} readers</span>{{ against(o.active_month) }}</div>
+    <div class="tile"><span class="figure">{{ o.new_today.now|int }}</span> <span class="label">new today, {{ o.new_week.now|int }} in 7 days</span>{{ against(o.new_today) }}
+      {{ bars(o.new_weeks, 'New accounts each week, the last twelve, oldest on the left', 'week of ') }}</div>
+  </div>
+  {{ bars(o.active_days, 'Readers active each day, the last thirty, oldest on the left') }}
+
+  {#- The beta's people and the last four weeks', each step out of the step before:
+      let in, signed in, opened a first text, then read again on days 8–14. -#}
+  <h2 class="row-head">Funnel</h2>
+  {%- set funnel = ([survey.beta] if survey.beta else []) + survey.batches[:4] %}
+  {%- if funnel %}
+  <table class="funnel">
+    <thead><tr><th>Week</th><th class="n">Invited</th><th class="n">Signed in</th><th class="n">First text</th><th class="n">Active days 8–14</th></tr></thead>
+    <tbody>
+      {%- for week in funnel %}
+      <tr{% if loop.first and survey.beta %} class="beta"{% endif %}>
+        <td>{% if loop.first and survey.beta %}Since the beta, {{ week.week }}{% else %}Week of {{ week.week }}{% endif %}</td>
+        <td class="n">{{ week.let_in }}</td>
+        <td class="n">{{ week.signed_in }} of {{ week.let_in }}</td>
+        <td class="n">{{ week.opened }} of {{ week.signed_in }}</td>
+        <td class="n">{% if week.week_two_over %}{{ week.week_two }} of {{ week.week_two_over }}{% else %}<span class="quiet">too soon</span>{% endif %}</td>
+      </tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+  {%- else %}
+  <p class="quiet">Nobody has been let in yet.</p>
+  {%- endif %}
+
+  <h2 class="row-head">Spend</h2>
+  <div class="tiles">
+    <div class="tile"><span class="figure">${{ '%.2f'|format(o.spent_today.now) }}</span> <span class="label">of ${{ '%.2f'|format(o.ceiling)|replace('.00', '') }} in the last 24 hours</span>{{ against(o.spent_today, True) }}</div>
+    <div class="tile"><span class="figure">${{ '%.2f'|format(o.spent_month) }}</span> <span class="label">this month</span>
+      {{ bars(o.month_days, 'Spend each day this month, from the first', '', True) }}</div>
+    <div class="tile"><span class="label">Readers' credits this month</span>
+      <table class="kinds"><tbody>
+        {%- for kind, seconds in o.credits_by_kind %}
+        <tr{% if not seconds %} class="empty"{% endif %}><td>{{ kind }}</td><td class="n">{% if kind == 'chat' %}{{ '%.0f'|format(seconds) }} s{% else %}{{ credits(seconds) }}{% endif %}</td></tr>
+        {%- endfor %}
+      </tbody></table></div>
+    {%- if o.rail %}
+    <div class="tile"><span class="figure">{{ o.near_rail|length }}</span> <span class="label">over ${{ '%.2f'|format(o.rail * near_share)|replace('.00', '') }} of their ${{ '%.2f'|format(o.rail)|replace('.00', '') }} a day</span>
+      {%- if o.near_rail %}
+      <ul class="near">
+        {%- for id, email, spent in o.near_rail %}
+        <li><a href="{{ bo_route('readers') }}/{{ id }}">{{ email }}</a> <span class="quiet">${{ '%.2f'|format(spent) }}</span></li>
+        {%- endfor %}
+      </ul>
+      {%- endif %}</div>
+    {%- endif %}
+  </div>
+  <p class="quiet count">The box's spend is everyone's, yours included, as its ceiling counts it. Everything else here leaves out your own and test accounts.</p>
+  {#- A row a language over thirty days, counted across readers and naming none: drawn
+      only since the Notice allows it (clauses 3.2 and 3.7 as amended 2026-11-17). -#}
+  {%- if o.languages %}
+  <h2 class="row-head">Languages</h2>
+  <table class="languages">
+    <thead><tr><th>Language, last 30 days</th><th class="n">Readers active</th><th class="n">Texts opened</th><th class="n">Minutes played</th><th class="n">Builds</th></tr></thead>
+    <tbody>
+      {%- for row in o.languages %}
+      <tr><td>{{ row.language }}</td><td class="n">{{ row.active }}</td><td class="n">{{ row.texts }}</td><td class="n">{{ '%.0f'|format(row.minutes) }}</td><td class="n">{{ row.builds }}</td></tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+  {%- endif %}
+  {%- endif %}
+
   {#- First what to do, then how the weeks went, then where readers get to (2026-10-15).
       The follow-up list names people, from what clause 3.2 already holds; the two
       tables below it name nobody. -#}
-  <h2>Follow up</h2>
+  <h2 id="follow">Follow up</h2>
   {%- if survey.follow_up %}
   <table class="follow">
     <thead><tr><th>Address</th><th>Why</th><th></th></tr></thead>
@@ -269,6 +376,12 @@
   </details>
   {%- endif %}
 
+  {#- The whole of each week, and how far readers get, behind one fold: the funnel above
+      is their summary. -#}
+  {%- if survey.batches or survey.readers %}
+  <details class="let-in">
+  <summary>Every week's readers, and how far readers get</summary>
+  {%- endif %}
   {%- if survey.batches %}
   <h2>Each week's readers</h2>
   <div class="strip-wrap"><table>
@@ -331,6 +444,9 @@
     </tbody>
   </table>
   <p class="quiet note">Your own addresses are not counted anywhere on this page.</p>
+  {%- endif %}
+  {%- if survey.batches or survey.readers %}
+  </details>
   {%- endif %}
   </section>
   {%- endif %}
@@ -861,7 +977,7 @@
   </details>
   {%- endif %}
 
-  <h2>Incidents</h2>
+  <h2 id="incidents">Incidents</h2>
   {#- What went wrong, other than in the journal (targum-internal#24): a request that
       raised, a build that died, a look-up that failed. The type and the message, the
       route or the stage, and the traceback's tail behind a disclosure — no script on

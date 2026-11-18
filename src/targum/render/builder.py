@@ -19,7 +19,7 @@ from collections import Counter
 from collections.abc import Callable, Collection, Mapping, Sequence
 from contextvars import ContextVar
 from dataclasses import dataclass, field
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from functools import cache, lru_cache, partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple
@@ -3344,6 +3344,7 @@ def back_office_page(
     withheld: Mapping[str, int] | None = None,
     listed: object | None = None,
     section: str = "overview",
+    overview: object | None = None,
 ) -> str:
     """One of the operator's own pages, at `bo.<domain>`: `section` is which of
     `backoffice.PAGES`, or "reader" for one account's (design.md §12, 2026-11-17).
@@ -3357,6 +3358,7 @@ def back_office_page(
     from ..backoffice import (
         ACCOUNT_SEARCH,
         ACCOUNT_SORTS,
+        NEAR_THE_RAIL,
         PAGES,
         READER_ACTIVITY,
         READER_PLANS,
@@ -3462,6 +3464,15 @@ def back_office_page(
             bo_url=bo_url,
             # Which page this is, and the bar's (design.md §12, 2026-11-17).
             bo_page=section,
+            # `backoffice.Overview`, typed loosely for the reason `found` is.
+            overview=overview,
+            # What needs doing, counted (design.md §12, 2026-11-17).
+            faults_open=sum(1 for row in faults or [] if row.get("since")),
+            incidents_today=sum(
+                1 for one in incidents or [] if _within_a_day(str(getattr(one, "at", "")))
+            ),
+            signed=_signed,
+            near_share=NEAR_THE_RAIL,
             bo_pages=PAGES,
             bo_route=page_route,
             # One account's credits, at `/back-office/readers/<id>` (targum-internal#543): a
@@ -3492,6 +3503,30 @@ def back_office_page(
             ],
         )
     )
+
+
+def _within_a_day(stamp: str) -> bool:
+    """Whether an incident's ISO time is in the last twenty-four hours."""
+    try:
+        when = datetime.fromisoformat(stamp)
+    except ValueError:
+        return False
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=UTC)
+    return datetime.now(UTC) - when < timedelta(hours=24)
+
+
+def _signed(n: float, money: bool = False) -> str:
+    """A change said with its sign, a true minus for less: "+3", "−1", "±0", "+$1.20"."""
+    if money:
+        body = f"${abs(n):.2f}"
+        if abs(n) < 0.005:
+            return "±$0.00"
+    else:
+        body = f"{abs(round(n)):d}"
+        if round(n) == 0:
+            return "±0"
+    return ("+" if n > 0 else "\u2212") + body
 
 
 def _as_of(stamp_ms: int) -> str:

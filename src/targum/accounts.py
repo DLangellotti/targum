@@ -1065,6 +1065,15 @@ MIGRATIONS: tuple[str, ...] = (
     "CREATE INDEX IF NOT EXISTS waiting_asked ON waiting (asked)",
     "CREATE INDEX IF NOT EXISTS person_made ON person (made)",
     "CREATE INDEX IF NOT EXISTS event_kind ON event (kind)",
+    # The back office's overview reads a span of days across every reader (design.md
+    # §12, 2026-11-17): who did anything on each, by the day it was done.
+    # Covering: the span is read from the index alone, never the rows.
+    "CREATE INDEX IF NOT EXISTS word_at ON word (at, person, gone, language)",
+    "CREATE INDEX IF NOT EXISTS doc_opened ON doc (opened, person, gone, language)",
+    "CREATE INDEX IF NOT EXISTS doc_updated ON doc (updated, person, gone, language)",
+    "CREATE INDEX IF NOT EXISTS day_day ON day (day, person, gone)",
+    # And the Languages row's minutes played, by day (clause 3.7 as amended 2026-11-17).
+    "CREATE INDEX IF NOT EXISTS event_day ON event (day, kind, language, person, amount)",
     # Whether what they bring is counted, pooled with everybody's (schema 54, David
     # 2026-11-01): '' for yes, the default, 'off' for no. The switch is theirs, on the
     # account page, and the nightly pool reads it.

@@ -55,7 +55,7 @@ import sqlite3
 import unicodedata
 from bisect import bisect_right
 from collections import Counter
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, fields
 from datetime import UTC, date, datetime, timedelta
 from functools import cache
@@ -79,6 +79,9 @@ CAME_BACK_AFTER = 2
 #: The days after the day they were let in that are a reader's first week and fourth
 #: (targum-internal#458): the beta's gate reads the first, Launch's go/no-go the fourth.
 WEEK_ONE = (1, 7)
+#: And their second (design.md §12, 2026-11-17): the overview's funnel ends on it, the
+#: first week a reader came back to on their own rather than on the invitation's pull.
+WEEK_TWO = (8, 14)
 WEEK_FOUR = (22, 28)
 #: The Monday of the week batch one was let in: David sent its invitations himself and
 #: confirmed it on 2026-10-21 (targum-internal#460). The beta's own row counts every week
@@ -381,6 +384,8 @@ class Batch:
     #: on some day of it.
     week_one_over: int = 0
     week_one: int = 0
+    week_two_over: int = 0
+    week_two: int = 0
     week_four_over: int = 0
     week_four: int = 0
 
@@ -1504,6 +1509,8 @@ a AS (
     MIN(CASE WHEN acts.utc = 1 THEN acts.d END) AS first, MAX(acts.d) AS last,
     MAX(acts.d BETWEEN date(r.start, '+{one_from} days') AND date(r.start, '+{one_to} days'))
       AS w1,
+    MAX(acts.d BETWEEN date(r.start, '+{two_from} days') AND date(r.start, '+{two_to} days'))
+      AS w2,
     MAX(acts.d BETWEEN date(r.start, '+{four_from} days') AND date(r.start, '+{four_to} days'))
       AS w4
   FROM r JOIN acts ON acts.person = r.id GROUP BY r.id
@@ -1511,7 +1518,7 @@ a AS (
 SELECT r.id, r.email, r.made, r.leaving, r.let_in, r.start,
   IFNULL(a.n, 0) AS days, IFNULL(a.back, 0) AS back,
   IFNULL(a.first, '') AS first, IFNULL(a.last, '') AS last,
-  IFNULL(a.w1, 0) AS w1, IFNULL(a.w4, 0) AS w4,
+  IFNULL(a.w1, 0) AS w1, IFNULL(a.w2, 0) AS w2, IFNULL(a.w4, 0) AS w4,
   (SELECT COUNT(*) FROM doc d WHERE d.person = r.id AND d.opened > 0) AS opened,
   (SELECT MAX(opened) FROM doc d WHERE d.person = r.id AND d.opened > 0) AS last_opened,
   EXISTS (SELECT 1 FROM word w WHERE w.person = r.id AND w.source != 'claimed') AS kept,
@@ -1562,6 +1569,8 @@ def _growth(
             invited=INVITED_ROWS if guests else "SELECT '', 0 WHERE 0",
             one_from=WEEK_ONE[0],
             one_to=WEEK_ONE[1],
+            two_from=WEEK_TWO[0],
+            two_to=WEEK_TWO[1],
             four_from=WEEK_FOUR[0],
             four_to=WEEK_FOUR[1],
         ),
@@ -1646,6 +1655,9 @@ def _growth(
         if (now - when).days > WEEK_ONE[1] and who in signed_in:
             batch.week_one_over += 1
             batch.week_one += bool(row["w1"])
+        if (now - when).days > WEEK_TWO[1] and who in signed_in:
+            batch.week_two_over += 1
+            batch.week_two += bool(row["w2"])
         if (now - when).days > WEEK_FOUR[1] and who in signed_in:
             batch.week_four_over += 1
             batch.week_four += bool(row["w4"])
@@ -1744,6 +1756,364 @@ def survey_store(
             let_in=let_in,
             allowance=allowance,
             plan_allowance=plan_allowance,
+        )
+    finally:
+        db.close()
+
+
+# -- the overview (design.md §12, 2026-11-17) ------------------------------------------
+
+#: How many days of activity the overview draws as bars, and how many weeks of new
+#: accounts.
+OVERVIEW_DAYS = 30
+OVERVIEW_WEEKS = 12
+#: What share of a reader's day of spend puts them on the overview: $7 of the $10 rail.
+NEAR_THE_RAIL = 0.7
+
+
+@dataclass
+class Figure:
+    """A figure now, the same figure a day earlier and the same a week earlier. A window
+    (seven days, thirty, the last twenty-four hours) is compared with the window of the
+    same length ending a day earlier and a week earlier."""
+
+    now: float = 0.0
+    yesterday: float = 0.0
+    last_week: float = 0.0
+
+    def against_yesterday(self) -> float:
+        return self.now - self.yesterday
+
+    def against_last_week(self) -> float:
+        return self.now - self.last_week
+
+
+@dataclass
+class Overview:
+    """The overview's figures, read off the store and nothing else. Readers only: the
+    operator's, admin and test addresses are counted nowhere, save in the box's spend,
+    which is money and is counted as `Store.claim` counts it, whoever spent it."""
+
+    #: Today in UTC, and the weekday a week ago, for "vs last Tue".
+    today: str = ""
+    weekday: str = ""
+    #: Readers active today, in the last seven days and in the last thirty.
+    active_today: Figure = field(default_factory=Figure)
+    active_week: Figure = field(default_factory=Figure)
+    active_month: Figure = field(default_factory=Figure)
+    #: Readers active on each of the last thirty days, oldest first.
+    active_days: list[tuple[str, int]] = field(default_factory=list)
+    #: Accounts made today and in the last seven days, and in each of the last twelve
+    #: weeks, oldest first, by the week's Monday.
+    new_today: Figure = field(default_factory=Figure)
+    new_week: Figure = field(default_factory=Figure)
+    new_weeks: list[tuple[str, int]] = field(default_factory=list)
+    #: The box's spend in the last twenty-four hours, as `claim` holds it to `ceiling`.
+    spent_today: Figure = field(default_factory=Figure)
+    ceiling: float = 0.0
+    #: This month's model spend, and each day's, from the first.
+    spent_month: float = 0.0
+    month_days: list[tuple[str, float]] = field(default_factory=list)
+    #: Readers' credits this month by kind, in seconds, in `KINDS` order.
+    credits_by_kind: list[tuple[str, float]] = field(default_factory=list)
+    #: Readers past `NEAR_THE_RAIL` of their own day's `rail`: id, address, $ in 24 h.
+    near_rail: list[tuple[int, str, float]] = field(default_factory=list)
+    rail: float = 0.0
+    #: A row a language over the thirty days, most readers first; empty unless the
+    #: Notice allows it (`languages_shown`, clauses 3.2 and 3.7 as amended 2026-11-17).
+    languages: list[LanguageRow] = field(default_factory=list)
+
+
+@dataclass
+class LanguageRow:
+    """One language over the last thirty days, counted across readers and naming none."""
+
+    language: str
+    #: Readers who opened a text or saved a word in it.
+    active: int = 0
+    #: Texts in it whose latest opening fell in the window.
+    texts: int = 0
+    #: Minutes of its recordings played, listened or watched.
+    minutes: float = 0.0
+    #: Texts brought and built in it (builds and subscriptions).
+    builds: int = 0
+
+
+#: Each reader and each day they did anything, over a span of days: a `day` row, or a
+#: text opened or updated, or a word saved, that day. A `day` row is the reader's own
+#: date and the rest UTC, the rule the readers' strip has always used. One query a table,
+#: each read from its covering index alone and the day kept as a number (milliseconds
+#: over a day's), since `date()` on every row and a `UNION`'s sort were most of the
+#: overview's time at 5,000 accounts.
+ACTIVE_DAYS = (
+    "SELECT DISTINCT person, day, '' FROM day WHERE gone = 0 AND day BETWEEN :first AND :last",
+    "SELECT DISTINCT person, opened / 86400000, language FROM doc"
+    " WHERE gone = 0 AND opened >= :since AND opened < :until",
+    "SELECT DISTINCT person, updated / 86400000, language FROM doc"
+    " WHERE gone = 0 AND updated >= :since AND updated < :until",
+    "SELECT DISTINCT person, at / 86400000, language FROM word"
+    " WHERE gone = 0 AND at >= :since AND at < :until",
+)
+EPOCH = date(1970, 1, 1)
+
+
+def box_spent(db: sqlite3.Connection, since: int, until: int | None = None) -> float:
+    """The box's spend from `since`: the sum `Store.claim` holds to the box's ceiling,
+    read and never written. `until` closes the window, for the same sum a day or a week
+    before; `claim` itself has none."""
+    sql = "SELECT COALESCE(SUM(claimed), 0) FROM job WHERE claimed > 0 AND made >= ?"
+    args: tuple[int, ...] = (since,)
+    if until is not None:
+        sql += " AND made < ?"
+        args = (since, until)
+    return float(db.execute(sql, args).fetchone()[0] or 0)
+
+
+def _midnight(day: date) -> int:
+    return int(datetime.combine(day, datetime.min.time(), UTC).timestamp() * 1000)
+
+
+def overview(
+    db: sqlite3.Connection,
+    at: int,
+    operators: Iterable[str] = (),
+    ceiling: float = 0.0,
+    rail: float = 0.0,
+    hours: int = 24,
+    languages: bool = False,
+) -> Overview:
+    """The overview's figures at `at` (milliseconds): who is active, who is new, and what
+    the box has spent, each against a day earlier and a week earlier. Days are UTC.
+
+    Everything is summed in the store over a bounded span, one row per reader and day at
+    most, so the cost grows with how many readers are active and never with how much any
+    of them has ever done: the 5,000-account test pins it."""
+    _functions(db)
+    today = datetime.fromtimestamp(at / 1000, UTC).date()
+    staff = json.dumps(sorted(_staff(db, frozenset(bare(each) for each in operators))))
+    found = Overview(
+        today=today.isoformat(),
+        weekday=(today - timedelta(days=7)).strftime("%a"),
+        ceiling=ceiling,
+        rail=rail,
+    )
+
+    # Active: a set of readers a day, over the thirty days and the thirty-seven back to
+    # the start of the month-long window that ended a week ago.
+    span = OVERVIEW_DAYS + 7
+    first = today - timedelta(days=span - 1)
+    by_day: dict[str, set[int]] = {
+        (first + timedelta(days=n)).isoformat(): set() for n in range(span)
+    }
+    bounds = {
+        "first": first.isoformat(),
+        "last": today.isoformat(),
+        "since": _midnight(first),
+        "until": _midnight(today + timedelta(days=1)),
+    }
+    staffed = {
+        int(row[0])
+        for row in db.execute(
+            "SELECT id FROM person WHERE bare(email) IN (SELECT value FROM json_each(?))",
+            (staff,),
+        )
+    }
+    named_day = {
+        (day - EPOCH).days: day.isoformat()
+        for day in (first + timedelta(days=n) for n in range(span))
+    }
+    month_from_day = (today - timedelta(days=OVERVIEW_DAYS - 1)).isoformat()
+    by_language: dict[str, set[int]] = {}
+    for sql in ACTIVE_DAYS:
+        for person, when, language in db.execute(sql, bounds):
+            if person in staffed:
+                continue
+            key = when if isinstance(when, str) else named_day.get(int(when))
+            if key in by_day:
+                by_day[key].add(int(person))
+                if language and key >= month_from_day:
+                    by_language.setdefault(str(language), set()).add(int(person))
+
+    def active(end: date, days: int) -> int:
+        seen: set[int] = set()
+        for n in range(days):
+            seen |= by_day.get((end - timedelta(days=n)).isoformat(), set())
+        return len(seen)
+
+    def compared(count: Callable[[date, int], int], days: int) -> Figure:
+        """A window of `days` ending today, against the same ending a day and a week ago."""
+        return Figure(
+            count(today, days),
+            count(today - timedelta(days=1), days),
+            count(today - timedelta(days=7), days),
+        )
+
+    found.active_today = compared(active, 1)
+    found.active_week = compared(active, 7)
+    found.active_month = compared(active, OVERVIEW_DAYS)
+    found.active_days = [
+        (day, len(by_day[day]))
+        for day in ((today - timedelta(days=n)).isoformat() for n in reversed(range(OVERVIEW_DAYS)))
+    ]
+
+    # New accounts, by the UTC day they were made, back to the first of twelve Mondays.
+    monday = today - timedelta(days=today.weekday())
+    weeks_from = monday - timedelta(weeks=OVERVIEW_WEEKS - 1)
+    made: Counter[str] = Counter()
+    for row in db.execute(
+        "WITH staff(e) AS (SELECT value FROM json_each(:staff))"
+        " SELECT date(made / 1000, 'unixepoch') AS d, COUNT(*) AS n FROM person"
+        " WHERE made >= :since AND bare(email) NOT IN (SELECT e FROM staff) GROUP BY d",
+        {"staff": staff, "since": _midnight(min(weeks_from, today - timedelta(days=13)))},
+    ):
+        made[str(row["d"])] = int(row["n"])
+
+    def new(end: date, days: int) -> int:
+        return sum(made[(end - timedelta(days=n)).isoformat()] for n in range(days))
+
+    found.new_today = compared(new, 1)
+    found.new_week = compared(new, 7)
+    found.new_weeks = [
+        (
+            (weeks_from + timedelta(weeks=n)).isoformat(),
+            new(weeks_from + timedelta(weeks=n, days=6), 7),
+        )
+        for n in range(OVERVIEW_WEEKS)
+    ]
+
+    # Spend: the box's rolling day as `claim` sums it, then the same day's length ending
+    # a day and a week before.
+    window = hours * 60 * 60 * 1000
+    found.spent_today = Figure(
+        box_spent(db, at - window),
+        box_spent(db, at - 2 * window, at - window),
+        box_spent(db, at - window - 7 * DAY_MS, at - 7 * DAY_MS),
+    )
+    month = month_from(today)
+    spent: dict[str, float] = {}
+    for row in db.execute(
+        "SELECT date(made / 1000, 'unixepoch') AS d, SUM(spent) AS s FROM job"
+        " WHERE made >= ? GROUP BY d",
+        (month,),
+    ):
+        spent[str(row["d"])] = float(row["s"] or 0)
+    first_of = date(today.year, today.month, 1)
+    found.month_days = [
+        (
+            (first_of + timedelta(days=n)).isoformat(),
+            spent.get((first_of + timedelta(days=n)).isoformat(), 0.0),
+        )
+        for n in range((today - first_of).days + 1)
+    ]
+    found.spent_month = sum(value for _, value in found.month_days)
+
+    # Readers' credits this month by kind, as a reader's page counts them.
+    kinds: dict[str, float] = {}
+    with contextlib.suppress(sqlite3.Error):
+        for row in db.execute(
+            "WITH staff(e) AS (SELECT value FROM json_each(:staff))"  # noqa: S608 - constants
+            f" SELECT {JOB_KIND} AS k, SUM({JOB_SECONDS}) AS s FROM job j"
+            " JOIN person p ON p.id = j.owner"
+            f" WHERE j.made >= :month AND {JOB_SECONDS} > 0"
+            " AND bare(p.email) NOT IN (SELECT e FROM staff) GROUP BY k",
+            {"staff": staff, "month": month},
+        ):
+            kinds[str(row["k"])] = float(row["s"] or 0)
+    found.credits_by_kind = [(kind, kinds.get(kind, 0.0)) for kind in KINDS] + [
+        (kind, seconds) for kind, seconds in sorted(kinds.items()) if kind not in KINDS
+    ]
+
+    if languages:
+        found.languages = _languages(
+            db,
+            by_language,
+            staffed,
+            _midnight(today - timedelta(days=OVERVIEW_DAYS - 1)),
+            month_from_day,
+        )
+
+    # Readers near their own day's rail, as `claim` sums it for them.
+    if rail:
+        found.near_rail = [
+            (int(row["owner"]), str(row["email"]), float(row["s"]))
+            for row in db.execute(
+                "WITH staff(e) AS (SELECT value FROM json_each(:staff))"
+                " SELECT j.owner, p.email, SUM(j.claimed) AS s FROM job j"
+                " JOIN person p ON p.id = j.owner"
+                " WHERE j.claimed > 0 AND j.made >= :since"
+                " AND bare(p.email) NOT IN (SELECT e FROM staff)"
+                " GROUP BY j.owner HAVING s >= :near ORDER BY s DESC, j.owner",
+                {"staff": staff, "since": at - window, "near": rail * NEAR_THE_RAIL},
+            )
+        ]
+    return found
+
+
+def _languages(
+    db: sqlite3.Connection,
+    active: Mapping[str, set[int]],
+    staffed: set[int],
+    since: int,
+    first: str,
+) -> list[LanguageRow]:
+    """The Languages row, over the thirty days from `since` (milliseconds) and `first`
+    (the same day as text): readers active in each, texts opened, minutes played and
+    builds. Grouped by reader as well, so staff are left out the way the rest are."""
+    rows: dict[str, LanguageRow] = {
+        language: LanguageRow(language, active=len(people)) for language, people in active.items()
+    }
+
+    def add(sql: str, args: Sequence[object], into: str) -> None:
+        with contextlib.suppress(sqlite3.Error):
+            for language, person, n in db.execute(sql, args):
+                if person in staffed:
+                    continue
+                row = rows.setdefault(
+                    str(language or "not said"), LanguageRow(str(language or "not said"))
+                )
+                setattr(row, into, getattr(row, into) + n)
+
+    add(
+        "SELECT language, person, COUNT(*) FROM doc WHERE gone = 0 AND opened >= ?"
+        " GROUP BY language, person",
+        (since,),
+        "texts",
+    )
+    add(
+        "SELECT language, person, SUM(amount) / 60.0 FROM event"
+        " WHERE day >= ? AND kind = 'play' GROUP BY language, person",
+        (first,),
+        "minutes",
+    )
+    add(
+        "SELECT language, owner, COUNT(*) FROM job WHERE made >= ?"
+        " AND kind IN ('build', 'subscription') AND owner IS NOT NULL GROUP BY language, owner",
+        (since,),
+        "builds",
+    )
+    return sorted(rows.values(), key=lambda row: (-row.active, -row.texts, row.language))
+
+
+def overview_store(
+    store: Path,
+    at: int | None = None,
+    operators: Iterable[str] | None = None,
+    ceiling: float = 0.0,
+    rail: float = 0.0,
+    hours: int = 24,
+    languages: bool = False,
+) -> Overview:
+    """`overview`, opening the database read-only, as `survey_store` does."""
+    db = sqlite3.connect(f"file:{store}?mode=ro", uri=True)
+    try:
+        return overview(
+            db,
+            at if at is not None else int(datetime.now(UTC).timestamp() * 1000),
+            operators=operators_from_env() if operators is None else operators,
+            ceiling=ceiling,
+            rail=rail,
+            hours=hours,
+            languages=languages,
         )
     finally:
         db.close()
