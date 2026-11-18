@@ -32,11 +32,12 @@ def configure(monkeypatch: pytest.MonkeyPatch) -> None:
         billing.API_KEY_ENV: "pdl_sdbx_apikey_01test",
         billing.WEBHOOK_SECRET_ENV: "pdl_ntfset_01test",
         billing.PRICE_MONTH_ENV: "pri_month",
-        billing.PRICE_QUARTER_ENV: "pri_quarter",
         billing.PRICE_TOP_UP_ENV: "pri_top_up",
         billing.CLIENT_TOKEN_ENV: "test_0123456789abcdef0123456789a",
     }.items():
         monkeypatch.setenv(name, value)
+    # As the box is: no quarter named (Plan is monthly only, David, 2026-11-18).
+    monkeypatch.delenv(billing.PRICE_QUARTER_ENV, raising=False)
 
 
 class Paddle:
