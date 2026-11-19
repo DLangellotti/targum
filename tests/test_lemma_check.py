@@ -627,7 +627,8 @@ def test_the_lemma_drops_a_prefix_the_line_already_shows() -> None:
     (teeth,) = _sentence(
         ("השיניים", "השיניים", "NOUN", None, None, "ה the + שיניים", "UPOS=NOUN", 1, ["DET"])
     )
-    assert (teeth.lemma, teeth.built) == ("שיניים", "ה the + שיניים")
+    # And the plural then under its headword (`nouns`, #697e).
+    assert (teeth.lemma, teeth.built) == ("שן", "ה the + שיניים")
     (tiger,) = _sentence(
         (
             "והנמר",
@@ -760,3 +761,81 @@ def test_a_whole_word_dicta_meant_stays_the_lemma(
     lead = built.count(" + ")
     (word,) = _sentence((surface, bare, "NOUN", None, None, built, "UPOS=NOUN", lead, prefixes))
     assert word.lemma == bare
+
+
+# --- a noun's or adjective's other form, filed under its headword (#697e) ----------------
+
+
+@pytest.mark.parametrize(
+    ("lemma", "pos", "headword"),
+    [
+        # ling-he's analyser read: the card had no meaning under the form.
+        ("עצים", "NOUN", "עץ"),
+        ("לירות", "NOUN", "לירה"),
+        # A dual, and a plural in ות of a masculine.
+        ("אוזניים", "NOUN", "אוזן"),
+        ("ארצות", "NOUN", "ארץ"),
+        # An adjective's feminine and plural, under its masculine.
+        ("מלאה", "ADJ", "מלא"),
+        ("ארוכים", "ADJ", "ארוך"),
+    ],
+)
+def test_a_form_given_as_its_own_lemma_is_filed_under_its_headword(
+    lemma: str, pos: str, headword: str
+) -> None:
+    row = {"surface": lemma, "lemma": lemma, "pos": pos, "root": "עצה"}
+    out = mend_row(row)
+    assert out["lemma"] == headword
+    assert out["root"] == "עצה", "a plural's root is its singular's: it stays"
+
+
+@pytest.mark.parametrize(
+    ("lemma", "pos"),
+    [
+        # Singulars that end the way plurals do: words of their own.
+        ("חנות", "NOUN"),
+        ("מלכות", "NOUN"),
+        ("חיים", "NOUN"),
+        ("מים", "NOUN"),
+        # A noun's feminine singular is often more than the masculine's: חברה "society".
+        ("חברה", "NOUN"),
+        # A construct form is a fixed phrase's word more often than a mistake (על גבי).
+        ("גבי", "NOUN"),
+        # Kept by hand after reading every change over the library (`nouns.KEPT`).
+        ("ימות", "NOUN"),
+        ("אמהות", "NOUN"),
+        ("שניים", "ADJ"),
+        ("לחיים", "NOUN"),
+        # Kept after ling-he's read (2026-11-20): another word's headword in context.
+        ("בימות", "NOUN"),
+        ("שתות", "NOUN"),
+        ("ארבות", "NOUN"),
+        ("חטים", "NOUN"),
+        ("אירופאיות", "ADJ"),
+        # A people is not its country.
+        ("אמריקאי", "ADJ"),
+        # Only nouns and adjectives: a verb's לירות is "to shoot".
+        ("לירות", "VERB"),
+    ],
+)
+def test_a_word_of_its_own_is_never_reduced(lemma: str, pos: str) -> None:
+    row = {"surface": lemma, "lemma": lemma, "pos": pos}
+    assert mend_row(row)["lemma"] == lemma
+
+
+def test_the_page_s_token_takes_the_headword_and_keeps_its_root() -> None:
+    from targum.annotate.lemma_check import mend_token
+
+    token = Token(
+        start=0,
+        end=6,
+        surface="עֵצִים",
+        lemma="עצים",
+        band=2,
+        pos="NOUN",
+        root="עצה",
+        headword="עֵצִים",
+    )
+    out = mend_token(token)
+    assert out.lemma == "עץ" and out.root == "עצה"
+    assert out.headword is None, "the pointed headword was the plural's"

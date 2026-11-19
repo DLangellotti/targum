@@ -110,8 +110,15 @@ def readings(line: str) -> tuple[str, str]:
     return plain, pointed
 
 
-def harvest(path: Path) -> dict[str, dict[str, object]]:
-    """Every Hebrew verb lexeme in the dump, with its forms. One streaming pass."""
+def harvest(
+    path: Path, categories: frozenset[str] = frozenset({VERB})
+) -> dict[str, dict[str, object]]:
+    """Every Hebrew verb lexeme in the dump, with its forms. One streaming pass.
+
+    `categories` widens it to other parts of speech, or to every one with None, each
+    lexeme carrying its own as `category`: `hebrew_nouns.py` reads nouns and adjectives
+    the same way, and every headword to know which spellings are words of their own
+    (targum-internal#697e)."""
     verbs: dict[str, dict[str, object]] = {}
     #: Lexemes seen to be Hebrew verbs, so their forms are recognised as they arrive.
     wanted: set[str] = set()
@@ -126,13 +133,17 @@ def harvest(path: Path) -> dict[str, dict[str, object]]:
             return
         found = LEXEME.match(subject)
         if found:
-            if block.get("language") == HEBREW and block.get("category") == VERB:
+            if block.get("language") == HEBREW and (
+                categories is None or block.get("category") in categories
+            ):
                 wanted.add(found.group(1))
                 verbs[found.group(1)] = {
                     "lemma": block.get("pointed") or block.get("plain") or "",
                     "plain": block.get("plain") or "",
                     "forms": [],
                 }
+                if categories != {VERB}:
+                    verbs[found.group(1)]["category"] = block.get("category") or ""
             return
         found = FORM.match(subject)
         if found and found.group(1) in wanted:

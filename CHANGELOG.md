@@ -120,6 +120,29 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   Hebrew words in the 2026-11-18 diagnosis ($0.04); `filed_as` matched none of them, so each
   was paid for and dropped, and a third of the in-language read showed no meaning. A batch
   that asked for the marked form itself keeps it.
+- A Hebrew noun's plural or an adjective's feminine or plural that DICTA gave as its own
+  lemma is filed under its headword, so the card finds its meaning: עצים under עץ, לירות
+  under לירה, מלאה under מלא (targum-internal#697e, from ling-he's analyser read).
+  - `annotate/nouns.json.gz` (98 KB, CC0): Wikidata's lexemes, the same source as the
+    verb tables, written by `scripts/hebrew_nouns.py`. It maps a noun's plurals and an
+    adjective's feminine and plural forms to their one headword, and only where the form
+    belongs to one headword, is no Hebrew headword of any part of speech itself (חנות,
+    מלכות, חיים and מים stay), is no construct form (על גבי), and ends as an inflection
+    does. A noun's feminine singular is never reduced: חברה is more than חבר's.
+  - Measured over the laptop's 483 Hebrew texts: 2,802 of 320,723 noun and adjective
+    tokens change, across 495 spellings. Every spelling was read, and the ones the table
+    gets wrong in context are kept as DICTA gave them (`nouns.KEPT`: ימות, אמהות, אמות,
+    שניים, רבות, לחיים, בעלים and a few more). צעירה stays: it is a noun of its own.
+  - ling-he's read of the change list (2026-11-20) kept 21 more, 76 tokens the table
+    filed under another word's headword: בימות ("in the days of") under בימה, שתות ("a
+    sixth") under שת, ארבות under ארבה "locust", שבלים under שובל, חטים, טליות, כנים,
+    חכים, חיצים, חצים, גבים, הלנות, עונות and a few singles. The change is then 2,556
+    tokens, and 1.9% of them are wrong, nearly all where DICTA's lemma was already
+    another word's.
+  - `lemma_check` 7 and `occurrences` 17: a free recount at page-build and count time.
+    No annotator rename, and `SCHEMA_VERSION` is untouched. The root stays, since a
+    plural's root is its singular's. A headword with no meaning bought yet gets one at
+    the next `rebuild --gloss`, a few cents.
 - "Tell us" is "Send feedback" to readers, «Отправить отзыв» in Russian (David,
   2026-11-17): the account menu's row, the box's title, the reader's ⋯ row and the press
   on every fault panel, all `fault.tell-us`. Code, routes and the back office keep
