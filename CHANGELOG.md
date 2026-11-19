@@ -20,6 +20,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   language. A form the model cannot place comes back empty, and the prompt now says that
   no note about a form ever goes in the gloss. `scripts/meanings_itself_read.py` counts
   what it dropped.
+- The Privacy Notice no longer lists "whether it is paid monthly or every three months"
+  among what the Controller keeps about a plan (David, 2026-11-19): Plan is monthly only.
+  No other word changes. `LEGAL_CHANGED` is 19 November 2026, because the 18 November
+  text is already published and the date is the day the pages last changed.
 - A paid Plan's 480 credits run per month of the Plan, from the day it began, not per
   calendar month (David, 2026-11-19; Terms of sale clause 2). `Store.month_window` cuts
   the months from Paddle's paid periods (`plan_period`): a Plan begun on the 15th resets
