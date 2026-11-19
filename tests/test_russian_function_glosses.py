@@ -143,3 +143,118 @@ def test_a_card_tap_on_a_function_word_answers_the_table_and_buys_nothing(hosted
         port, session, "/gloss", {"lemma": "окно", "source": "ru", "target": "en"}
     )
     assert status == 200 and buys == ["окно"]
+
+
+# -- every reader of a held meaning (qa on targum#1340) ---------------------------------
+
+
+def _wrong_kak(cache: Cache) -> None:
+    cache.put(
+        "gloss",
+        gloss_key(cache, "как", "ru", "en", gloss_module.gloss_provider_name()),
+        {"gloss": "however (concessive: 'no matter how')", "grounded": True},
+    )
+
+
+def test_a_held_meaning_is_the_tables_wherever_it_is_read(tmp_path: Path) -> None:
+    """`cached_gloss` is what Your Progress, the commonest words, the words to learn first
+    and a conversation's lines all read; the table stands ahead of the cache there."""
+    cache = Cache(tmp_path / "cache")
+    _wrong_kak(cache)
+    held = gloss_module.cached_gloss("как", "ru", "en", gloss_module.gloss_provider_name(), cache)
+    assert held is not None and held.gloss.startswith("how; as; like") and held.grounded
+    assert gloss_module.cached_gloss("как", "ru", "he", "x", cache) is None, "into English only"
+
+
+def test_your_progress_says_the_tables_meaning(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`Handler._held_meaning`, the meaning beside each word met on Your Progress."""
+    from targum import serve
+
+    monkeypatch.setattr(gloss_module, "Cache", lambda root=None: Cache(tmp_path / "cache"))
+    _wrong_kak(Cache(tmp_path / "cache"))
+    reader = type("Reader", (), {"_reading_language": lambda self: "en"})()
+    assert serve.Handler._held_meaning(reader, "ru")("как").startswith("how; as; like")
+
+
+def test_a_conversations_lines_say_the_tables_meaning(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`chat/record.py`'s `Recorder.gloss`, the meaning under a word in a conversation."""
+    from targum.chat.record import Recorder
+
+    monkeypatch.setattr(gloss_module, "Cache", lambda root=None: Cache(tmp_path / "cache"))
+    _wrong_kak(Cache(tmp_path / "cache"))
+    assert Recorder().gloss("как", "ru", "en").startswith("how; as; like")
+
+
+def test_the_commonest_words_say_the_tables_meaning(hosted, monkeypatch) -> None:  # type: ignore[no-untyped-def]  # noqa: F811
+    """`/words/common` ("Words you may already know") for a reader learning Russian."""
+    import sqlite3
+
+    from test_meanings_itself import get
+
+    port, session, store = hosted
+    db = sqlite3.connect(store)
+    person = db.execute("SELECT id FROM person WHERE email = 'reader@example.com'").fetchone()[0]
+    db.execute(
+        "INSERT INTO chosen (person, kind, language, at) VALUES (?, 'learning', 'ru', 1)",
+        (person,),
+    )
+    db.commit()
+    db.close()
+    from urllib.parse import quote
+
+    answer = get(port, session, "/words/common?language=ru&forms=" + quote("как,уж"))
+    meanings = {row["form"]: row["meaning"] for row in answer["words"]}
+    assert meanings["как"].startswith("how; as; like")
+    assert "snake" not in meanings["уж"]
+
+
+def test_the_words_to_learn_first_read_through_the_held_meaning() -> None:
+    """`Handler._pick_words` asks `cached_gloss` for each word and nothing else, so the
+    table stands ahead of the cache there too (its rows need a built shelf to draw)."""
+    import inspect
+
+    from targum import serve
+
+    source = inspect.getsource(serve.Handler._pick_words)
+    assert "cached_gloss(" in source and 'cache.get("gloss"' not in source
+
+
+def test_correct_refuses_a_function_word_and_names_the_table(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from typer.testing import CliRunner
+
+    from targum.cli import app
+
+    monkeypatch.setattr(gloss_module, "Cache", lambda root=None: Cache(tmp_path / "cache"))
+    said = CliRunner().invoke(
+        app,
+        ["correct", "как", "--source", "ru", "--meaning", "how", "--store", str(tmp_path / "w.db")],
+    )
+    assert said.exit_code != 0
+    assert "closed.py" in said.output and "function word" in said.output
+    # A content word is still corrected, and recorded.
+    fine = CliRunner().invoke(
+        app,
+        [
+            "correct",
+            "дом",
+            "--source",
+            "ru",
+            "--meaning",
+            "house",
+            "--store",
+            str(tmp_path / "w.db"),
+        ],
+    )
+    assert fine.exit_code == 0, fine.output
+
+
+def test_ling_ru_s_three_meanings() -> None:
+    assert closed.function_gloss("ru", "за") == "behind; beyond; for; after; in [time: за час]"
+    assert closed.function_gloss("ru", "к") == "to; towards; by [time: к пяти]"
+    assert closed.function_gloss("ru", "о") == "about; of; against [о стену]"

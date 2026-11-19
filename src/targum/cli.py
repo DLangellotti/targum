@@ -3360,6 +3360,19 @@ def correct_command(
 
     if forget == bool(meaning):
         fail(TargumError("Say what the word means, or say --forget.", "One or the other."))
+    from .annotate import closed
+
+    if closed.function_gloss(source, lemma, to):
+        # Written by hand in the table, which every reader of a meaning takes ahead of the
+        # cache (targum-internal#712): a correction here would change nothing anybody
+        # sees, so it is refused and the table named.
+        fail(
+            TargumError(
+                f"{lemma} is a function word, and its meaning is written by hand.",
+                "Change it in src/targum/annotate/closed.py (RUSSIAN), where every card "
+                "and glossary reads it.",
+            )
+        )
     judge = _judge_for(who, editor, store)
     provider_name = AnthropicGlosses(GLOSS_MODEL).name
     if forget:
