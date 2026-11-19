@@ -993,6 +993,13 @@ reader sees a percentage.
   [opensubtitles.org](https://www.opensubtitles.org). Counts are facts about the text and
   reproduce none of it. wordfreq already ships on the same footing, with OpenSubtitles
   inside it.
+- **Conversation: OPUS OpenSubtitles v2024, Russian** (targum-internal#752, 2026-11-19).
+  The same corpus on the same terms, checked again at its source for Russian and French:
+  one statement covers every language. A systematic sample of the monolingual
+  `ru.txt.gz`, every 350th line of the whole file, streamed and never stored whole, and
+  counted with the local Russian reader (`annotate.russian`), never the model. Filed under
+  `ru:conversation`, cited and linked as above. French is not counted: its words are read
+  by the model, and a count never spends.
 - **Classic literature: Project Ben-Yehuda's public-domain dump, release `2026-03`**
   (targum-internal#581). It is prose, drama, fables and memoir written in Hebrew, with no
   translations, poetry or reference, sampled by work. It is public domain. We credit

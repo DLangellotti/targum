@@ -193,3 +193,17 @@ def test_a_short_month_brings_its_own_full_stop_in_russian() -> None:
     )["understand"]
     assert card["since"].startswith("Считаем с ") and card["since"].endswith(".")
     assert not card["since"].endswith(".."), card["since"]
+
+
+def test_a_russian_reader_s_card_names_russian() -> None:
+    """targum-internal#752: Russian has lists of its own, and the card says which
+    language it measures."""
+    stored = {"targum:vocab:ru": vocab(known=3)}
+    began = months_back(1)
+    series = {"ru": {"began": ms(began), "registers": {"conversation": entry(61, 0.61)}}}
+    card = draw(stored, chosen="ru", understand=series)["understand"]
+    assert card["shown"] and card["register"] == "conversation"
+    assert card["title"] == "How much Russian you understand"
+    assert card["said"] == "You know 61% of the words in everyday conversation."
+    hebrew = draw(HEBREW, understand=three_months())["understand"]
+    assert hebrew["title"] == "How much Hebrew you understand"

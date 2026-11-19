@@ -17609,23 +17609,25 @@ class Handler(BaseHTTPRequestHandler):
         on a fixed yardstick", 2026-10-30). Per register: the exact percentage now
         (`level.known_percent`), and `base` and each day's `gain`, from which the page
         draws the line by Week or Month. A register with no snapshot is left out, never
-        sent as 0. Hebrew only: the yardsticks are counted with DICTA's lemmas.
+        sent as 0. Each language is measured on its own lists (`registers.picker`): Hebrew's
+        counted with DICTA's lemmas, Russian's and French's under `ru:` and `fr:`
+        (targum-internal#752), and sent by the register's bare name under the language.
         """
         from . import level as level_module
-        from .tables.registers import PICKER
+        from .tables.registers import bare_register, measured_languages, picker
 
         out: dict[str, Any] = {}
         began = self.store.began()
-        # Hebrew's alone (targum-internal#637): PICKER's registers are Hebrew's counts,
-        # and a Russian list measured on them would be a Russian score on Hebrew lemmas.
-        for language in ("he",):
+        # A language is measured only on its own counts (targum-internal#637): a Russian
+        # list read off Hebrew lemmas would be a Russian score on Hebrew words.
+        for language in measured_languages():
             dated = self.store.known_dated(person_id, language)
             registers: dict[str, Any] = {}
-            for register in PICKER:
+            for register in picker(language):
                 got = level_module.coverage_days(register, dated, began=began, zone=zone)
                 if got is None:
                     continue
-                registers[register] = {
+                registers[bare_register(register)] = {
                     "percent": level_module.known_percent(got["share"]),
                     "base": got["base"],
                     "days": got["days"],

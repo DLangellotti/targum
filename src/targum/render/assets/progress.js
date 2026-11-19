@@ -3665,6 +3665,12 @@
     drawUnderstand(currentCode);
   }
 
+  function understandTitle(code) {
+    if (code === "ru") return t("progress.understand.title-russian", "How much Russian you understand");
+    if (code === "fr") return t("progress.understand.title-french", "How much French you understand");
+    return t("progress.understand.title", "How much Hebrew you understand");
+  }
+
   function drawUnderstand(code) {
     var panel = document.getElementById("understand");
     var host = document.getElementById("understand-line");
@@ -3676,6 +3682,10 @@
     var mine = understandOf(code);
     panel.hidden = !understands(code);
     if (panel.hidden) return;
+    // Russian and French have lists of their own (targum-internal#752): the title names
+    // the language the card measures.
+    var title = document.getElementById("understand-title");
+    if (title) title.textContent = understandTitle(code);
     var register = chosenRegister(mine);
     if (!understandBy) understandBy = chosenUnderstandBy(mine, register);
     panel.setAttribute("data-by", understandBy);

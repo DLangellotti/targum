@@ -64,6 +64,44 @@ def in_language(register: str, language: str) -> str:
     return register if code == HEBREW else f"{code}:{register}"
 
 
+#: The yardsticks another language may have, by language (targum-internal#752): everyday
+#: conversation from film and TV subtitles, and news from that language's own feeds. Each
+#: is filed under `in_language`, so a Russian list is never read off Hebrew counts. Bible
+#: and literature lists for these languages are out of #752's scope, and the modern
+#: registers readers bring are pooled for Hebrew alone.
+OTHER_YARDSTICKS: dict[str, tuple[str, ...]] = {
+    "ru": (CONVERSATION, NEWS),
+    "fr": (CONVERSATION, NEWS),
+}
+
+
+def picker(language: str) -> tuple[str, ...]:
+    """The registers one language's card and tool may offer, as the tables file them:
+    `PICKER` for Hebrew, `<language>:<register>` for each of `OTHER_YARDSTICKS`, and none
+    for a language with no yardsticks."""
+    code = (language or HEBREW).split("-")[0].lower()
+    if code == HEBREW:
+        return PICKER
+    return tuple(in_language(register, code) for register in OTHER_YARDSTICKS.get(code, ()))
+
+
+def measured_languages() -> tuple[str, ...]:
+    """Every language with yardsticks of its own, Hebrew first."""
+    return (HEBREW, *OTHER_YARDSTICKS)
+
+
+def every_picker() -> tuple[str, ...]:
+    """Every register a yardstick may be written for, in every language."""
+    return tuple(register for code in measured_languages() for register in picker(code))
+
+
+def bare_register(register: str) -> str:
+    """A register without its language: `conversation` for `ru:conversation`. What a page
+    and a model are told, beside the language the answer is for."""
+    head, sep, tail = register.partition(":")
+    return tail if sep and head != IMPORTS else register
+
+
 def language_of(register: str) -> str:
     """The language a register's rows are in: the prefix `in_language` gave it, else
     Hebrew. The imports registers are Hebrew's: only Hebrew is pooled."""
