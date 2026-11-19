@@ -19976,7 +19976,13 @@ class Handler(BaseHTTPRequestHandler):
         if not lemma or not source or len(lemma) > MAX_LEMMA:
             return self._json({"error": "bad request"}, 400)
 
-        from .annotate.gloss import GLOSS_MODEL, AnthropicGlosses, cached_gloss, gloss_one
+        from .annotate.gloss import (
+            GLOSS_MODEL,
+            AnthropicGlosses,
+            cached_gloss,
+            gloss_one,
+            would_buy,
+        )
 
         # The same model the build's own glossary was bought with. The provider's name
         # is part of the cache key, so asking here with the provider's default — Opus,
@@ -20035,7 +20041,8 @@ class Handler(BaseHTTPRequestHandler):
         # never counted. Past the ceiling a bare meaning already held is still answered,
         # ungrounded, so the card keeps what it had and only the new purchase waits.
         held = cached_gloss(lemma, source, target, provider.name)
-        if held is None or (sentence and not held.grounded):
+        buying = would_buy(lemma, source, target, provider.name, context=sentence)
+        if buying:
             person = self._person()
             who = f"gloss:{person.id}" if person is not None else "gloss:" + digest(self._visitor())
             if self.store.asking_too_often(who, limit=GLOSSES_PER_HOUR):
@@ -20058,6 +20065,33 @@ class Handler(BaseHTTPRequestHandler):
                     },
                     429,
                 )
+        # A buy goes through the rails like every other spend (David, 2026-11-19, qa on
+        # targum#1335): a job row of kind `gloss`, targum's to pay as a word said from
+        # its card is, claimed against the box's daily ceiling and settled to what the
+        # call cost, so the ceiling and the ledger see every meaning bought. One claim a
+        # buy: a tap answered from the cache, held or settled as no meaning, claims
+        # nothing and makes no row. The hourly limit above still holds per account.
+        job = self._gloss_job(source, target) if buying else None
+        if job is not None:
+            refused = self.library.claim_turn(job, kind="gloss")
+            if refused:
+                job.stage = "blocked"
+                job.blocked = refused
+                self.library.remember(job)
+                # Refused, nothing is bought: the card keeps what it holds — a bare
+                # meaning, ungrounded, or the meaning in the reader's own language under
+                # one in the word's — and is told plainly when there is nothing.
+                if held is not None:
+                    return self._json(
+                        {
+                            "lemma": lemma,
+                            "meaning": held.gloss,
+                            "citation": held.citation,
+                            "plural": held.plural,
+                            "grounded": False,
+                        }
+                    )
+                return self._json(self._refusal(refused), 429)
         try:
             sense = gloss_one(
                 lemma,
@@ -20070,8 +20104,10 @@ class Handler(BaseHTTPRequestHandler):
                 ),
             )
         except TargumError as error:
+            self._settle_gloss(job, provider, failed=True)
             return self._json({"error": self._told(error)}, 502)
         except Exception as error:
+            self._settle_gloss(job, provider, failed=True)
             traceback.print_exc()
             incidents_module.record(self.library.incidents, "/gloss", error)
             return self._json(
@@ -20083,6 +20119,7 @@ class Handler(BaseHTTPRequestHandler):
                 },
                 502,
             )
+        self._settle_gloss(job, provider)
         return self._json(
             {
                 "lemma": lemma,
@@ -20092,6 +20129,44 @@ class Handler(BaseHTTPRequestHandler):
                 "grounded": bool(sense and sense.grounded),
             }
         )
+
+    def _gloss_job(self, source: str, target: str) -> Job:
+        """The job row one bought meaning is claimed and settled on: kind `gloss`, a
+        `gift` because targum pays and no credit is the reader's, owned by whoever asked
+        so the back office can say whose taps spent, and reserved at what one word can
+        cost (`one_word_estimate`)."""
+        from .annotate.gloss import GLOSS_MODEL, one_word_estimate
+
+        person = self._person()
+        job = Job(
+            ui=self._page_language(),
+            id=f"gloss-{secrets.token_hex(6)}",
+            source=f"gloss:{source}-{target}",
+            estimate=one_word_estimate(source, target, GLOSS_MODEL),
+            stage="working",
+            owner=person.id if person else None,
+            home=self._home(),
+            admin=bool(person and self.store.is_admin(person.email)),
+            kind="gloss",
+            gift=True,
+        )
+        self.library.jobs[job.id] = job
+        self.library.remember(job)
+        return job
+
+    def _settle_gloss(self, job: Job | None, provider: Any, *, failed: bool = False) -> None:
+        """A claimed buy settled to what the call spent, or given back when it spent
+        nothing (a failure before the model answered)."""
+        if job is None:
+            return
+        spent = float(provider._provider.spent.cost())
+        job.stage = "failed" if failed else "done"
+        if spent > 0:
+            job.spent = spent
+            self.library.settle(job)
+        else:
+            self.library.release(job)
+        self.library.remember(job)
 
     def _meanings_in_itself(self) -> set[str]:
         """The languages whose meanings may be bought in the language itself for whoever

@@ -560,6 +560,48 @@ def estimate(lemma_count: int, model: str) -> float:
     ) / 1_000_000
 
 
+def one_word_estimate(source_language: str, target_language: str, model: str) -> float:
+    """What one tapped word can cost, as the claim reserves it before the buy (targum#1335
+    qa, David 2026-11-19: every paid `/gloss` buy through the rails). A single word's
+    call is mostly its system prompt, so that is counted, at a token for every three
+    characters, with the word, its sentence and a long answer beside it. A ceiling
+    rather than a guess: the claim is settled to what was spent once the answer is in."""
+    from ..translate.anthropic_provider import DEFAULT_MODEL, PRICES
+
+    in_price, out_price = PRICES.get(model, PRICES[DEFAULT_MODEL])
+    system = len(system_for(source_language, target_language)) // 3
+    asked = system + TOKENS_PER_LEMMA_IN + 200
+    answered = TOKENS_PER_LEMMA_OUT * 4
+    return (asked * in_price + answered * out_price) / 1_000_000
+
+
+def would_buy(
+    lemma: str,
+    source_language: str,
+    target_language: str,
+    provider: str,
+    context: str = "",
+    cache: Cache | None = None,
+) -> bool:
+    """Whether `gloss_one` would ask the model about this word now, read off the cache
+    alone: nothing held, or held bare and a sentence has come. A meaning in the language
+    itself that was asked for and could not be given (`NO_MEANING`) is not asked again.
+    The serve side claims against the rails only where this is true, so a cached tap
+    makes no job row. Never spends."""
+    cache = cache or Cache()
+    stored = cache.get("gloss", gloss_key(cache, lemma, source_language, target_language, provider))
+    if isinstance(stored, dict) and stored.get("gloss"):
+        return bool(context) and not bool(stored.get("grounded"))
+    if (
+        _same(source_language, target_language)
+        and isinstance(stored, dict)
+        and stored.get(NO_MEANING)
+        and (stored.get("grounded") or not context)
+    ):
+        return False
+    return True
+
+
 def cached_gloss(
     lemma: str,
     source_language: str,
