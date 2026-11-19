@@ -26,6 +26,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   - **Subscribe** says when it is still saving past three seconds, when it did not go
     through, and when it was pressed offline.
   - The Russian is drafted for ling-ru's first pass.
+- A story's English is the one written beside it in its file, never bought
+  (`pipeline._story_english`). A box build of a `story:` text fell through to the machine
+  and would have paid a cent or two for an English it already had (builder-2's note on
+  the French A2 ship, 2026-11-19). A paragraph's English goes one to one onto its
+  sentences where it cuts into as many, and otherwise sits whole on the paragraph's
+  first sentence.
 - A meaning in the language itself never writes the word itself (targum-internal#538,
   ling-he's read of 2026-11-16). The prompt says so in plainer terms, and a definition that
   still writes the headword is not filed, so the card keeps the meaning in the reader's
