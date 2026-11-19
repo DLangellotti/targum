@@ -32,7 +32,14 @@ PARTS = frozenset({"NOUN", "ADJ"})
 #: שניים and שנים are the number as often as not; רבות is mostly "many"; לחיים is
 #: "cheers" as often as "cheeks"; בעלים "owner", עשירות "wealth", בכירות "seniority" and
 #: קרות "coldness" are words of their own; a people is not its country (אירופאים,
-#: ונצואלית), and הגויות is no הגות's.
+#: ונצואלית), and הגויות is no הגות's. ling-he's read of the same list (2026-11-20)
+#: kept the rest the table files under another word: בימות is ב + ימות ("בימות
+#: החמה"), not stages; שתות is the Mishnah's "a sixth"; ארבות are skylights, not
+#: locusts; שבלים are ears of grain; חטים is wheat (and DICTA's lemma for חוטם);
+#: טליות are tallitot; כנים are lice; חכים is "wise"; חיצים and חצים are arrows and
+#: halves, not partitions; גבים are Isaiah's locusts more than backs; הלנות "that lodge";
+#: עונות is עוונות; and a row of singles (הפרכות, אמניות, סרטיות, צינית,
+#: טירוניות, ספציפיות, אדמומיות, אירופאיות) whose headword is another word.
 KEPT = frozenset(
     {
         "ימות",
@@ -49,6 +56,27 @@ KEPT = frozenset(
         "אירופאים",
         "ונצואלית",
         "הגויות",
+        "בימות",
+        "שתות",
+        "ארבות",
+        "שבלים",
+        "חטים",
+        "טליות",
+        "כנים",
+        "חכים",
+        "חיצים",
+        "חצים",
+        "גבים",
+        "הלנות",
+        "עונות",
+        "הפרכות",
+        "אמניות",
+        "סרטיות",
+        "צינית",
+        "טירוניות",
+        "ספציפיות",
+        "אדמומיות",
+        "אירופאיות",
     }
 )
 

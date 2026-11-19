@@ -806,6 +806,12 @@ def test_a_form_given_as_its_own_lemma_is_filed_under_its_headword(
         ("אמהות", "NOUN"),
         ("שניים", "ADJ"),
         ("לחיים", "NOUN"),
+        # Kept after ling-he's read (2026-11-20): another word's headword in context.
+        ("בימות", "NOUN"),
+        ("שתות", "NOUN"),
+        ("ארבות", "NOUN"),
+        ("חטים", "NOUN"),
+        ("אירופאיות", "ADJ"),
         # A people is not its country.
         ("אמריקאי", "ADJ"),
         # Only nouns and adjectives: a verb's לירות is "to shoot".
