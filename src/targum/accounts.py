@@ -1162,7 +1162,11 @@ MEANINGS_IN_ITSELF = ("he", "fr", "ru", "it")
 #: the model's answers (ling-he a hundred, ling-fr, ling-ru and ling-it fifty each): a
 #: language goes in here by a PR that says the read passed. `TARGUM_MEANINGS_OPEN`
 #: ("he,fr") opens languages on one install, for trying the row before then.
-MEANINGS_OPEN: frozenset[str] = frozenset()
+#:
+#: Hebrew opened 2026-11-19 (David, on ling-he's second read and her three fixes,
+#: targum-internal#538): offered on "Your languages" as the opt-in it was drawn as, off
+#: for every reader until they choose it.
+MEANINGS_OPEN: frozenset[str] = frozenset({"he"})
 
 
 def meanings_open() -> frozenset[str]:

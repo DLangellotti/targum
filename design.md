@@ -1052,6 +1052,15 @@ and nothing is bought" still holds for every reader who has not made this one ch
   and never buy. The translation beside each line, the chrome and the chat are
   unchanged.
 
+**Hebrew is offered — 2026-11-19.** David, on ling-he's second read and her three fixes
+(targum-internal#538). A definition never writes its word, with a prefix or an ending
+(עצם, never «עצמו»), nor a word of its family where a plain word says it. A meaning is
+the word's sense and nothing more: no note on its grammar or its sentence. An inflected
+form (קחו) is defined as its dictionary form (לקחת), or left empty. A meaning that cannot
+be given is kept as asked and empty, so it is never bought twice, and the card keeps the
+English. The row is offered on every install, and off for every reader until they choose
+it. French, Russian and Italian wait for their own reads.
+
 ### An offline copy follows its text when opened online, and Remove can be undone — 2026-11-14
 
 David, 2026-11-14, on design's finish pass of Saved (targum-internal#720, P1 4 and P2 9).
