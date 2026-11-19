@@ -1151,6 +1151,143 @@ def my_progress(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+#: How much of each yardstick a reader's model is told about (targum-internal#750,
+#: design.md §12, "The yardstick figures reach the reader's own model", 2026-11-18).
+UNDERSTAND_WORDS = 25
+UNDERSTAND_WEEKS = 26
+UNDERSTAND_TOPS = (1000, 2000)
+UNDERSTAND_STEPS = (500, 1000, 2000, 3000)
+#: The yardstick whose next words are sent when no register is named: the card's default.
+UNDERSTAND_DEFAULT = "news"
+_DAY_MS = 86_400_000
+
+
+def _held_gloss(lemma: str) -> str | None:
+    """The meaning already held for a yardstick's lemma, or None. Never spends."""
+    try:
+        from ..annotate.gloss import GLOSS_MODEL, AnthropicGlosses, cached_gloss
+
+        held = cached_gloss(lemma, "he", "en", AnthropicGlosses(GLOSS_MODEL).name)
+    except Exception:  # noqa: BLE001 - a gloss is a courtesy; the figures stand without it
+        return None
+    return held.gloss if held and held.gloss else None
+
+
+def _weekly(got: dict[str, Any], began: int, now_ms: int) -> list[dict[str, Any]]:
+    """The coverage at the end of each week (Monday to Sunday, UTC) from the week `began`
+    falls in to this one, the latest `UNDERSTAND_WEEKS` of them. A week's point counts every
+    word known by its Sunday; this week's is today's."""
+    from datetime import timedelta
+
+    from .. import level as level_module
+
+    first = datetime.fromtimestamp(began / 1000, tz=UTC).date()
+    last = datetime.fromtimestamp(now_ms / 1000, tz=UTC).date()
+    monday = first - timedelta(days=first.weekday())
+    gains = sorted((str(day["day"]), float(day["gain"])) for day in got["days"])
+    share = float(got["base"])
+    out: list[dict[str, Any]] = []
+    index = 0
+    while monday <= last:
+        sunday = (monday + timedelta(days=6)).isoformat()
+        while index < len(gains) and gains[index][0] <= sunday:
+            share += gains[index][1]
+            index += 1
+        out.append(
+            {"week": monday.isoformat(), "percent": level_module.known_percent(min(1.0, share))}
+        )
+        monday += timedelta(days=7)
+    return out[-UNDERSTAND_WEEKS:]
+
+
+def _one_register(
+    register: str,
+    dated: list[tuple[str, int | None]],
+    began: int,
+    now_ms: int,
+    with_words: bool,
+) -> dict[str, Any] | None:
+    from .. import level as level_module
+    from ..tables import yardstick
+
+    stick = yardstick.load(register)
+    got = level_module.coverage_days(register, dated, began=began)
+    if stick is None or got is None:
+        return None
+    known = {yardstick.bare(lemma) for lemma, _ in dated}
+    ranked = sorted(stick.weights.items(), key=lambda item: (-item[1], item[0]))
+    unknown = [(rank, lemma) for rank, (lemma, _) in enumerate(ranked, 1) if lemma not in known]
+    share = float(got["share"])
+    curve: list[dict[str, Any]] = []
+    for step in UNDERSTAND_STEPS:
+        if step > len(unknown):
+            break
+        more = math.fsum(stick.weights[lemma] for _, lemma in unknown[:step])
+        curve.append({"next": step, "percent": level_module.known_percent(min(1.0, share + more))})
+    out: dict[str, Any] = {
+        "register": register,
+        "version": stick.version,
+        "percent": level_module.known_percent(share),
+        "history": _weekly(got, began, now_ms) if dated else [],
+        "unknown_in_top": {
+            str(top): sum(1 for rank, _ in unknown if rank <= top) for top in UNDERSTAND_TOPS
+        },
+        "if_learned": curve,
+    }
+    if with_words:
+        out["next_words"] = [
+            {"lemma": lemma, "gloss": _held_gloss(lemma), "rank": rank}
+            for rank, lemma in unknown[:UNDERSTAND_WORDS]
+        ]
+    return out
+
+
+def how_much_i_understand(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
+    """How much Hebrew the reader understands, measured on the fixed yardsticks
+    (targum-internal#750, design.md §12, "The yardstick figures reach the reader's own
+    model", 2026-11-18). Facts only: the percentage Your Progress shows, by week, the
+    commonest words not known yet, and what knowing the next ones would make it. Nothing
+    here forecasts; a model may estimate from `pace`, and is told to say so."""
+    from ..tables.registers import PICKER
+
+    language = str(ctx.level.state()["language"]).split("-")[0]
+    if language != "he":
+        return {"language": language, "measured": False}
+    store, person = ctx.store, ctx.person
+    dated = store.known_dated(person.id, "he") if store is not None and person else []
+    began = store.began() if store is not None else 0
+    now_ms = int(time.time() * 1000)
+    named = str(args.get("register") or "").strip()
+    names = [named] if named else list(PICKER)
+    registers = []
+    for register in names:
+        one = _one_register(
+            register, dated, began, now_ms, with_words=bool(named) or register == UNDERSTAND_DEFAULT
+        )
+        if one is not None:
+            registers.append(one)
+    if named and not registers:
+        existing = [
+            register
+            for register in PICKER
+            if _one_register(register, [], began, now_ms, with_words=False) is not None
+        ]
+        return {"error": "no such list", "registers": existing}
+    since = now_ms - 30 * _DAY_MS
+    readings = store.readings(person.id, "he") if store is not None and person else []
+    return {
+        "language": "he",
+        "measured": True,
+        "pace": {
+            "known_last_30_days": sum(1 for _, at in dated if at is not None and at >= since),
+            "days_read_last_30": len(
+                {int(row["at"]) // _DAY_MS for row in readings if int(row["at"]) >= since}
+            ),
+        },
+        "registers": registers,
+    }
+
+
 #: Where the chooser's candidates come from, each a name and what it offers for a
 #: reader (targum-internal#612): the shelf, the catalogue, today. A fresh find of the
 #: day's news or a video (#619) is another source added here, scored the same way, and
@@ -4550,6 +4687,19 @@ REGISTRY: tuple[Tool, ...] = (
         my_progress,
         scope="record",
         title="My progress",
+    ),
+    Tool(
+        "how_much_i_understand",
+        "How much Hebrew the reader understands, measured on fixed word lists of everyday "
+        "conversation, news, literature, video and the Bible: the percentage now, by week, "
+        "the commonest words they don't know yet, and what knowing the next ones would make "
+        "it. Name a `register` for one list and its words; with none, every list, and the "
+        "words for news. Say these as measured. Any forecast is your own; say it as an "
+        "estimate. Never say a level or a rung. Read only.",
+        _schema({"register": {"type": "string"}}),
+        how_much_i_understand,
+        scope="record",
+        title="How much I understand",
     ),
     Tool(
         "suggest_next",

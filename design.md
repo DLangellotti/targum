@@ -387,6 +387,28 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### The yardstick figures reach the reader's own model — 2026-11-18
+
+David, 2026-11-18 (targum-internal#750): a reader asking their own model "how much
+Hebrew do I understand?" gets the measured answer, not a guess. A new tool,
+`how_much_i_understand`, under the `record` scope, read only, hands the model what
+"How much Hebrew you understand is measured on a fixed yardstick" (2026-10-30) measures.
+
+- **Facts, never a forecast.** It sends the percentage on each yardstick with a snapshot,
+  the same figure Your Progress shows; that figure by week, the latest 26 weeks; how many of
+  each list's 1,000 and 2,000 commonest words are not known yet; the 25 commonest of them,
+  each with a gloss and its place on the list; what knowing the next 500, 1,000, 2,000 and
+  3,000 of them would make the figure; and the words marked known in the last 30 days.
+  "If you learned the next 1,000" is arithmetic on a fixed list. "In two months you will
+  be at" is a promise, and targum makes none: a model may estimate from the pace, and is
+  told to say it as an estimate.
+- **No level.** The tool says no rung or letter, as `my_progress` does not.
+- **Hebrew only** until other languages have yardsticks of their own (targum-internal#752).
+  Another language's answer says it is not measured, never 0%.
+- **The 25 words are a short list on purpose.** They are the next words worth learning,
+  sent with every call that names a list, and with news alone when none is named, so the
+  answer stays small.
+
 ### The portion page says what it lacks, and is finished on three calls — 2026-11-19
 
 David, 2026-11-19, on the three questions of the portion page's finish spec

@@ -2790,3 +2790,114 @@ def test_a_text_is_measured_once_until_the_ledger_or_the_text_changes(world, mon
     )
     rebuilt = tools.search_my_shelf(ctx, {"query": "רות"})["texts"][0]
     assert measured == ["ruth-he"] and rebuilt["known_share"] == pytest.approx(0.5)
+
+
+def _yardstick(register: str, weights: dict[str, float]) -> None:
+    """A yardstick file where `yardstick.load` looks, as `tables snapshot` writes it."""
+    import os
+
+    folder = Path(os.environ["TARGUM_TABLES_DIR"])
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / f"yardstick-{register}-v1.json").write_text(
+        json.dumps(
+            {"register": register, "version": 1, "made_at": "2026-11-18", "weights": weights}
+        ),
+        encoding="utf-8",
+    )
+
+
+#: Placeholder lists: the world's reader knows שלום and בית, and is learning מלך.
+_NEWS = {"שלום": 0.4, "ים": 0.2, "בית": 0.15, "מלך": 0.1, "ספר": 0.1, "אור": 0.05}
+_TALK = {"בית": 0.5, "ים": 0.3, "אור": 0.2}
+
+
+def test_how_much_i_understand_is_the_progress_card_s_figure(world) -> None:
+    """targum-internal#750: the percentage is Your Progress's, by the same functions."""
+    _yardstick("news", _NEWS)
+    _yardstick("conversation", _TALK)
+    library, store, person, home = world
+    got = tools.how_much_i_understand(context(library, store, person, home), {})
+    assert got["measured"] is True and got["language"] == "he"
+    by_name = {one["register"]: one for one in got["registers"]}
+    assert set(by_name) == {"news", "conversation"}, "no list, no entry: never a 0%"
+    dated = store.known_dated(person.id, "he")
+    for name, one in by_name.items():
+        card = level.coverage_days(name, dated, began=store.began())
+        assert card is not None
+        assert one["percent"] == level.known_percent(card["share"])
+    assert by_name["news"]["percent"] == 55
+    assert "next_words" in by_name["news"] and "next_words" not in by_name["conversation"]
+
+
+def test_its_next_words_are_the_commonest_unknown_in_order(world) -> None:
+    _yardstick("news", _NEWS)
+    library, store, person, home = world
+    got = tools.how_much_i_understand(context(library, store, person, home), {"register": "news"})
+    (news,) = got["registers"]
+    words = [row["lemma"] for row in news["next_words"]]
+    assert words == ["ים", "מלך", "ספר", "אור"], (
+        "known words left out, heaviest first, ties by lemma"
+    )
+    assert [row["rank"] for row in news["next_words"]] == [2, 4, 5, 6]
+    assert all(row["gloss"] is None or isinstance(row["gloss"], str) for row in news["next_words"])
+    assert news["unknown_in_top"] == {"1000": 4, "2000": 4}
+
+
+def test_what_learning_more_would_make_it_never_falls_and_stops_at_the_list(world) -> None:
+    weights = {f"w{n:04d}": 1.0 for n in range(1200)}
+    weights["שלום"] = 300.0
+    whole = sum(weights.values())
+    _yardstick("news", {lemma: w / whole for lemma, w in weights.items()})
+    library, store, person, home = world
+    got = tools.how_much_i_understand(context(library, store, person, home), {"register": "news"})
+    (news,) = got["registers"]
+    steps = [row["next"] for row in news["if_learned"]]
+    assert steps == [500, 1000], "no step past the words there are to learn"
+    percents = [news["percent"]] + [row["percent"] for row in news["if_learned"]]
+    assert percents == sorted(percents)
+    assert len(news["next_words"]) == tools.UNDERSTAND_WORDS
+
+
+def test_a_list_that_is_not_there_says_which_are(world) -> None:
+    _yardstick("news", _NEWS)
+    library, store, person, home = world
+    got = tools.how_much_i_understand(context(library, store, person, home), {"register": "bible"})
+    assert got == {"error": "no such list", "registers": ["news"]}
+
+
+def test_a_reader_of_another_language_is_not_measured(world) -> None:
+    _yardstick("news", _NEWS)
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+    ctx = replace(ctx, level=level.snapshot(store, person.id, "ru"))
+    assert tools.how_much_i_understand(ctx, {}) == {"language": "ru", "measured": False}
+
+
+def test_a_reader_with_no_words_has_no_history_and_the_whole_list_ahead(tmp_path: Path) -> None:
+    _yardstick("news", _NEWS)
+    store = Store(tmp_path / "words.db")
+    out = tmp_path / "out"
+    out.mkdir()
+    library = Library(out, store=store)
+    person = signed_in(store, "new@example.com")
+    got = tools.how_much_i_understand(context(library, store, person, library.home(person)), {})
+    (news,) = got["registers"]
+    assert news["percent"] == 0 and news["history"] == []
+    assert got["pace"] == {"known_last_30_days": 0, "days_read_last_30": 0}
+    assert len(news["next_words"]) == len(_NEWS)
+
+
+def test_how_much_i_understand_forecasts_nothing_and_says_no_level() -> None:
+    """design.md §12, 2026-11-18: facts only; a model's estimate is said as one."""
+    tool = tools.BY_NAME["how_much_i_understand"]
+    assert tool.scope == "record" and not tool.spends
+    assert "Never say a level" in tool.description and "estimate" in tool.description
+
+
+def test_the_whole_answer_stays_small(world) -> None:
+    for register in ("news", "conversation", "literature", "video", "bible"):
+        weights = {f"{register}{n:05d}": 1 / 5000 for n in range(5000)}
+        _yardstick(register, weights)
+    library, store, person, home = world
+    got = tools.how_much_i_understand(context(library, store, person, home), {})
+    assert len(json.dumps(got, ensure_ascii=False).encode()) < 6 * 1024

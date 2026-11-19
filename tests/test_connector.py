@@ -110,6 +110,7 @@ def test_a_scope_decides_what_is_listed() -> None:
     with_check = {tool.name for tool in connector.exposed("library record check")}
     assert library_only < with_record < with_check, "each one only ever adds"
     assert "my_progress" in with_record - library_only
+    assert "how_much_i_understand" in with_record - library_only, "targum-internal#750"
     assert "quote_build" in with_check - with_record
 
 
