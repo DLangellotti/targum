@@ -14,6 +14,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   "learned on targum" is gone; the label stays. `progress.ear.start` and
   `progress.count.learned.note` are retired; `lists.ear.tip` is new, its Russian a draft
   for ling-ru.
+- Every meaning `/gloss` buys goes through the rails (David, 2026-11-19; qa on
+  targum#1335). A buy is a job row of kind `gloss`: targum pays (a `gift`, as a word
+  said from its card is), it is claimed against the box's daily ceiling through
+  `Library.claim_turn`, and it is settled to what the call cost, so the ceiling and the
+  ledger see it. It is reserved at one word's ceiling (`gloss.one_word_estimate`). A tap
+  the cache answers (held, grounded, or settled as no meaning) claims nothing and writes
+  no row (`gloss.would_buy`). A refused claim buys nothing: a held bare meaning is still
+  answered, and otherwise the rail's own sentence is. The hourly limit per account is
+  unchanged.
 - The portion page is finished to §14 (targum-internal#409, slice 3; design.md §12,
   2026-11-19).
   - **PDF:** Download PDF is named in words beside its glyph, never by a tooltip alone.
