@@ -35,6 +35,20 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   - **Subscribe** says when it is still saving past three seconds, when it did not go
     through, and when it was pressed offline.
   - The Russian is drafted for ling-ru's first pass.
+- Paddle refunds are applied as the Terms of sale say (clause 9, approved by David
+  2026-11-19). `adjustment.created` and `adjustment.updated`, with action `refund` and status
+  `approved`, are now handled (`billing._refund`):
+  - **A top-up's refund** takes back its credits, as far as they are still unused, and never
+    below nothing (`Library.top_up_left`). The take-back is recorded as a row of minus
+    credits in `credit_grant`, keyed on Paddle's adjustment, so the same refund said twice
+    takes back once. A partial refund takes back the same share of the credits as it is of
+    the $3 a unit cost, where it is in US dollars; in any other currency it takes nothing
+    back and is logged for the operator (`review`).
+  - **A Plan payment refunded in full** ends the Plan at once, recorded as a cancel is
+    (`plan_ended`, the paid period trimmed), and asks Paddle to cancel the subscription
+    `immediately` (`billing.cancel(at_once=True)`) so it does not renew. A partial refund
+    of a Plan payment ends nothing and is logged for the operator.
+  - Anything else (pending, rejected, a credit or a chargeback) changes nothing.
 - A meaning in the language itself never writes the word itself (targum-internal#538,
   ling-he's read of 2026-11-16). The prompt says so in plainer terms, and a definition that
   still writes the headword is not filed, so the card keeps the meaning in the reader's
