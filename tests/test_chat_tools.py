@@ -9,7 +9,9 @@ from __future__ import annotations
 import dataclasses
 import json
 import re
+import time
 from dataclasses import replace
+from datetime import UTC
 from pathlib import Path
 from typing import Any
 
@@ -2812,7 +2814,8 @@ _TALK = {"בית": 0.5, "ים": 0.3, "אור": 0.2}
 
 
 def test_how_much_i_understand_is_the_progress_card_s_figure(world) -> None:
-    """targum-internal#750: the percentage is Your Progress's, by the same functions."""
+    """targum-internal#750: the percentage is Your Progress's, by the same functions
+    `serve._understand` calls (`coverage_days`, then `known_percent`)."""
     _yardstick("news", _NEWS)
     _yardstick("conversation", _TALK)
     library, store, person, home = world
@@ -2826,7 +2829,10 @@ def test_how_much_i_understand_is_the_progress_card_s_figure(world) -> None:
         assert card is not None
         assert one["percent"] == level.known_percent(card["share"])
     assert by_name["news"]["percent"] == 55
-    assert "next_words" in by_name["news"] and "next_words" not in by_name["conversation"]
+    assert by_name["conversation"]["percent"] == 50
+    news, talk = by_name["news"], by_name["conversation"]
+    assert "next_words" in news and "history" in news, "the card's default list in full"
+    assert "next_words" not in talk and "history" not in talk, "the others, the figure alone"
 
 
 def test_its_next_words_are_the_commonest_unknown_in_order(world) -> None:
@@ -2839,8 +2845,58 @@ def test_its_next_words_are_the_commonest_unknown_in_order(world) -> None:
         "known words left out, heaviest first, ties by lemma"
     )
     assert [row["rank"] for row in news["next_words"]] == [2, 4, 5, 6]
-    assert all(row["gloss"] is None or isinstance(row["gloss"], str) for row in news["next_words"])
     assert news["unknown_in_top"] == {"1000": 4, "2000": 4}
+
+
+def test_a_word_held_as_a_noun_and_a_verb_says_both(monkeypatch) -> None:
+    """Meanings are filed under `glossed_as`: every verb as `lemma (verb)` (qa-claude, #1341)."""
+    from targum import models
+    from targum.annotate import gloss as gloss_module
+    from targum.annotate.gloss import Sense
+
+    held = {
+        "משנה": "doctrine",
+        "משנה" + models.VERB_MARK: "changes",
+        "אמר" + models.VERB_MARK: "said",
+    }
+
+    def cached(lemma: str, *_: Any, **__: Any) -> Sense | None:
+        return Sense(gloss=held[lemma]) if lemma in held else None
+
+    monkeypatch.setattr(gloss_module, "cached_gloss", cached)
+    assert tools._held_gloss("משנה", "en") == "doctrine; as a verb, changes"
+    assert tools._held_gloss("אמר", "en") == "said", "a verb alone is found under its key"
+    assert tools._held_gloss("ים", "en") is None
+
+
+def test_weeks_add_each_day_s_gain_by_its_sunday() -> None:
+    from datetime import datetime
+
+    began = int(datetime(2026, 11, 2, tzinfo=UTC).timestamp() * 1000)  # a Monday
+    now = int(datetime(2026, 11, 18, 12, tzinfo=UTC).timestamp() * 1000)  # a Wednesday
+    got = {
+        "base": 0.5,
+        "days": [
+            {"day": "2026-11-03", "gain": 0.1},
+            {"day": "2026-11-08", "gain": 0.05},  # Sunday: still the first week
+            {"day": "2026-11-09", "gain": 0.1},  # Monday: the second
+            {"day": "2026-11-18", "gain": 0.04},  # today, in this partial week
+        ],
+    }
+    assert tools._weekly(got, began, now) == [
+        {"week": "2026-11-02", "percent": 65},
+        {"week": "2026-11-09", "percent": 75},
+        {"week": "2026-11-16", "percent": 79},
+    ]
+
+
+def test_weeks_stop_at_the_latest_twenty_six() -> None:
+    from datetime import datetime
+
+    began = int(datetime(2025, 11, 3, tzinfo=UTC).timestamp() * 1000)
+    now = int(datetime(2026, 11, 18, tzinfo=UTC).timestamp() * 1000)
+    weeks = tools._weekly({"base": 0.3, "days": []}, began, now)
+    assert len(weeks) == tools.UNDERSTAND_WEEKS and weeks[-1]["week"] == "2026-11-16"
 
 
 def test_what_learning_more_would_make_it_never_falls_and_stops_at_the_list(world) -> None:
@@ -2858,6 +2914,23 @@ def test_what_learning_more_would_make_it_never_falls_and_stops_at_the_list(worl
     assert len(news["next_words"]) == tools.UNDERSTAND_WORDS
 
 
+def test_pace_counts_this_month_s_words_and_reading_days(world) -> None:
+    _yardstick("news", _NEWS)
+    library, store, person, home = world
+    now = int(time.time() * 1000)
+    for n, at in enumerate((now, now - 86_400_000, now - 40 * 86_400_000)):
+        store.keep_reading(person, "he", at, f"h{n}", "s1", 100, 90)
+    got = tools.how_much_i_understand(context(library, store, person, home), {})
+    known_now = sum(
+        1
+        for _, at in store.known_dated(person.id, "he")
+        if at is not None and at >= now - 29 * 86_400_000
+    )
+    assert got["pace"]["known_last_30_days"] == known_now
+    days = got["pace"]["days_read_last_30"]
+    assert days in (1, 2), "two reading days in the month, the third 40 days back"
+
+
 def test_a_list_that_is_not_there_says_which_are(world) -> None:
     _yardstick("news", _NEWS)
     library, store, person, home = world
@@ -2869,8 +2942,13 @@ def test_a_reader_of_another_language_is_not_measured(world) -> None:
     _yardstick("news", _NEWS)
     library, store, person, home = world
     ctx = context(library, store, person, home)
-    ctx = replace(ctx, level=level.snapshot(store, person.id, "ru"))
-    assert tools.how_much_i_understand(ctx, {}) == {"language": "ru", "measured": False}
+    chat = replace(ctx, level=level.snapshot(store, person.id, "ru"))
+    assert tools.how_much_i_understand(chat, {}) == {"language": "ru", "measured": False}
+    # The connector builds every ledger for Hebrew; the reader's own languages decide.
+    connector = replace(ctx, learning={"fr"})
+    assert tools.how_much_i_understand(connector, {}) == {"language": "fr", "measured": False}
+    both = replace(ctx, learning={"fr", "he"})
+    assert tools.how_much_i_understand(both, {})["measured"] is True
 
 
 def test_a_reader_with_no_words_has_no_history_and_the_whole_list_ahead(tmp_path: Path) -> None:
@@ -2894,10 +2972,22 @@ def test_how_much_i_understand_forecasts_nothing_and_says_no_level() -> None:
     assert "Never say a level" in tool.description and "estimate" in tool.description
 
 
-def test_the_whole_answer_stays_small(world) -> None:
-    for register in ("news", "conversation", "literature", "video", "bible"):
-        weights = {f"{register}{n:05d}": 1 / 5000 for n in range(5000)}
-        _yardstick(register, weights)
+def test_the_whole_answer_stays_small(world, monkeypatch) -> None:
+    """Every list there is, 26 weeks of history and a long gloss on every word: under 6 KB
+    (qa-claude, #1341: a fixture with a week of history and no glosses proved nothing)."""
+    from targum.tables.registers import PICKER
+
+    for register in PICKER:
+        _yardstick(register, {f"{register}{n:05d}": 1 / 5000 for n in range(5000)})
+    monkeypatch.setattr(tools, "_held_gloss", lambda lemma, target: "a meaning " * 6)
     library, store, person, home = world
+    with store.write() as db:
+        db.execute(
+            "UPDATE began SET at = ? WHERE what = 'words'",
+            (int(time.time() * 1000) - 200 * 86_400_000,),
+        )
     got = tools.how_much_i_understand(context(library, store, person, home), {})
+    assert len(got["registers"]) == len(PICKER)
+    news = next(one for one in got["registers"] if one["register"] == "news")
+    assert len(news["history"]) == tools.UNDERSTAND_WEEKS
     assert len(json.dumps(got, ensure_ascii=False).encode()) < 6 * 1024

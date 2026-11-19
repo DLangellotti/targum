@@ -1157,20 +1157,44 @@ UNDERSTAND_WORDS = 25
 UNDERSTAND_WEEKS = 26
 UNDERSTAND_TOPS = (1000, 2000)
 UNDERSTAND_STEPS = (500, 1000, 2000, 3000)
-#: The yardstick whose next words are sent when no register is named: the card's default.
+#: The yardstick whose words and weeks are sent when no register is named: the card's
+#: default. Every other list then sends its figure alone, so the answer stays small.
 UNDERSTAND_DEFAULT = "news"
 _DAY_MS = 86_400_000
+#: Each snapshot's lemmas, heaviest first, ties by lemma: sorted once per snapshot.
+#: Keyed by register, holding the snapshot it was sorted from: `yardstick.load` hands
+#: back the same object until the file changes, so a new object is a new snapshot.
+_RANKED: dict[str, tuple[Any, list[str]]] = {}
 
 
-def _held_gloss(lemma: str) -> str | None:
-    """The meaning already held for a yardstick's lemma, or None. Never spends."""
+def _ranked(stick: Any) -> list[str]:
+    held = _RANKED.get(stick.register)
+    if held is None or held[0] is not stick:
+        ranked = sorted(stick.weights.items(), key=lambda it: (-it[1], it[0]))
+        held = (stick, [lemma for lemma, _ in ranked])
+        _RANKED[stick.register] = held
+    return held[1]
+
+
+def _held_gloss(lemma: str, target: str) -> str | None:
+    """The meaning already held for a yardstick's lemma, or None. Never spends.
+
+    Meanings are filed under `Token.glossed_as`: the bare lemma for most words, and
+    `lemma (verb)` for every verb. A yardstick counts a spelling, not a part of speech,
+    so where both are held both are said: משנה is a noun and a verb."""
     try:
+        from .. import models
         from ..annotate.gloss import GLOSS_MODEL, AnthropicGlosses, cached_gloss
 
-        held = cached_gloss(lemma, "he", "en", AnthropicGlosses(GLOSS_MODEL).name)
+        provider = AnthropicGlosses(GLOSS_MODEL).name
+        bare = cached_gloss(lemma, "he", target, provider)
+        verb = cached_gloss(lemma + models.VERB_MARK, "he", target, provider)
     except Exception:  # noqa: BLE001 - a gloss is a courtesy; the figures stand without it
         return None
-    return held.gloss if held and held.gloss else None
+    said = [one.gloss for one in (bare, verb) if one is not None and one.gloss]
+    if len(said) == 2 and said[0] != said[1]:
+        return f"{said[0]}; as a verb, {said[1]}"
+    return said[0] if said else None
 
 
 def _weekly(got: dict[str, Any], began: int, now_ms: int) -> list[dict[str, Any]]:
@@ -1205,8 +1229,10 @@ def _one_register(
     dated: list[tuple[str, int | None]],
     began: int,
     now_ms: int,
-    with_words: bool,
+    full: bool,
+    target: str = "en",
 ) -> dict[str, Any] | None:
+    """One yardstick's figures. `full` adds its weeks and its next words."""
     from .. import level as level_module
     from ..tables import yardstick
 
@@ -1215,8 +1241,7 @@ def _one_register(
     if stick is None or got is None:
         return None
     known = {yardstick.bare(lemma) for lemma, _ in dated}
-    ranked = sorted(stick.weights.items(), key=lambda item: (-item[1], item[0]))
-    unknown = [(rank, lemma) for rank, (lemma, _) in enumerate(ranked, 1) if lemma not in known]
+    unknown = [(rank, lemma) for rank, lemma in enumerate(_ranked(stick), 1) if lemma not in known]
     share = float(got["share"])
     curve: list[dict[str, Any]] = []
     for step in UNDERSTAND_STEPS:
@@ -1228,18 +1253,29 @@ def _one_register(
         "register": register,
         "version": stick.version,
         "percent": level_module.known_percent(share),
-        "history": _weekly(got, began, now_ms) if dated else [],
         "unknown_in_top": {
             str(top): sum(1 for rank, _ in unknown if rank <= top) for top in UNDERSTAND_TOPS
         },
         "if_learned": curve,
     }
-    if with_words:
+    if full:
+        out["history"] = _weekly(got, began, now_ms) if dated else []
         out["next_words"] = [
-            {"lemma": lemma, "gloss": _held_gloss(lemma), "rank": rank}
+            {"lemma": lemma, "gloss": _held_gloss(lemma, target), "rank": rank}
             for rank, lemma in unknown[:UNDERSTAND_WORDS]
         ]
     return out
+
+
+def _learns_hebrew(ctx: Ctx) -> str:
+    """The language this reader is measured in: "he" where they learn Hebrew, else the
+    one they learn. The connector builds every reader's ledger for Hebrew, so the
+    reader's own learning languages decide, where any are known."""
+    language = str(ctx.level.state()["language"]).split("-")[0]
+    learning = {code.split("-")[0] for code in ctx.learning}
+    if language == "he" and learning and "he" not in learning:
+        return sorted(learning)[0]
+    return language
 
 
 def how_much_i_understand(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
@@ -1248,32 +1284,41 @@ def how_much_i_understand(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     model", 2026-11-18). Facts only: the percentage Your Progress shows, by week, the
     commonest words not known yet, and what knowing the next ones would make it. Nothing
     here forecasts; a model may estimate from `pace`, and is told to say so."""
+    from datetime import timedelta
+
+    from ..tables import yardstick
     from ..tables.registers import PICKER
 
-    language = str(ctx.level.state()["language"]).split("-")[0]
+    language = _learns_hebrew(ctx)
     if language != "he":
         return {"language": language, "measured": False}
     store, person = ctx.store, ctx.person
     dated = store.known_dated(person.id, "he") if store is not None and person else []
     began = store.began() if store is not None else 0
     now_ms = int(time.time() * 1000)
+    target = ctx.language if ctx.language in ("en", "ru") else "en"
     named = str(args.get("register") or "").strip()
-    names = [named] if named else list(PICKER)
+    if named and yardstick.load(named) is None:
+        return {
+            "error": "no such list",
+            "registers": [one for one in PICKER if yardstick.load(one) is not None],
+        }
     registers = []
-    for register in names:
+    for register in [named] if named else list(PICKER):
         one = _one_register(
-            register, dated, began, now_ms, with_words=bool(named) or register == UNDERSTAND_DEFAULT
+            register,
+            dated,
+            began,
+            now_ms,
+            full=bool(named) or register == UNDERSTAND_DEFAULT,
+            target=target,
         )
         if one is not None:
             registers.append(one)
-    if named and not registers:
-        existing = [
-            register
-            for register in PICKER
-            if _one_register(register, [], began, now_ms, with_words=False) is not None
-        ]
-        return {"error": "no such list", "registers": existing}
-    since = now_ms - 30 * _DAY_MS
+    # The 30 calendar days ending today, UTC: today and the 29 before it.
+    today = datetime.fromtimestamp(now_ms / 1000, tz=UTC).date()
+    start = today - timedelta(days=29)
+    since = int(datetime(start.year, start.month, start.day, tzinfo=UTC).timestamp() * 1000)
     readings = store.readings(person.id, "he") if store is not None and person else []
     return {
         "language": "he",
