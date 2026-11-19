@@ -14,6 +14,23 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   "learned on targum" is gone; the label stays. `progress.ear.start` and
   `progress.count.learned.note` are retired; `lists.ear.tip` is new, its Russian a draft
   for ling-ru.
+- Meanings of Hebrew words in Hebrew are offered (targum-internal#538, David 2026-11-19):
+  `accounts.MEANINGS_OPEN` is `{"he"}`, so "Meanings of Hebrew words" shows on Your
+  languages, off until a reader chooses it. ling-he's three fixes come first:
+  - `names_itself` catches the headword with an ending (עצם in «עצמו») on a head of three
+    letters or more, and a short head gains no false hits.
+  - The prompt rules out a word of the same family where a plain word exists, and any
+    note on grammar or context.
+  - An inflected form is defined as its dictionary form, or left empty.
+- Every meaning `/gloss` buys goes through the rails (David, 2026-11-19; qa on
+  targum#1335). A buy is a job row of kind `gloss`: targum pays (a `gift`, as a word
+  said from its card is), it is claimed against the box's daily ceiling through
+  `Library.claim_turn`, and it is settled to what the call cost, so the ceiling and the
+  ledger see it. It is reserved at one word's ceiling (`gloss.one_word_estimate`). A tap
+  the cache answers (held, grounded, or settled as no meaning) claims nothing and writes
+  no row (`gloss.would_buy`). A refused claim buys nothing: a held bare meaning is still
+  answered, and otherwise the rail's own sentence is. The hourly limit per account is
+  unchanged.
 - A chat turn's cards come back after a restart (targum-internal#735). With the live
   feed gone (a deploy restarts the service), `/chat/turn` and `/chat/stream` answered with
   the words alone: what a news search found, a quote and a set were drawn nowhere, though
@@ -31,6 +48,26 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   - **Subscribe** says when it is still saving past three seconds, when it did not go
     through, and when it was pressed offline.
   - The Russian is drafted for ling-ru's first pass.
+- Paddle refunds are applied as the Terms of sale say (clause 9, approved by David
+  2026-11-19). `adjustment.created` and `adjustment.updated`, with action `refund` and status
+  `approved`, are now handled (`billing._refund`):
+  - **A top-up's refund** takes back its credits, as far as they are still unused, and never
+    below nothing (`Library.top_up_left`). The take-back is recorded as a row of minus
+    credits in `credit_grant`, keyed on Paddle's adjustment, so the same refund said twice
+    takes back once. A partial refund takes back the same share of the credits as it is of
+    the $3 a unit cost, where it is in US dollars; in any other currency it takes nothing
+    back and is logged for the operator (`review`).
+  - **A Plan payment refunded in full** ends the Plan at once, recorded as a cancel is
+    (`plan_ended`, the paid period trimmed), and asks Paddle to cancel the subscription
+    `immediately` (`billing.cancel(at_once=True)`) so it does not renew. A partial refund
+    of a Plan payment ends nothing and is logged for the operator.
+  - Anything else (pending, rejected, a credit or a chargeback) changes nothing.
+- A story's English is the one written beside it in its file, never bought
+  (`pipeline._story_english`). A box build of a `story:` text fell through to the machine
+  and would have paid a cent or two for an English it already had (builder-2's note on
+  the French A2 ship, 2026-11-19). A paragraph's English goes one to one onto its
+  sentences where it cuts into as many, and otherwise sits whole on the paragraph's
+  first sentence.
 - A meaning in the language itself never writes the word itself (targum-internal#538,
   ling-he's read of 2026-11-16). The prompt says so in plainer terms, and a definition that
   still writes the headword is not filed, so the card keeps the meaning in the reader's

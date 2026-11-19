@@ -34,6 +34,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -221,7 +222,8 @@ def verify(header: str | None, body: bytes, secret: str, at: float | None = None
 @dataclass(frozen=True)
 class Outcome:
     """What handling one event did, for the log and the tests: `kind` is `plan`,
-    `top-up`, `grace`, `ignored` or `unknown-account`."""
+    `top-up`, `grace`, `refund`, `review` (a refund for the operator to decide),
+    `ignored` or `unknown-account`."""
 
     kind: str
     person: int | None = None
@@ -400,14 +402,123 @@ def _payment_failed(store: Store, data: dict[str, Any], said_at: int | None) -> 
     return Outcome("grace", person.id)
 
 
-def handle(store: Store, event: dict[str, Any]) -> Outcome:
+#: The events that say a refund was approved (Terms of sale clause 9, 2026-11-19).
+ADJUSTMENT_EVENTS = ("adjustment.created", "adjustment.updated")
+
+#: What one top-up unit costs, in US cents: the price `PRICE_TOP_UP_ENV` names, read
+#: here only to take a partial refund back in proportion (`_refund`).
+TOP_UP_UNIT_CENTS = 300
+
+
+def _cents(said: Any) -> int | None:
+    """Paddle's amount in the currency's lowest unit, as the string it sends."""
+    try:
+        return int(str(said))
+    except (TypeError, ValueError):
+        return None
+
+
+def _refund(
+    store: Store,
+    data: dict[str, Any],
+    said_at: int | None,
+    top_up_left: Callable[[int], float] | None,
+    cancel_now: Callable[[str], None] | None,
+) -> Outcome:
+    """A refund Paddle approved (Terms of sale clause 9, approved by David 2026-11-19).
+
+    - **A top-up's:** its credits go back, as far as they are still unused, and never
+      below nothing. A full refund takes back the credits it granted; a partial one, the
+      same share of them as the refund is of what was paid, where it is in US dollars,
+      the top-up's own currency. A partial refund in another currency takes nothing
+      back and says so, for the operator to decide (`review`), rather than guess.
+    - **A Plan's payment, refunded in full:** the Plan ends at once, recorded as a cancel
+      is (`plan_ended`, the paid period trimmed to now), and Paddle is asked to cancel the
+      subscription at once, so it does not renew. A partial refund of a Plan payment ends
+      nothing and is left for the operator (`review`).
+
+    Once per adjustment, whatever Paddle sends twice: a top-up's take-back is keyed on
+    the adjustment, and a Plan already ended here is not ended again. Anything but an
+    approved refund changes nothing: one pending approval is said again as `updated`."""
+    if data.get("action") != "refund":
+        return Outcome("ignored", detail=f"adjustment {data.get('action')!r}")
+    if data.get("status") != "approved":
+        return Outcome("ignored", detail=f"refund {data.get('status')!r}")
+    adjustment = str(data.get("id") or "")
+    transaction = str(data.get("transaction_id") or "")
+    subscription = str(data.get("subscription_id") or "")
+    if not adjustment.startswith("adj_"):
+        return Outcome("ignored", detail="no adjustment id")
+    whole = str(data.get("type") or "") == "full"
+    granted = store.granted_by(transaction) if transaction else None
+    if granted is not None:
+        person, credits = granted
+        if store.taken_back(adjustment):
+            return Outcome("ignored", person, "refund already taken back")
+        if whole:
+            wanted = credits
+        else:
+            totals = data.get("totals")
+            paid = (credits // TOP_UP_UNIT) * TOP_UP_UNIT_CENTS
+            refunded = _cents(totals.get("subtotal")) if isinstance(totals, dict) else None
+            if data.get("currency_code") != "USD" or refunded is None or paid <= 0:
+                return Outcome("review", person, f"partial refund {adjustment} not taken back")
+            wanted = min(credits, round(credits * refunded / paid))
+        left = int((top_up_left(person) if top_up_left is not None else 0.0) // 60)
+        taken = max(0, min(wanted, left))
+        store.take_back_credits(person, taken, adjustment)
+        return Outcome("refund", person, f"{taken} of {wanted} credits taken back")
+    if subscription:
+        holder = store.person_by_subscription(subscription)
+        if holder is None or holder.billing is None:
+            return Outcome("unknown-account", detail=subscription)
+        if store.plan_ended(subscription):
+            return Outcome("ignored", holder.id, "plan already ended")
+        if not whole:
+            return Outcome("review", holder.id, f"partial refund {adjustment} of a Plan payment")
+        held = holder.billing
+        stop = _millis(data.get("updated_at")) or said_at
+        store.set_billing(
+            holder.id,
+            cadence=held.cadence,
+            status="canceled",
+            period_end="",
+            cancel_at_end=False,
+            customer=held.customer,
+            subscription=subscription,
+            said_at=stop,
+            ended_at=str(data.get("updated_at") or ""),
+        )
+        detail = "plan ended"
+        if cancel_now is not None:
+            try:
+                cancel_now(subscription)
+            except PaddleError:
+                # Ended here whatever Paddle says; its own `canceled` follows. If it
+                # renews instead, the operator sees this line and cancels it by hand.
+                detail = "plan ended here; cancelling at Paddle failed"
+        return Outcome("refund", holder.id, detail)
+    return Outcome("unknown-account", detail=transaction or adjustment)
+
+
+def handle(
+    store: Store,
+    event: dict[str, Any],
+    *,
+    top_up_left: Callable[[int], float] | None = None,
+    cancel_now: Callable[[str], None] | None = None,
+) -> Outcome:
     """Apply one verified event to the store. Idempotency is the caller's
-    (`Store.billing_seen`); this only says what the event means."""
+    (`Store.billing_seen`); this only says what the event means. A refund also needs to
+    know what is left of a reader's top-ups now (`top_up_left`, in seconds) and how to
+    cancel a subscription at Paddle (`cancel_now`): the server's, never guessed here."""
     kind = str(event.get("event_type") or "")
     data = event.get("data")
     if not isinstance(data, dict):
         return Outcome("ignored", detail="no data")
     said_at = _millis(event.get("occurred_at"))
+    if kind in ADJUSTMENT_EVENTS:
+        return _refund(store, data, said_at, top_up_left, cancel_now)
     if kind in SUBSCRIPTION_EVENTS:
         return _subscription(store, kind, data, said_at)
     if kind == "transaction.completed":
@@ -535,17 +646,18 @@ def ticket_holds(account: int, transaction_id: str, given: str) -> bool:
     return bool(ticket_kind(account, transaction_id, given))
 
 
-def cancel(subscription: str) -> None:
+def cancel(subscription: str, *, at_once: bool = False) -> None:
     """Ask Paddle to cancel a subscription at the end of the period already paid for:
     what closing an account does, so a reader who leaves is not charged again. Paddle
     says `canceled` by webhook when the period ends, and only then does the purge go
-    ahead (`Store.live_billing`)."""
+    ahead (`Store.live_billing`). `at_once` cancels now, for a refunded Plan payment
+    (Terms of sale clause 9)."""
     if not subscription.startswith("sub_"):
         raise PaddleError("no subscription")
     _call(
         "POST",
         f"/subscriptions/{urllib.parse.quote(subscription)}/cancel",
-        {"effective_from": "next_billing_period"},
+        {"effective_from": "immediately" if at_once else "next_billing_period"},
     )
 
 

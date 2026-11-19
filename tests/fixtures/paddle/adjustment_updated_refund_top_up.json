@@ -1,0 +1,32 @@
+{
+  "event_id": "evt_01hvgf2s840000000000000010",
+  "event_type": "adjustment.updated",
+  "occurred_at": "2026-11-20T08:54:10.646377Z",
+  "notification_id": "ntf_01hvgf2s8400000000000010",
+  "data": {
+    "id": "adj_01hvgf2s84dr6reszzg29zbv01",
+    "action": "refund",
+    "type": "full",
+    "status": "approved",
+    "reason": "requested by the customer",
+    "transaction_id": "txn_01hv8wptq8987qeep44cyrewp9",
+    "subscription_id": null,
+    "customer_id": "ctm_01hv6y1jedq4p1n0yqn5ba3ky4",
+    "currency_code": "USD",
+    "credit_applied_to_balance": null,
+    "items": [
+      {
+        "id": "adjitm_01hvgf2s84dr6reszzg29zbv01",
+        "item_id": "txnitm_01hv8wptq8987qeep44cyrew01",
+        "type": "full",
+        "amount": "900",
+        "proration": null,
+        "totals": {"subtotal": "900", "tax": "0", "total": "900"}
+      }
+    ],
+    "totals": {"subtotal": "900", "tax": "0", "total": "900", "fee": "0", "earnings": "0", "currency_code": "USD"},
+    "payout_totals": null,
+    "created_at": "2026-11-20T08:48:20.239695Z",
+    "updated_at": "2026-11-20T08:54:10.646377Z"
+  }
+}
