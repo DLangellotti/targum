@@ -4926,6 +4926,42 @@ class Store:
                 total += float(row["length"])
         return total
 
+    def granted_by(self, txn: str) -> tuple[int, int] | None:
+        """The account and credits a top-up's Paddle transaction granted, or None."""
+        row = self.db.execute(
+            "SELECT person, credits FROM credit_grant WHERE txn = ? AND credits > 0", (txn,)
+        ).fetchone()
+        return (int(row["person"]), int(row["credits"])) if row is not None else None
+
+    def take_back_credits(self, person_id: int, credits: int, adjustment: str) -> bool:
+        """Take a refunded top-up's credits back (Terms of sale clause 9): a row of minus
+        `credits` in the one ledger, keyed on Paddle's adjustment, so a refund said twice
+        takes back once. Nought is a row too: a refund that found nothing left unused is
+        still recorded, and a replay of it changes nothing. False when this adjustment was
+        taken back already."""
+        if credits < 0 or not adjustment:
+            raise ValueError("a take-back needs credits of nought or more and an adjustment")
+        with self.write() as db:
+            done = db.execute(
+                "INSERT OR IGNORE INTO credit_grant (person, credits, at, txn) VALUES (?, ?, ?, ?)",
+                (int(person_id), -int(credits), now(), adjustment),
+            )
+            return done.rowcount == 1
+
+    def taken_back(self, adjustment: str) -> bool:
+        """Whether this Paddle adjustment was already applied to a top-up."""
+        row = self.db.execute(
+            "SELECT 1 FROM credit_grant WHERE txn = ? AND credits <= 0", (adjustment,)
+        ).fetchone()
+        return row is not None
+
+    def plan_ended(self, subscription: str) -> bool:
+        """Whether Paddle's subscription has ended here, by a cancel or a refund."""
+        row = self.db.execute(
+            "SELECT 1 FROM plan_ended WHERE subscription = ?", (subscription,)
+        ).fetchone()
+        return row is not None
+
     def grant_seconds(self, owner: int | None, month_from: int, full: float, free: float) -> float:
         """What is left of this reader's top-ups for this month, in seconds: every grant
         made, less what earlier months spent past their own allowance.
@@ -4978,7 +5014,11 @@ class Store:
                 over = max(0.0, before + used - base) - max(0.0, before - base)
             left = max(0.0, left - over)
             begin = whole
-        return left + 60.0 * sum(int(r["credits"]) for r in rows if int(r["at"]) >= month_from)
+        # Never below nothing: a take-back is capped at what was left when it was made,
+        # but a month spent since can leave less.
+        return max(
+            0.0, left + 60.0 * sum(int(r["credits"]) for r in rows if int(r["at"]) >= month_from)
+        )
 
     def _plan_share(self, owner: int, begin: int, end: int, periods: bool = True) -> float:
         """How much of a month, 0 to 1, this reader was on Plan: the operator all of it;
@@ -5015,7 +5055,8 @@ class Store:
         return covered / (end - begin)
 
     def top_ups(self, person_id: int) -> list[dict[str, Any]]:
-        """Every top-up this account paid for, oldest first: credits and when."""
+        """Every top-up this account paid for, oldest first: credits and when. A refunded
+        top-up's take-back is a row of minus its credits (Terms of sale clause 9)."""
         return [
             {"credits": int(row["credits"]), "at": int(row["at"])}
             for row in self.db.execute(

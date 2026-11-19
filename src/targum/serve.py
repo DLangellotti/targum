@@ -2947,6 +2947,20 @@ class Library:
             base = max(0.0, base - self.store.free_used_earlier(owner, now()))
         return base + granted
 
+    def top_up_left(self, owner: int) -> float:
+        """What is left unused of this reader's top-ups now, in seconds: their top-ups less
+        what this month has spent past its own allowance (`claim` spends the month's
+        allowance first, then the top-ups). What a refund may take back (Terms of sale
+        clause 9)."""
+        if self.store is None or self.upload_seconds is None:
+            return 0.0
+        free = plans.month_seconds(self.upload_seconds, paid_plan=False) or 0.0
+        start = self.month_from_for(owner)
+        granted = self.store.grant_seconds(owner, start, self.upload_seconds, free)
+        allowed = self.allowance(paid_plan=self._on_plan(owner), owner=owner) or 0.0
+        used = self.store.hours_used(owner, start)
+        return max(0.0, min(granted, allowed - used))
+
     def _on_plan(self, owner: int | None) -> bool:
         """Whether this owner is on Plan by their account: plans on, and the operator or a
         beta reader comped to Plan today (`plans.paid`; targum-internal#59, design.md §12
@@ -15218,13 +15232,24 @@ class Handler(BaseHTTPRequestHandler):
         if not self.store.billing_seen(event_id, kind):
             return self._json({"seen": True})
         try:
-            outcome = billing.handle(self.store, event)
+            outcome = billing.handle(
+                self.store,
+                event,
+                top_up_left=self.library.top_up_left,
+                cancel_now=lambda subscription: billing.cancel(subscription, at_once=True),
+            )
         except Exception as error:
             # Written down as any escaped error is, and answered 500 rather than dropped,
             # so Paddle knows to send it again.
             self.store.billing_unseen(event_id)
             incidents_module.record(self.library.incidents, self.path, error)
             return self._json({"error": "not handled"}, 500)
+        if outcome.kind in ("refund", "review"):
+            # A refund's outcome in the journal, by Paddle's ids and the account's number,
+            # never an address: a partial one is the operator's to decide.
+            print(
+                f"billing: {kind} {event_id} {outcome.kind} for {outcome.person}: {outcome.detail}"
+            )
         if outcome.kind == "unknown-account":
             # Nobody here to give it to. Said in the journal with Paddle's own id, never
             # an address, so the operator can look it up in Paddle's dashboard.
