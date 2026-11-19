@@ -2858,6 +2858,25 @@ class Library:
         said = said_in(ui, "date.month-day", "{month} {day}", month=named, day=1)
         return said.replace(" ", "\u00a0")
 
+    def month_from_for(self, owner: int | None) -> int:
+        """Where this reader's allowance month began: a paid Plan's own month, from the day
+        it began, and the calendar month for everybody else (`Store.month_window`; Terms
+        of sale clause 2, David 2026-11-19). The calendar month with no store or owner."""
+        if self.store is None or owner is None:
+            return self._month_from()
+        return self.store.month_window(int(owner), now())[0]
+
+    def month_ends_for(self, ui: str = "en", owner: int | None = None) -> str:
+        """When this reader's allowance comes back, as `_month_ends` says it: the day their
+        Plan's month ends, or the first of next month for everybody else."""
+        if self.store is None or owner is None:
+            return self._month_ends(ui)
+        ends = datetime.fromtimestamp(self.store.month_window(int(owner), now())[1] / 1000, UTC)
+        english = ends.strftime("%B")
+        named = said_in(ui, f"date.month.{ends.month}", english)
+        said = said_in(ui, "date.month-day", "{month} {day}", month=named, day=ends.day)
+        return said.replace(" ", "\u00a0")
+
     def settle(self, job: Job, length: float | None = None) -> None:
         """Swap what a build reserved for what it spent — and, for a turn of
         conversation, the seconds it was reserved at for the seconds it ran to.
@@ -2915,8 +2934,18 @@ class Library:
             # An earlier month is counted at the allowance it had: Plan's where the reader
             # was on Plan then, Free's otherwise (`Store.grant_seconds`).
             free = plans.month_seconds(self.upload_seconds, paid_plan=False) or 0.0
-            granted = self.store.grant_seconds(owner, self._month_from(), self.upload_seconds, free)
-        return plans.month_seconds(self.upload_seconds, paid_plan=paid_plan, granted=granted)
+            granted = self.store.grant_seconds(
+                owner, self.month_from_for(owner), self.upload_seconds, free
+            )
+        base = plans.month_seconds(self.upload_seconds, paid_plan=paid_plan)
+        if base is None:
+            return None
+        if self.store is not None and owner is not None:
+            # A Free month a paid period cut short shares the calendar month's one Free
+            # allowance with the part before it (qa on targum#1334): subscribing and being
+            # refunded must not hand out a fresh month each time.
+            base = max(0.0, base - self.store.free_used_earlier(owner, now()))
+        return base + granted
 
     def _on_plan(self, owner: int | None) -> bool:
         """Whether this owner is on Plan by their account: plans on, and the operator or a
@@ -2945,7 +2974,7 @@ class Library:
         ui = ui or job.ui
         allowed = self.allowance(owner=job.owner) or 0.0
         used = (
-            self.store.hours_used(job.owner, self._month_from())
+            self.store.hours_used(job.owner, self.month_from_for(job.owner))
             if self.store is not None and job.owner is not None
             else allowed
         )
@@ -2971,7 +3000,7 @@ class Library:
                 ui,
                 "job.plan.fact",
                 "They reset on {date}.",
-                date=self._month_ends(ui),
+                date=self.month_ends_for(ui, job.owner),
             ),
             "plan",
         )
@@ -2983,6 +3012,7 @@ class Library:
         *,
         need: float | None = None,
         left: float | None = None,
+        owner: int | None = None,
     ) -> str:
         """Which ceiling stopped this, and when it lifts, in the language `ui` names.
 
@@ -3005,7 +3035,7 @@ class Library:
                         "It needs {need} credits and you have {left} left. They reset on {date}.",
                         need=max(credits_left + 1, credits_of(need)),
                         left=credits_left,
-                        date=self._month_ends(ui),
+                        date=self.month_ends_for(ui, owner),
                     ),
                     said_in(
                         ui,
@@ -3034,7 +3064,7 @@ class Library:
                     "job.out-of.credits",
                     "You've used this month's credits. Top up, or they reset on {date}.",
                     credits=f"{allowed / SECONDS_A_CREDIT:g}",
-                    date=self._month_ends(ui),
+                    date=self.month_ends_for(ui, owner),
                 ),
                 said_in(
                     ui,
@@ -3068,7 +3098,7 @@ class Library:
                     "You've used this month's credits for audio and chat. Top up, or they "
                     "reset on {date}.",
                     credits=f"{allowed / SECONDS_A_CREDIT:g}",
-                    date=self._month_ends(ui),
+                    date=self.month_ends_for(ui, owner),
                 ),
                 said_in(
                     ui, "job.out-of.texts-and-library", "Your texts and the library still open"
@@ -5457,7 +5487,7 @@ class Library:
                 self._since(),
                 owner=job.owner,
                 per_account=None if admin else self.account_budget,
-                month_from=self._month_from(),
+                month_from=self.month_from_for(job.owner),
                 # Only a recording spends the hours. A text upload is any length and
                 # costs no clock time, so it is not charged against them. Nor is a
                 # gift: targum pays for it, and their eight hours are theirs (#399).
@@ -5478,8 +5508,8 @@ class Library:
                 return self._plan_refusal(job, need=room[0] if room else None)
             if room is not None:
                 need, left = room
-                return self._out_of(refused, job.ui, need=need, left=left)
-            return self._out_of(refused, job.ui)
+                return self._out_of(refused, job.ui, need=need, left=left, owner=job.owner)
+            return self._out_of(refused, job.ui, owner=job.owner)
         with self.lock:
             blocked = self.why_blocked(job.estimate, job.ui)
             if not blocked:
@@ -5491,7 +5521,7 @@ class Library:
         it needs once a stopped build's credit is taken off, and what is left."""
         assert self.store is not None and job.owner is not None
         allowed = self._month_for(job) or 0.0
-        used = self.store.hours_used(job.owner, self._month_from())
+        used = self.store.hours_used(job.owner, self.month_from_for(job.owner))
         credit = (
             self.store.prepaid(job.owner, job.source, job.id) if job.audio and not job.gift else 0.0
         )
@@ -5519,7 +5549,7 @@ class Library:
         job.blocked = (
             self._plan_refusal(job, need=need)
             if self._held_to_free(job)
-            else self._out_of("hours", job.ui, need=need, left=left)
+            else self._out_of("hours", job.ui, need=need, left=left, owner=job.owner)
         )
         job.stage = "blocked"
 
@@ -5565,7 +5595,7 @@ class Library:
                 self._since(),
                 owner=owner,
                 per_account=None if admin else self.account_budget,
-                month_from=self._month_from(),
+                month_from=self.month_from_for(owner),
                 per_month_length=None if admin else self.allowance(paid_plan=on_plan, owner=owner),
             )
             if refused == "hours" and not admin and not on_plan and plans.on():
@@ -5573,8 +5603,12 @@ class Library:
                 return self._plan_refusal(jobs[0], ui=ui, need=need), room, refused
             if refused == "hours":
                 need = sum(job.seconds for job in jobs if job.audio and not self.free_to_read(job))
-                return self._out_of(refused, ui, need=need, left=room), room, refused
-            return (self._out_of(refused, ui) if refused else ""), room, refused
+                return (
+                    self._out_of(refused, ui, need=need, left=room, owner=owner),
+                    room,
+                    refused,
+                )
+            return (self._out_of(refused, ui, owner=owner) if refused else ""), room, refused
         total = sum(job.estimate for job in jobs)
         with self.lock:
             blocked = self.why_blocked(total, ui)
@@ -5692,7 +5726,7 @@ class Library:
             # sum a recording's seconds land in, so there is one ledger and not two. A
             # voice made for a text (kind `voice`, targum-internal#246) comes out of it
             # the same way.
-            month_from=self._month_from(),
+            month_from=self.month_from_for(job.owner),
             length=0.0 if job.gift else job.seconds,
             # Chatting stays included on Free (design.md §12, "Free and Plan, behind a
             # switch"): held by the daily rail above, not by the month's 60. Its seconds
@@ -5707,8 +5741,8 @@ class Library:
         if refused == "hours" and self._held_to_free(job):
             return self._plan_refusal(job)
         if refused == "hours":
-            return self._out_of("talk-hours", job.ui)
-        return self._out_of("chat" if refused == "account" else refused, job.ui)
+            return self._out_of("talk-hours", job.ui, owner=job.owner)
+        return self._out_of("chat" if refused == "account" else refused, job.ui, owner=job.owner)
 
     @staticmethod
     def _gloss_cost(
@@ -13695,11 +13729,15 @@ class Handler(BaseHTTPRequestHandler):
         )
         # `self.store` rather than the chat's: the same store, and this answer is owed
         # whether or not a conversation is configured at all.
-        used = self.store.hours_used(person_id, self.library._month_from()) if self.store else 0.0
+        used = (
+            self.store.hours_used(person_id, self.library.month_from_for(person_id))
+            if self.store
+            else 0.0
+        )
         return {
             "used": round(used / 3600, 2),
             "allowed": None if allowed is None else round(allowed / 3600, 2),
-            "ends": self.library._month_ends(self._ui_language()),
+            "ends": self.library.month_ends_for(self._ui_language(), person_id),
         }
 
     def _me(self) -> None:
@@ -13902,11 +13940,11 @@ class Handler(BaseHTTPRequestHandler):
             return {
                 "credits": {"left": None, "back": self.library._month_ends(self._ui_language())}
             }
-        used = self.store.hours_used(person.id, self.library._month_from())
+        used = self.store.hours_used(person.id, self.library.month_from_for(person.id))
         return {
             "credits": {
                 "left": max(0, int((allowed - used) // SECONDS_A_CREDIT)),
-                "back": self.library._month_ends(self._ui_language()),
+                "back": self.library.month_ends_for(self._ui_language(), person.id),
             }
         }
 
