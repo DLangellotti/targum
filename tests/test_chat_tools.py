@@ -2867,6 +2867,8 @@ def test_a_word_held_as_a_noun_and_a_verb_says_both(monkeypatch) -> None:
     assert tools._held_gloss("משנה", "en") == "doctrine; as a verb, changes"
     assert tools._held_gloss("אמר", "en") == "said", "a verb alone is found under its key"
     assert tools._held_gloss("ים", "en") is None
+    held.update({"נשא": "to lift; to carry", "נשא" + models.VERB_MARK: "to carry; to lift"})
+    assert tools._held_gloss("נשא", "en") == "to lift; to carry", "the same senses said once"
     noun, prep = models.SPLIT_BY_POS["עם"]["NOUN"], models.SPLIT_BY_POS["עם"]["ADP"]
     held.update({"עם" + noun: "people", "עם" + prep: "with"})
     said = tools._held_gloss("עם", "en") or ""

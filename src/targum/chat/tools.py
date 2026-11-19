@@ -1195,8 +1195,12 @@ def _held_gloss(lemma: str, target: str) -> str | None:
     except Exception:  # noqa: BLE001 - a gloss is a courtesy; the figures stand without it
         return None
     said = list(dict.fromkeys(one.gloss for one in held if one is not None and one.gloss))
-    if verb is not None and verb.gloss and verb.gloss not in said:
-        said.append(f"as a verb, {verb.gloss}" if said else verb.gloss)
+    senses = {sense.strip() for gloss in said for sense in gloss.split(";")}
+    if verb is not None and verb.gloss:
+        # A verb whose senses are all said already adds nothing: נשא's noun key and
+        # verb key both held "to lift; to carry", once in each order (2026-11-19).
+        if not {sense.strip() for sense in verb.gloss.split(";")} <= senses:
+            said.append(f"as a verb, {verb.gloss}" if said else verb.gloss)
     return "; ".join(said) if said else None
 
 
