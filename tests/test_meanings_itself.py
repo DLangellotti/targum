@@ -331,6 +331,16 @@ def test_chosen_a_tap_buys_once_and_the_cache_answers_after(
     status, answer = post(port, session, "/gloss", tap)
     assert status == 200 and answer["meaning"] == "מקום שגרים בו"
     assert bought == [(["בית"], "he", "he")], "bought once, then the shared cache"
+    # Through the rails (targum#1336): the one buy is one job row of kind `gloss`,
+    # claimed against the box ceiling; the cached tap after it made none.
+    import sqlite3
+
+    db = sqlite3.connect(hosted[2])
+    claimed = db.execute(
+        "SELECT COUNT(*) FROM job WHERE kind = 'gloss' AND source = 'gloss:he-he'"
+    ).fetchone()[0]
+    db.close()
+    assert claimed == 1
     status, answer = post(port, session, "/gloss", peek)
     assert answer["meaning"] == "מקום שגרים בו" and answer["cached"] is True
 
