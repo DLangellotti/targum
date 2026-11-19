@@ -31,6 +31,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   no row (`gloss.would_buy`). A refused claim buys nothing: a held bare meaning is still
   answered, and otherwise the rail's own sentence is. The hourly limit per account is
   unchanged.
+- A chat turn's cards come back after a restart (targum-internal#735). With the live
+  feed gone (a deploy restarts the service), `/chat/turn` and `/chat/stream` answered with
+  the words alone: what a news search found, a quote and a set were drawn nowhere, though
+  a conversation opened again had them. Both now read them back from the stored turns,
+  and the stream sends each as its own event before the closing one.
 - The portion page is finished to §14 (targum-internal#409, slice 3; design.md §12,
   2026-11-19).
   - **PDF:** Download PDF is named in words beside its glyph, never by a tooltip alone.
