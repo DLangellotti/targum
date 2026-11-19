@@ -14,6 +14,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   "learned on targum" is gone; the label stays. `progress.ear.start` and
   `progress.count.learned.note` are retired; `lists.ear.tip` is new, its Russian a draft
   for ling-ru.
+- Meanings of Hebrew words in Hebrew are offered (targum-internal#538, David 2026-11-19):
+  `accounts.MEANINGS_OPEN` is `{"he"}`, so "Meanings of Hebrew words" shows on Your
+  languages, off until a reader chooses it. ling-he's three fixes come first:
+  - `names_itself` catches the headword with an ending (עצם in «עצמו») on a head of three
+    letters or more, and a short head gains no false hits.
+  - The prompt rules out a word of the same family where a plain word exists, and any
+    note on grammar or context.
+  - An inflected form is defined as its dictionary form, or left empty.
 - Every meaning `/gloss` buys goes through the rails (David, 2026-11-19; qa on
   targum#1335). A buy is a job row of kind `gloss`: targum pays (a `gift`, as a word
   said from its card is), it is claimed against the box's daily ceiling through

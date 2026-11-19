@@ -20,6 +20,7 @@ from typing import Any
 
 import pytest
 
+from targum import accounts as accounts_module
 from targum import serve
 from targum.accounts import MEANINGS_IN_ITSELF, Store, meanings_open
 from targum.annotate import gloss as gloss_module
@@ -187,8 +188,9 @@ def test_aramaic_and_yiddish_are_never_offered(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setenv("TARGUM_MEANINGS_OPEN", "he,arc,yi,de")
     assert meanings_open() == frozenset({"he"})
     monkeypatch.delenv("TARGUM_MEANINGS_OPEN")
-    # Off on every install until each language's read has passed.
-    assert meanings_open() == frozenset()
+    # Hebrew is open everywhere since ling-he's read passed (2026-11-19); the others stay
+    # off until each one's read has.
+    assert meanings_open() == frozenset({"he"})
 
 
 def test_an_account_from_before_the_column_opens(tmp_path: Path) -> None:
@@ -340,6 +342,7 @@ def test_chosen_a_tap_buys_once_and_the_cache_answers_after(
 
     # And only while the row is offered here.
     monkeypatch.delenv("TARGUM_MEANINGS_OPEN")
+    monkeypatch.setattr(accounts_module, "MEANINGS_OPEN", frozenset())
     status, answer = post(port, session, "/gloss", {**tap, "lemma": "ספר"})
     assert status == 400 and answer["error"] == NOT_THERE
     assert get(port, session, "/account/me")["meaningsInItself"] == []
@@ -355,8 +358,9 @@ def test_the_choice_is_refused_where_it_is_not_offered(
 ) -> None:
     port, session, _ = hosted
     monkeypatch.delenv("TARGUM_MEANINGS_OPEN", raising=False)
+    monkeypatch.setattr(accounts_module, "MEANINGS_OPEN", frozenset())
     status, _ = post(port, session, "/account/meanings", {"language": "he", "itself": True})
-    assert status == 400, "the switch is off until the read passes"
+    assert status == 400, "the switch is off where the row is not offered"
     monkeypatch.setenv("TARGUM_MEANINGS_OPEN", "he,fr,ru,it")
     for code in ("arc", "yi"):
         status, _ = post(port, session, "/account/meanings", {"language": code, "itself": True})
@@ -588,3 +592,46 @@ def test_a_bare_no_meaning_is_asked_once_more_with_a_sentence(tmp_path: Path) ->
     # A translation pair keeps its old way: nothing is written for an empty answer.
     assert gloss_one("זור", "he", "en", provider, cache=cache, context="משפט") is None
     assert cache.get("gloss", gloss_key(cache, "זור", "he", "en", provider.name)) is None
+
+
+def test_hebrew_is_offered_by_default_and_off_until_chosen(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """David, 2026-11-19 (#538): Hebrew's row is offered on every install with no setting,
+    and nobody has meanings in Hebrew until they choose them."""
+    monkeypatch.delenv("TARGUM_MEANINGS_OPEN", raising=False)
+    assert meanings_open() == frozenset({"he"})
+    store = Store(tmp_path / "targum.db")
+    store.make_test_account("reader@example.com")
+    token = store.start_sign_in("reader@example.com")
+    signed = store.finish_sign_in(token)
+    assert signed is not None
+    assert store.meanings_in_itself(signed[0].id) == [], "off until the reader chooses"
+
+
+def test_a_definition_with_the_headword_and_an_ending_is_caught() -> None:
+    """ling-he, 2026-11-19: עצם was defined with «עצמו». A headword of three letters or
+    more with one of Hebrew's endings counts, and a short head gains no false hits."""
+    names = gloss_module.names_itself
+    assert names("עצם", "האדם או הדבר עצמו", "he")
+    assert names("תלמיד", "אחד התלמידים בכיתה", "he")
+    assert names("שותף", "עושה איתו בפעולה משותפת", "he")
+    assert names("ספר", "דפים כרוכים; ספרו של אדם", "he")
+    # No new false hits: a two-letter head never takes an ending, and on a three-letter
+    # head a final מ, נ or כ is as often another word as an ending.
+    assert not names("ים", "ימים רבים", "he")
+    assert not names("שלו", "שלום לכם", "he")
+    assert not names("חי", "חיים ונושם", "he")
+    assert not names("שם", "שמה של העיר", "he")
+
+
+def test_the_prompt_asks_for_the_sense_only_and_the_lemma_of_an_inflected_form() -> None:
+    """ling-he's other two fixes (2026-11-19): no word of the same family where a plain
+    word exists, no note on grammar or context, and an inflected form defined as its
+    dictionary form or left empty."""
+    prompt = system_for("he", "he")
+    assert "own root or family where a plain word of another root says it" in prompt
+    assert "The gloss is the word's sense and nothing else" in prompt
+    assert "קחו is defined as לקחת would be" in prompt
+    assert "If you cannot tell which dictionary form it is" in prompt
+    assert system_for("he", "en") == SYSTEM.format(source="Hebrew", target="English")

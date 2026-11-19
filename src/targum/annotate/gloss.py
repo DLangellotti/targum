@@ -153,9 +153,19 @@ For each {source} dictionary form you are given, return one short definition in 
   only where the word is genuinely ambiguous.
 - Never write the word itself anywhere in the definition: not as the explanation, not
   inflected, not with a prefix or a suffix, not inside a longer phrase. Nor a word of its
-  own family. Explain it with other words, as a dictionary for learners does. No
-  transliteration, no translation into another language, no example sentence.
-- For a grammatical word, say in {source} what it does.{unpointed}
+  own root or family where a plain word of another root says it: explain עצם with
+  "גוף" or "דבר", never with "עצמו". Explain it with other words, as a dictionary for
+  learners does. No transliteration, no translation into another language, no example
+  sentence.
+- The gloss is the word's sense and nothing else. No note on its grammar, its form, its
+  register or the sentence it was met in: never "plural of…", "imperative", "here it
+  means…" or "in this sentence…".
+- A form that is inflected (an imperative, a conjugated verb, a function word with a
+  pronoun ending) is defined as its dictionary form: קחו is defined as לקחת would be, and
+  its citation is that dictionary form. If you cannot tell which dictionary form it is,
+  return an empty gloss.
+- For a grammatical word, say in {source} what it does, in plain words, not by naming
+  its grammar.{unpointed}
 - Give the part of speech as one of: noun, verb, adjective, adverb, preposition,
   pronoun, conjunction, particle, other.
 - For a verb, give citation: the form a learner would keep, in {source} — the
@@ -194,29 +204,84 @@ def names_itself(form: str, definition: str, language: str) -> bool:
     """Whether a definition in the word's own language writes the word itself (#538:
     "יושב" defined as "נמצא במקום, יושב ולא זז", "עומק" as "מידת העומק של דבר"). A word
     of the definition counts as the headword where it is the headword, or in Hebrew a
-    headword of three letters or more with one or two prefix letters on it. Such a
-    definition is dropped, and the card keeps the meaning in the reader's own language."""
+    headword of three letters or more with one or two prefix letters on it, or with one
+    of Hebrew's endings after it (עצם in «עצמו», ling-he 2026-11-19). Such a definition
+    is dropped, and the card keeps the meaning in the reader's own language."""
     bare = form
     for mark in MARKS:
         if bare.endswith(mark):
             bare = bare[: -len(mark)]
             break
     if _base(language) == "he":
-        head = _letters(bare)
+        head = _folded(_letters(bare))
         if len(head) < 2:
             return False
         for word in re.findall(r"[\u05d0-\u05ea\u0591-\u05c7]+", definition):
-            letters = _letters(word)
-            # A prefix is looked past only on a head of three letters or more: ים is not
-            # in מים.
+            letters = _folded(_letters(word))
+            # A prefix or an ending is looked past only on a head of three letters or
+            # more: ים is not in מים, nor in ימים.
             for cut in range(3 if len(head) >= 3 else 1):
-                if letters[cut:] == head:
+                rest = letters[cut:]
+                if rest == head:
+                    return True
+                if len(head) >= 3 and rest.startswith(head) and _an_ending(rest[len(head) :], head):
                     return True
                 if cut >= len(letters) or letters[cut] not in _HE_PREFIXES:
                     break
         return False
     head = bare.strip().casefold()
     return len(head) > 1 and head in re.findall(r"\w+", definition.casefold())
+
+
+#: The endings Hebrew puts on a noun, an adjective or a verb (his, her, my, their, the
+#: plurals and the feminine), as the letters they are written in, final forms folded.
+_HE_ENDINGS = frozenset(
+    {
+        "ו",
+        "ה",
+        "י",
+        "ת",
+        "מ",
+        "נ",
+        "כ",
+        "ימ",
+        "ות",
+        "יו",
+        "יה",
+        "הו",
+        "נו",
+        "כמ",
+        "כנ",
+        "המ",
+        "הנ",
+        "תי",
+        "תמ",
+        "תנ",
+        "ית",
+        "יות",
+        "ייה",
+        "יהמ",
+        "יהנ",
+        "יכמ",
+        "ינו",
+    }
+)
+#: On a head of three letters only these one-letter endings count: a final מ, נ or כ
+#: after three letters is as often another word (שלו, שלום) as an ending.
+_HE_SHORT_ENDINGS = frozenset({"ו", "ה", "י", "ת"})
+_FINALS = str.maketrans("ךםןףץ", "כמנפצ")
+
+
+def _an_ending(rest: str, head: str) -> bool:
+    """Whether what follows the headword in a word of the definition is an ending."""
+    if len(rest) == 1 and len(head) == 3:
+        return rest in _HE_SHORT_ENDINGS
+    return rest in _HE_ENDINGS
+
+
+def _folded(letters: str) -> str:
+    """Hebrew letters with their final forms written as the plain ones (עצם and עצמו)."""
+    return letters.translate(_FINALS)
 
 
 def _letters(text: str) -> str:
