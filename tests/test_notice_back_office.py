@@ -56,7 +56,7 @@ RETENTION = (
 
 
 def test_the_notice_is_dated_the_day_it_changed() -> None:
-    assert LEGAL_CHANGED == "18 November 2026"
+    assert LEGAL_CHANGED == "19 November 2026"
 
 
 def test_clause_3_2_says_what_the_operator_sees_word_for_word() -> None:
