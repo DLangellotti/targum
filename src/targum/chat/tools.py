@@ -1151,6 +1151,191 @@ def my_progress(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+#: How much of each yardstick a reader's model is told about (targum-internal#750,
+#: design.md §12, "The yardstick figures reach the reader's own model", 2026-11-18).
+UNDERSTAND_WORDS = 25
+UNDERSTAND_WEEKS = 26
+UNDERSTAND_TOPS = (1000, 2000)
+UNDERSTAND_STEPS = (500, 1000, 2000, 3000)
+#: The yardstick whose words and weeks are sent when no register is named: the card's
+#: default. Every other list then sends its figure alone, so the answer stays small.
+UNDERSTAND_DEFAULT = "news"
+_DAY_MS = 86_400_000
+#: Each snapshot's lemmas, heaviest first, ties by lemma: sorted once per snapshot.
+#: Keyed by register, holding the snapshot it was sorted from: `yardstick.load` hands
+#: back the same object until the file changes, so a new object is a new snapshot.
+_RANKED: dict[str, tuple[Any, list[str]]] = {}
+
+
+def _ranked(stick: Any) -> list[str]:
+    held = _RANKED.get(stick.register)
+    if held is None or held[0] is not stick:
+        ranked = sorted(stick.weights.items(), key=lambda it: (-it[1], it[0]))
+        held = (stick, [lemma for lemma, _ in ranked])
+        _RANKED[stick.register] = held
+    return held[1]
+
+
+def _held_gloss(lemma: str, target: str) -> str | None:
+    """The meaning already held for a yardstick's lemma, or None. Never spends.
+
+    Meanings are filed under `Token.glossed_as` (`models.filed_under`): the bare lemma for
+    most words, a part-of-speech mark for the spellings in `SPLIT_BY_POS` (עם, שום), and
+    `lemma (verb)` for every verb. A yardstick counts a spelling, not a part of speech, so
+    every meaning held for it is said: משנה is a noun and a verb."""
+    try:
+        from .. import models
+        from ..annotate.gloss import GLOSS_MODEL, AnthropicGlosses, cached_gloss
+
+        provider = AnthropicGlosses(GLOSS_MODEL).name
+        marks = dict.fromkeys(models.SPLIT_BY_POS.get(lemma, {}).values())
+        keys = [lemma, *(lemma + mark for mark in marks)]
+        held = [cached_gloss(key, "he", target, provider) for key in keys]
+        verb = cached_gloss(lemma + models.VERB_MARK, "he", target, provider)
+    except Exception:  # noqa: BLE001 - a gloss is a courtesy; the figures stand without it
+        return None
+    said = list(dict.fromkeys(one.gloss for one in held if one is not None and one.gloss))
+    if verb is not None and verb.gloss and verb.gloss not in said:
+        said.append(f"as a verb, {verb.gloss}" if said else verb.gloss)
+    return "; ".join(said) if said else None
+
+
+def _weekly(got: dict[str, Any], began: int, now_ms: int) -> list[dict[str, Any]]:
+    """The coverage at the end of each week (Monday to Sunday, UTC) from the week `began`
+    falls in to this one, the latest `UNDERSTAND_WEEKS` of them. A week's point counts every
+    word known by its Sunday; this week's is today's."""
+    from datetime import timedelta
+
+    from .. import level as level_module
+
+    first = datetime.fromtimestamp(began / 1000, tz=UTC).date()
+    last = datetime.fromtimestamp(now_ms / 1000, tz=UTC).date()
+    monday = first - timedelta(days=first.weekday())
+    gains = sorted((str(day["day"]), float(day["gain"])) for day in got["days"])
+    share = float(got["base"])
+    out: list[dict[str, Any]] = []
+    index = 0
+    while monday <= last:
+        sunday = (monday + timedelta(days=6)).isoformat()
+        while index < len(gains) and gains[index][0] <= sunday:
+            share += gains[index][1]
+            index += 1
+        out.append(
+            {"week": monday.isoformat(), "percent": level_module.known_percent(min(1.0, share))}
+        )
+        monday += timedelta(days=7)
+    return out[-UNDERSTAND_WEEKS:]
+
+
+def _one_register(
+    register: str,
+    dated: list[tuple[str, int | None]],
+    began: int,
+    now_ms: int,
+    full: bool,
+    target: str = "en",
+) -> dict[str, Any] | None:
+    """One yardstick's figures. `full` adds its weeks and its next words."""
+    from .. import level as level_module
+    from ..tables import yardstick
+
+    stick = yardstick.load(register)
+    got = level_module.coverage_days(register, dated, began=began)
+    if stick is None or got is None:
+        return None
+    known = {yardstick.bare(lemma) for lemma, _ in dated}
+    unknown = [(rank, lemma) for rank, lemma in enumerate(_ranked(stick), 1) if lemma not in known]
+    share = float(got["share"])
+    curve: list[dict[str, Any]] = []
+    for step in UNDERSTAND_STEPS:
+        if step > len(unknown):
+            break
+        more = math.fsum(stick.weights[lemma] for _, lemma in unknown[:step])
+        curve.append({"next": step, "percent": level_module.known_percent(min(1.0, share + more))})
+    out: dict[str, Any] = {
+        "register": register,
+        "version": stick.version,
+        "percent": level_module.known_percent(share),
+        "unknown_in_top": {
+            str(top): sum(1 for rank, _ in unknown if rank <= top) for top in UNDERSTAND_TOPS
+        },
+        "if_learned": curve,
+    }
+    if full:
+        out["history"] = _weekly(got, began, now_ms) if dated else []
+        out["next_words"] = [
+            {"lemma": lemma, "gloss": _held_gloss(lemma, target), "rank": rank}
+            for rank, lemma in unknown[:UNDERSTAND_WORDS]
+        ]
+    return out
+
+
+def _learns_hebrew(ctx: Ctx) -> str:
+    """The language this reader is measured in: "he" where they learn Hebrew, else the
+    one they learn. The connector builds every reader's ledger for Hebrew, so the
+    reader's own learning languages decide, where any are known."""
+    language = str(ctx.level.state()["language"]).split("-")[0]
+    learning = {code.split("-")[0] for code in ctx.learning}
+    if language == "he" and learning and "he" not in learning:
+        return sorted(learning)[0]
+    return language
+
+
+def how_much_i_understand(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
+    """How much Hebrew the reader understands, measured on the fixed yardsticks
+    (targum-internal#750, design.md §12, "The yardstick figures reach the reader's own
+    model", 2026-11-18). Facts only: the percentage Your Progress shows, by week, the
+    commonest words not known yet, and what knowing the next ones would make it. Nothing
+    here forecasts; a model may estimate from `pace`, and is told to say so."""
+    from datetime import timedelta
+
+    from ..tables import yardstick
+    from ..tables.registers import PICKER
+
+    language = _learns_hebrew(ctx)
+    if language != "he":
+        return {"language": language, "measured": False}
+    store, person = ctx.store, ctx.person
+    dated = store.known_dated(person.id, "he") if store is not None and person else []
+    began = store.began() if store is not None else 0
+    now_ms = int(time.time() * 1000)
+    target = ctx.language if ctx.language in ("en", "ru") else "en"
+    named = str(args.get("register") or "").strip()
+    if named and yardstick.load(named) is None:
+        return {
+            "error": "no such list",
+            "registers": [one for one in PICKER if yardstick.load(one) is not None],
+        }
+    registers = []
+    for register in [named] if named else list(PICKER):
+        one = _one_register(
+            register,
+            dated,
+            began,
+            now_ms,
+            full=bool(named) or register == UNDERSTAND_DEFAULT,
+            target=target,
+        )
+        if one is not None:
+            registers.append(one)
+    # The 30 calendar days ending today, UTC: today and the 29 before it.
+    today = datetime.fromtimestamp(now_ms / 1000, tz=UTC).date()
+    start = today - timedelta(days=29)
+    since = int(datetime(start.year, start.month, start.day, tzinfo=UTC).timestamp() * 1000)
+    readings = store.readings(person.id, "he") if store is not None and person else []
+    return {
+        "language": "he",
+        "measured": True,
+        "pace": {
+            "known_last_30_days": sum(1 for _, at in dated if at is not None and at >= since),
+            "days_read_last_30": len(
+                {int(row["at"]) // _DAY_MS for row in readings if int(row["at"]) >= since}
+            ),
+        },
+        "registers": registers,
+    }
+
+
 #: Where the chooser's candidates come from, each a name and what it offers for a
 #: reader (targum-internal#612): the shelf, the catalogue, today. A fresh find of the
 #: day's news or a video (#619) is another source added here, scored the same way, and
@@ -4550,6 +4735,20 @@ REGISTRY: tuple[Tool, ...] = (
         my_progress,
         scope="record",
         title="My progress",
+    ),
+    Tool(
+        "how_much_i_understand",
+        "How much Hebrew the reader understands, measured on fixed word lists of everyday "
+        "conversation, news, literature, video and the Bible: the percentage now on each, "
+        "and what knowing the next commonest words would make it. Name a `register` for one "
+        "list with its last 26 weeks and the 25 commonest words they don't know yet; with "
+        "none, every list's figure, and the weeks and words for news. Say these as "
+        "measured. Any forecast is your own; say it as an estimate. Never say a level or a "
+        "rung. Read only.",
+        _schema({"register": {"type": "string"}}),
+        how_much_i_understand,
+        scope="record",
+        title="How much I understand",
     ),
     Tool(
         "suggest_next",
