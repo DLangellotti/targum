@@ -937,7 +937,9 @@ def _parts(page: str) -> list[dict[str, str]]:
     found = []
     rows = page.split('<ol class="rows series-parts">')[1].split("</ol>")[0]
     for href, inner in re.findall(r'<a class="series-row-title" href="([^"]*)">(.*?)</a>', rows):
-        name = unescape(re.sub(r"<[^>]+>", "", inner.split('<span class="series-en">')[0]))
+        # The name as seen: the aliyah's number said only to a screen reader is left out.
+        shown = re.sub(r'<span class="visually-hidden">.*?</span>', "", inner)
+        name = unescape(re.sub(r"<[^>]+>", "", shown.split('<span class="series-en">')[0]))
         found.append({"href": href, "name": name.strip()})
     return found
 
