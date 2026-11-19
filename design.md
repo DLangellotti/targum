@@ -387,6 +387,29 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### The portion page says what it lacks, and is finished on three calls — 2026-11-19
+
+David, 2026-11-19, on the three questions of the portion page's finish spec
+(targum-internal#409, slice 3):
+
+- **Rashi on Exodus is said to be coming.** Until December's rebuild puts Rashi back on
+  Exodus, an Exodus portion says "Rashi on Exodus comes before Shemot." under its aliyot.
+  It is read off the built reader, so the line goes by itself when the rebuild lands. A
+  reader who had Rashi on Genesis looks for it, and a missing column with no word is a
+  fault they cannot tell from a bug.
+- **Ki Tavo at 1.74 s still closes the speed line.** His 2026-10-21 acceptance of the
+  longest aliyah's first tap stands for §14's line 5 on the portion reader.
+- **The portion page is not saved offline; its readers are.** The page is a list of
+  addresses, and every reader on it can be saved for offline. Opened offline, the page is
+  the browser's own offline page, as every desk page that is not saved is.
+
+What the page draws with them: Download PDF in words beside its glyph, never the glyph and
+a tooltip; each aliyah's number said inside its row for a screen reader; "Read it again
+from aliyah 1" once every aliyah is read; one line where a reading has no chanted
+recording; "Not ready yet" on a row with nothing built behind it, never a link to a 404;
+and Subscribe saying when it is still saving past three seconds, when it did not go
+through, and when it was pressed offline.
+
 ### The back office counts paying readers by source tag — 2026-11-18
 
 2026-11-18, David: paying readers by source tag, for the go/no-go. The go/no-go on

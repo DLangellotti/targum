@@ -5448,5 +5448,13 @@
   "progress.count.ear.few": "на слух: {n}",
   "progress.count.ear.many": "на слух: {n}",
   "progress.count.ear.other": "на слух: {n}",
-  "sentences.open-word": "Открыть карточку слова {word}"
+  "sentences.open-word": "Открыть карточку слова {word}",
+  "parasha.page.read-again": "Прочитать снова с алии 1",
+  "parasha.page.no-chanting": "Для этого чтения нет записи нараспев; есть обычное чтение.",
+  "parasha.page.rashi-exodus-soon": "Раши к книге Шмот появится до субботы Шмот.",
+  "parasha.page.not-ready": "Пока не готово",
+  "parasha.page.aliyah-n": "Алия {n}",
+  "series.subscribe.slow": "Всё ещё сохраняем…",
+  "series.subscribe.failed": "Не удалось сохранить. Попробуйте ещё раз.",
+  "series.subscribe.offline": "Вы не в сети. Подпишитесь, когда подключитесь."
 }

@@ -1117,3 +1117,95 @@ def test_a_portions_reader_loads_its_files_once_and_a_save_keeps_it_whole(
         holds_both_forms(
             serving, f"/parasha/read/nitzavim-vayeilech/reader/{name}", (home / name).read_bytes()
         )
+
+
+# -- the finish (targum-internal#409, slice 3; design.md §12, 2026-11-19) -----------
+
+
+def _page(**asked: object) -> str:
+    from targum.render.builder import parasha_page
+
+    listed = _cycle()
+    return parasha_page(listed[1], schedule=cal.Schedule.diaspora, listed=listed, **asked)  # type: ignore[arg-type]
+
+
+def test_portion_page_all_read_offers_reading_it_again() -> None:
+    every = {"sections": 7, "mark": {"finished": {str(n) for n in range(1, 8)}, "here": ""}}
+    page = _page(signed_in=True, view=every)
+    assert "Read it again from aliyah 1" in page
+    assert "/reader/sec-0001.html" in page
+    some = {"sections": 7, "mark": {"finished": {"1", "2"}, "here": ""}}
+    assert "Pick up at aliyah 3" in _page(signed_in=True, view=some)
+    assert "Read it again" not in _page(signed_in=True, view=some)
+
+
+def test_portion_page_says_once_when_a_reading_has_no_chanting() -> None:
+    assert _page(chanted=False).count("No chanted recording for this reading") == 1
+    assert "No chanted recording" not in _page(chanted=True)
+    assert "No chanted recording" not in _page(), "unknown says nothing"
+
+
+def test_exodus_portion_says_rashi_comes_before_shemot() -> None:
+    assert "Rashi on Exodus comes before Shemot." in _page(rashi_soon=True)
+    assert "Rashi on Exodus" not in _page()
+
+
+def test_portion_row_name_says_the_aliyah_number() -> None:
+    page = _page(view={"sections": 7})
+    for n in range(1, 8):
+        assert f'<span class="visually-hidden">Aliyah {n} </span>' in page
+    assert re.search(
+        r'<a class="series-row-title" href="[^"]+"><span class="visually-hidden">Aliyah 1 ', page
+    )
+
+
+def test_portion_pdf_press_is_named_in_words_not_a_tooltip() -> None:
+    page = _page()
+    press = re.search(r'<a class="btn ghost outline series-pdf"[^>]*>.*?</a>', page, re.S)
+    assert press is not None
+    assert '<span class="series-pdf-label">Download PDF</span>' in press.group(0)
+    assert "title=" not in press.group(0)
+
+
+def test_portion_page_missing_reader_is_not_ready_not_a_link() -> None:
+    """The haftarah of a week whose haftarah book was never built: said, never a 404."""
+    from targum.render.builder import parasha_page
+
+    listed = _cycle()
+    haftarah = type(
+        "H",
+        (),
+        {"summary": "Isaiah 61:10-63:9", "verses": 24, "folder": "x", "opens": "index.html"},
+    )()
+    page = parasha_page(
+        listed[1],
+        schedule=cal.Schedule.diaspora,
+        listed=listed,
+        haftarah=haftarah,
+        haftarah_readable=False,
+    )
+    assert '<span class="series-row-title is-not-ready">' in page
+    assert '<span class="series-not-ready">Not ready yet</span>' in page
+    assert 'href=""' not in page
+
+
+def test_portion_subscribe_carries_its_three_lines_in_the_pages_language() -> None:
+    page = _page(signed_in=True, language="ru")
+    assert 'data-slow="Всё ещё сохраняем…"' in page
+    assert 'data-failed="Не удалось сохранить. Попробуйте ещё раз."' in page
+    assert 'data-offline="Вы не в сети. Подпишитесь, когда подключитесь."' in page
+
+
+def test_the_served_portion_page_reads_chanting_off_the_built_reader(
+    serving: int, built: Index
+) -> None:
+    """The fixture's readers are built without recordings, so the page says there is no
+    chanting; a chanted file beside the reader takes the line away."""
+    listed = [one for one in built.listed()]
+    _, body = get(serving, f"/parasha/{listed[0].slug}")
+    assert "No chanted recording for this reading" in body
+    audio = cal.root() / "read" / listed[0].folder / "reader" / "audio"
+    audio.mkdir(parents=True, exist_ok=True)
+    (audio / "chanted-0001.mp3").write_bytes(b"ID3")
+    _, body = get(serving, f"/parasha/{listed[0].slug}")
+    assert "No chanted recording" not in body

@@ -7328,6 +7328,31 @@ class _Headless(io.BufferedIOBase):
         return len(data)
 
 
+def portion_recordings(portion: Any, language: str) -> dict[str, bool]:
+    """What the portion page says about the reader behind it (targum-internal#409): whether
+    it has a chanted recording (a festival's has none: PocketTorah has no chanting for
+    them), and whether it is an Exodus portion built without Rashi, which the page says
+    comes before Shemot (David, 2026-11-19) until December's rebuild puts Rashi back. Read
+    off the built files, so the line goes by itself when the rebuild lands."""
+    from .parasha.build import served_as
+    from .parasha.calendar import root
+
+    reader = root() / "read" / served_as(portion.folder, language.split("-")[0].lower()) / "reader"
+    if not reader.is_dir():
+        return {}
+    chanted = any((reader / "audio").glob("chanted-*.mp3"))
+    rashi_soon = False
+    if "Exodus" in (portion.books or ()):
+        first = reader / "sec-0001.html"
+        if not first.is_file():
+            first = reader / "index.html"
+        try:
+            rashi_soon = b'data-companion="rashi"' not in first.read_bytes()
+        except OSError:
+            rashi_soon = False
+    return {"chanted": chanted, "rashi_soon": rashi_soon}
+
+
 class Handler(BaseHTTPRequestHandler):
     # Overridden on the type built in start(). Off here so a Handler made by hand —
     # which is how the tests make one — behaves like a machine somebody runs themselves.
@@ -8212,6 +8237,7 @@ class Handler(BaseHTTPRequestHandler):
             subscribed=self._series_subscribed("parasha"),
             token=self._series_token(),
             pictures=self._authorised(),
+            **portion_recordings(portion, self._public_language()),
         )
         return self._send(200, page.encode("utf-8"), HTML)
 
