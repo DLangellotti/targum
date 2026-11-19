@@ -2990,6 +2990,32 @@ def test_a_russian_reader_is_measured_on_russian_lists_alone(world) -> None:
     assert tools.how_much_i_understand(french, {}) == {"language": "fr", "measured": False}
 
 
+def test_a_reader_of_french_and_russian_is_measured_where_a_list_exists(world) -> None:
+    """qa-claude on targum#1343: French has no list, so a reader of both is measured in
+    Russian, not answered "not measured" for French; a model may still ask about either,
+    and a reader of Hebrew and Russian about Russian."""
+    _yardstick("news", _NEWS)
+    _yardstick("ru-news", {"дом": 0.6, "море": 0.4})
+    library, store, person, home = world
+    store.push(
+        person, {"words": [{"language": "ru", "lemma": "дом", "status": 9, "at": 1, "seen": 1}]}
+    )
+    ctx = context(library, store, person, home)
+    both = replace(ctx, learning={"fr", "ru"})
+    got = tools.how_much_i_understand(both, {})
+    assert got["language"] == "ru" and got["measured"] is True
+    assert [one["percent"] for one in got["registers"]] == [60]
+    assert tools.how_much_i_understand(both, {"language": "fr"}) == {
+        "language": "fr",
+        "measured": False,
+    }
+    hebrew_too = replace(ctx, learning={"he", "ru"})
+    assert tools.how_much_i_understand(hebrew_too, {})["language"] == "he"
+    asked = tools.how_much_i_understand(hebrew_too, {"language": "ru"})
+    assert asked["language"] == "ru" and asked["registers"][0]["register"] == "news"
+    assert asked["registers"][0]["percent"] == 60
+
+
 def test_a_reader_with_no_words_has_no_history_and_the_whole_list_ahead(tmp_path: Path) -> None:
     _yardstick("news", _NEWS)
     store = Store(tmp_path / "words.db")

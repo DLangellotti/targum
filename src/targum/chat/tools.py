@@ -1277,15 +1277,27 @@ def _one_register(
     return out
 
 
-def _learns_hebrew(ctx: Ctx) -> str:
-    """The language this reader is measured in: "he" where they learn Hebrew, else the
-    one they learn. The connector builds every reader's ledger for Hebrew, so the
-    reader's own learning languages decide, where any are known."""
+def _measured_language(ctx: Ctx, asked: str = "") -> str:
+    """The language this reader is measured in: the one asked for where a model names
+    one; else Hebrew where they learn it; else the first language they learn that has a
+    list (targum-internal#752), so a reader of French and Russian is measured in Russian
+    while French has none; else the first they learn. The connector builds every
+    reader's ledger for Hebrew, so the reader's own learning languages decide, where any
+    are known."""
+    from ..tables import yardstick
+    from ..tables.registers import picker
+
+    named = asked.split("-")[0].strip().lower()
+    if named:
+        return named
     language = str(ctx.level.state()["language"]).split("-")[0]
-    learning = {code.split("-")[0] for code in ctx.learning}
-    if language == "he" and learning and "he" not in learning:
-        return sorted(learning)[0]
-    return language
+    learning = sorted({code.split("-")[0] for code in ctx.learning})
+    if language != "he" or not learning or "he" in learning:
+        return language
+    for code in learning:
+        if any(yardstick.load(register) is not None for register in picker(code)):
+            return code
+    return learning[0]
 
 
 def how_much_i_understand(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
@@ -1302,7 +1314,7 @@ def how_much_i_understand(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     from ..tables import yardstick
     from ..tables.registers import bare_register, in_language, picker
 
-    language = _learns_hebrew(ctx)
+    language = _measured_language(ctx, str(args.get("language") or ""))
     lists = picker(language)
     if language != "he" and not any(yardstick.load(one) is not None for one in lists):
         return {"language": language, "measured": False}
@@ -4753,14 +4765,15 @@ REGISTRY: tuple[Tool, ...] = (
     Tool(
         "how_much_i_understand",
         "How much of the language they learn the reader understands, measured on fixed word "
-        "lists of everyday conversation, news, literature, video and the Bible (Russian and "
-        "French: conversation and news): the percentage now on each, "
+        "lists of everyday conversation, news, literature, video and the Bible, where a "
+        "list exists for that language: the percentage now on each, "
         "and what knowing the next commonest words would make it. Name a `register` for one "
         "list with its last 26 weeks and the 25 commonest words they don't know yet; with "
-        "none, every list's figure, and the weeks and words for news. Say these as "
+        "none, every list's figure, and the weeks and words for news. Name a `language` "
+        "(he, ru) for a reader learning more than one. Say these as "
         "measured. Any forecast is your own; say it as an estimate. Never say a level or a "
         "rung. Read only.",
-        _schema({"register": {"type": "string"}}),
+        _schema({"register": {"type": "string"}, "language": {"type": "string"}}),
         how_much_i_understand,
         scope="record",
         title="How much I understand",

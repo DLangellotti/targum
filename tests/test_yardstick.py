@@ -359,3 +359,96 @@ def test_another_languages_list_is_its_own_file_and_its_own_counts(tmp_path: Pat
     assert registers.bare_register("ru:news") == "news"
     assert registers.bare_register("imports:news") == "imports:news"
     assert yardstick.load("it:conversation", where) is None, "no picker, no list"
+
+
+def test_a_hebrew_list_past_its_first_version_still_loads(tmp_path: Path) -> None:
+    """qa-claude on targum#1343: the file pattern that takes `ru-conversation` still takes
+    every Hebrew name, past v9 too."""
+    where = tmp_path / "tables"
+    where.mkdir()
+    for name in ("yardstick-news-v12.json", "yardstick-imports-v3.json"):
+        (where / name).write_text(
+            json.dumps({"made_at": "2026-11-01", "weights": {"ספר": 1.0}}), encoding="utf-8"
+        )
+    news = yardstick.load("news", where)
+    assert news is not None and news.version == 12
+    imports = yardstick.load("imports", where)
+    assert imports is not None and imports.version == 3
+    assert yardstick.load("ru:news", where) is None
+
+
+def test_a_list_is_never_replaced_by_one_counted_from_less(tmp_path: Path) -> None:
+    """qa-claude on targum#1343: a list made on the laptop from an outside corpus, copied
+    to a box whose ledger lacks the corpus, is kept at the month's turn, not dropped."""
+    where = tmp_path / "tables"
+    laptop = _store(tmp_path / "laptop", register="ru:conversation", scale=2000)
+    first = yardstick.write(laptop, "ru:conversation", where, now=NOW)
+    assert first.outcome == "written"
+    box = _store(tmp_path / "box", register="ru:conversation", scale=1000)
+    turned = datetime(2026, 12, 1, 2, 30, tzinfo=UTC)
+    kept = yardstick.write(box, "ru:conversation", where, now=turned)
+    assert kept.outcome == "kept" and kept.version == 1
+    assert [v for v, _ in yardstick.versions("ru:conversation", where)] == [1]
+    # More counts than the list: a new version, as ever.
+    grown = _store(tmp_path / "grown", register="ru:conversation", scale=3000)
+    assert yardstick.write(grown, "ru:conversation", where, now=turned).outcome == "written"
+
+
+def test_a_list_made_of_what_readers_bring_may_shrink(tmp_path: Path) -> None:
+    from targum.tables import imports
+
+    where = tmp_path / "tables"
+    store = Store(tmp_path / "corpus.db")
+    made = [imports._contribution("words")]
+    store.replace_pool(made, {made[0].id: _counts(400, scale=2000)})
+    assert yardstick.write(store, "imports", where, now=NOW).outcome == "written"
+    store.replace_pool(made, {made[0].id: _counts(400, scale=1000)})
+    turned = datetime(2026, 12, 1, 2, 30, tzinfo=UTC)
+    assert yardstick.write(store, "imports", where, now=turned).outcome == "written"
+
+
+def test_write_all_keeps_a_list_whose_counts_fall_under_the_floor(tmp_path: Path) -> None:
+    where = tmp_path / "tables"
+    yardstick.write(
+        _store(tmp_path / "a", register="ru:conversation"), "ru:conversation", where, now=NOW
+    )
+    few = _store(tmp_path / "b", register="ru:conversation", lemmas=5, scale=1)
+    turned = datetime(2026, 12, 1, 2, 30, tzinfo=UTC)
+    done = {one.register: one for one in yardstick.write_all(few, where, now=turned)}
+    assert done["ru:conversation"].outcome == "short"
+    stick = yardstick.load("ru:conversation", where)
+    assert stick is not None and stick.version == 1, "the list stands; nothing is written"
+
+
+def test_a_dialogue_dash_is_not_part_of_a_lemma(tmp_path: Path) -> None:
+    """Subtitles open a line of dialogue with a dash, and 43 Russian lemmas kept it."""
+    store = _store(tmp_path, register="ru:conversation")
+    store.write(
+        Contribution(
+            table="words",
+            register="ru:conversation",
+            unit="unit-dashes",
+            source="synthetic:dashes",
+            licence="CC0",
+            tool="test/1",
+            rule="words/1",
+        ),
+        {("-знать", "VERB"): 30_000, ("знать", "VERB"): 10_000, ("\u2014", "NOUN"): 5},
+    )
+    done = yardstick.write(store, "ru:conversation", tmp_path / "tables", now=NOW)
+    raw = json.loads(done.file.read_text(encoding="utf-8"))  # type: ignore[union-attr]
+    assert "-знать" not in raw["weights"] and "" not in raw["weights"]
+    assert raw["weights"]["знать"] == pytest.approx(40_000 / raw["tokens"])
+
+
+def test_a_push_carries_another_languages_corpus_counts(tmp_path: Path) -> None:
+    """The way a laptop-counted list reaches the box is `tables push`: its counts travel,
+    so the box's own snapshot makes the same list."""
+    laptop = _store(tmp_path / "laptop", register="ru:conversation")
+    box = Store(tmp_path / "box" / "corpus.db")
+    result = box.import_rows(laptop.export("laptop"))
+    assert result.added == 1 and result.refused == 0
+    mine = yardstick.build(laptop, "ru:conversation")
+    theirs = yardstick.build(box, "ru:conversation")
+    assert mine is not None and theirs is not None
+    assert mine["digest"] == theirs["digest"]

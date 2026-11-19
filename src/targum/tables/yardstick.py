@@ -30,7 +30,16 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from .registers import EVERYDAY, NEWS, PODCASTS, SOCIAL, VIDEO, every_picker, pooled
+from .registers import (
+    EVERYDAY,
+    IMPORTS,
+    NEWS,
+    PODCASTS,
+    SOCIAL,
+    VIDEO,
+    every_picker,
+    pooled,
+)
 
 if TYPE_CHECKING:
     from .store import Store
@@ -59,6 +68,11 @@ BLEND_CAP = 0.5
 #: same register added in plainly: both are the same kind of text, and there is no other
 #: source for these to be held to half of.
 SUMMED = (SOCIAL, VIDEO, PODCASTS, EVERYDAY)
+
+#: The lists made of what readers bring, which may shrink by design: a reader who turns
+#: counting off leaves the pool, and the list at the month's turn (design.md §12, "What
+#: learners bring is counted in the tables, never kept"). Every other list only grows.
+SHRINKS = (IMPORTS, *SUMMED)
 
 #: The version of the snapshot's own rule (what is read, and how it is weighed). A new
 #: number writes a new version at the next run, whatever the month.
@@ -122,13 +136,18 @@ class Yardstick:
         return min(1.0, math.fsum(self.weights.get(key, 0.0) for key in keys))
 
 
+#: The dashes a line of dialogue opens with, which a lemma never begins with.
+_DASHES = "-\u2010\u2011\u2012\u2013\u2014\u2212"
+
+
 def _counts(store: Store, register: str, depth: int) -> dict[str, int]:
     """One register's commonest content lemmas, bare, with their counts."""
     from .words import WORDS
 
     counts: dict[str, int] = {}
     for key, n in store.top(WORDS, register, limit=depth * 2):
-        lemma = bare(key)
+        # A subtitle's dialogue dash reaches some lemmas ("-знать"): the word is the same.
+        lemma = bare(key).lstrip(_DASHES)
         if lemma:
             counts[lemma] = counts.get(lemma, 0) + int(n)
     return counts
@@ -255,7 +274,8 @@ class Written:
 
     register: str
     #: `written`, `unchanged` (the counts give the same list), `held` (this month's
-    #: version stands until the month turns), or `short` (under `FLOOR`, nothing written).
+    #: version stands until the month turns), `short` (under `FLOOR`, nothing written), or
+    #: `kept` (these counts hold fewer words than the list they would replace).
     outcome: str
     version: int = 0
     file: Path | None = None
@@ -296,6 +316,15 @@ def write(
         return Written(register, "short")
     if last is not None and last.get("digest") == made["digest"]:
         return Written(register, "unchanged", held[-1][0], held[-1][1], made["tokens"])
+    if (
+        last is not None
+        and register not in SHRINKS
+        and made["tokens"] < int(last.get("tokens") or 0)
+    ):
+        # A list is never replaced by one counted from less: the box holding fewer counts
+        # than the list it already has (a list made on a laptop from an outside corpus,
+        # before its counts were pushed) keeps the list rather than dropping the corpus.
+        return Written(register, "kept", held[-1][0], held[-1][1], made["tokens"])
     version = (held[-1][0] if held else 0) + 1
     made = {"version": version, "made_at": stamp, **made}
     folder.mkdir(parents=True, exist_ok=True)
