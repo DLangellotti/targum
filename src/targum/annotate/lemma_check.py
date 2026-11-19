@@ -63,8 +63,11 @@ if TYPE_CHECKING:
 #: י־צ־ע, checks a name's lemma, and gives a title's split-off letter the title's
 #: (targum-internal#698, #700, #702); 7 files a noun's or an adjective's plural or
 #: feminine that DICTA gave as its own lemma under its headword, from Wikidata's CC0
-#: lexemes (`nouns`, targum-internal#697e: עצים under עץ, לירות under לירה).
-VERSION = 7
+#: lexemes (`nouns`, targum-internal#697e: עצים under עץ, לירות under לירה); 8 files it
+#: there only where an adjective's headword is an adjective and the spelling on the page is
+#: a form of the headword (targum-internal#755: no אירופאיות under אירופה, and no
+#: הַדַּיָּנִים or שְׁמֹנָה carried on to דין or שמן).
+VERSION = 8
 
 #: The annotator this checks: DICTA, and nothing that put a hand tagging in front of it.
 DICTA = "dicta/"
@@ -959,7 +962,7 @@ def _headword(token: Token) -> Token:
     same object where the lemma is a headword already."""
     from .nouns import headword
 
-    found = headword(token.lemma, token.pos)
+    found = headword(token.lemma, token.pos, token.surface)
     if found is None:
         return token
     return token.model_copy(update={"lemma": found, "headword": None, "lexeme": None})
@@ -969,7 +972,7 @@ def _row_headword(row: dict[str, Any]) -> dict[str, Any]:
     """`_headword` for a stored row; the same dict where nothing changes."""
     from .nouns import headword
 
-    found = headword(str(row.get("lemma") or ""), row.get("pos"))
+    found = headword(str(row.get("lemma") or ""), row.get("pos"), str(row.get("surface") or ""))
     return row if found is None else row | {"lemma": found}
 
 

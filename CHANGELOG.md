@@ -14,6 +14,27 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   "learned on targum" is gone; the label stays. `progress.ear.start` and
   `progress.count.learned.note` are retired; `lists.ear.tip` is new, its Russian a draft
   for ling-ru.
+- The noun table (#697e) files a Hebrew word under its headword only where two checks
+  pass (targum-internal#755, from ling-he's read of targum#1323). `lemma_check` 8, a free
+  recount: no rename, no `SCHEMA_VERSION`.
+  - An adjective's headword must be an adjective. Wikidata files a people's adjectives
+    under its country, so a headword with no final י that the table gives a masculine
+    plural in יים is a place, not the adjective (`nouns.nouns_of_nisbas`, 192 of them:
+    אירופה, צרפת, איטליה). An adjective in ה with a plural in ות beside it stays (פורה).
+  - The spelling on the page must be a form of the new headword: the headword, a form
+    the table files under it, or the headword with a noun's or an adjective's ending and
+    any possessive, perhaps without a ו or a י the headword spells (באזניו, החפשית), but
+    never with one it lacks. A pointed word is read in plene spelling first
+    (`nouns.plene`), so הַדַּיָּנִים "judges" is no form of דין and שְׁמֹנָה "eight" none
+    of שמן. Where DICTA's lemma was already another word, the table no longer carries it
+    on to a third.
+  - Re-measured over the laptop's 483 Hebrew texts: 2,498 tokens change instead of 2,556.
+    The 58 that no longer change hold 34 of the 43 ling-he found inherited wrong, and 13
+    more wrong ones the read had passed (כְתֻבּוֹת under כתבה, מְעֻוָּת under מעה,
+    נְסָכֶיהָ under נס, וְכִיְּרוֹ under כירה). 14 wrong ones are left of 2,498 (0.6%,
+    from 1.9% as ling-he counted, 2.4% with the 13). 11 right changes are lost: spelling
+    variants (הבטלונים, לעיזים, הסלולאריים, 4 tokens) and 7 tokens where DICTA's lemma was another word
+    that happened to land on the right meaning (ריקניות, תמהון, פגימה).
 - Meanings of Hebrew words in Hebrew are offered (targum-internal#538, David 2026-11-19):
   `accounts.MEANINGS_OPEN` is `{"he"}`, so "Meanings of Hebrew words" shows on Your
   languages, off until a reader chooses it. ling-he's three fixes come first:
