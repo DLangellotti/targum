@@ -2136,6 +2136,8 @@ window.targumReaderRest = function (R) {
     MascPlur: ["אנחנו", "הם"],
     FemPlur: ["אנחנו", "הן"],
   };
+  // The letters a feminine noun usually ends in.
+  var FEMININE_ENDS = ["ה", "ת"];
   function endsIn(text, ending) {
     return !!ending && text.length >= ending.length && text.slice(-ending.length) === ending;
   }
@@ -2190,15 +2192,16 @@ window.targumReaderRest = function (R) {
     // A noun whose ending says the other gender. In the singular only where the word as
     // written ends in its dictionary form, so the ending named is the one on the page.
     var last = word.lemma.slice(-1);
+    var marked = FEMININE_ENDS.indexOf(last) >= 0;
     if (pos === "NOUN" && !plural && word.lemma.length > 1 && endsIn(word.surface, word.lemma)) {
-      if (gender === "Fem" && last !== "ה" && last !== "ת") {
+      if (gender === "Fem" && !marked) {
         return t(
           "reader.card.spot.he.agreement-fem",
           "{word} is feminine, though it does not end in {he} or {tav}. An adjective with it is feminine too, as in {word} {adjective}.",
           { word: word.lemma, he: "ה", tav: "ת", adjective: "גדולה" }
         );
       }
-      if (gender === "Masc" && (last === "ה" || last === "ת")) {
+      if (gender === "Masc" && marked) {
         return t(
           "reader.card.spot.he.agreement-masc",
           "{word} is masculine, though it ends in {letter}. An adjective with it is masculine too, as in {word} {adjective}.",
