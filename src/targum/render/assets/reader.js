@@ -5705,6 +5705,16 @@ var targumReader = function () {
     return out;
   }
 
+  // Whether one word's IPA puts the stress before its last syllable: more than one vowel
+  // after the mark, as `plainly` counts syllables. Hebrew's minority, and the only words
+  // the research would mark (hard-spots-2026-10-11); never a reading of two words.
+  function stressBeforeEnd(ipa) {
+    var text = String(ipa || "").trim();
+    var at = text.lastIndexOf("\u02c8");
+    if (at < 0 || /\s/.test(text)) return false;
+    return (text.slice(at).match(/[aeiouəɛɔ]/g) || []).length > 1;
+  }
+
   // How a Hebrew word is said, in letters a learner already reads (design.md §12,
   // "The card says a Hebrew word in letters you read", 2026-10-12). The build stores
   // phonikud's IPA, and a beginner cannot read χ, ʁ or ˈ: "hithaˈleχ" is "hit-ha-lékh".
@@ -7021,6 +7031,32 @@ var targumReader = function () {
     var ownRoot = root ? "" : shape ? shape[0] : morpheme && morpheme[0].length ? morpheme[0][0][0] : "";
     var ownMet = ownRoot && rootFamilyLine(index, ownRoot, redrawCard);
     if (ownMet) card.appendChild(ownMet);
+
+    // The line for the hard spot this word stands for, under the facts, filled with its
+    // own letters (targum-internal#438): Hebrew's seven, said by `spotLine` in
+    // `reader-rest.js` from what the build already worked out. The stress is passed only
+    // where it falls before the last syllable and the text's marks placed it.
+    if (language === "he" && !besideCell(word)) {
+      var spotSays = passOn("spotLine", [
+        {
+          line: row && row.length > 8 ? grammarTable[row[8]] || "" : "",
+          surface: bareOf(surface),
+          lemma: bareOf(wordOf(lemma)),
+          root: root ? root.split("").join("\u05be") : "",
+          binyan: binyan ? POINTED_BINYANIM[binyan] || binyan : "",
+          head: heads[index] || "",
+          register: sourceRegister,
+          reading: said && !(guessOf(word) & 1) && stressBeforeEnd(said) ? plainly(said, uiLanguage) : "",
+          preposition: prepositionShown,
+        },
+      ]);
+      if (spotSays) {
+        var spotLine = document.createElement("span");
+        spotLine.className = "card-spot";
+        mixedLine(spotLine, spotSays);
+        facts.after(spotLine);
+      }
+    }
 
     // The part of speech's own line. A name and a number say which they are — that is
     // all a card can honestly say about either — and a word says the one grammatical

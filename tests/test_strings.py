@@ -974,3 +974,23 @@ def test_every_page_carrying_bring_js_ships_every_word_it_asks_for() -> None:
                     if key not in carried and not any(k.startswith(key + ".") for k in carried)
                 )
                 assert not missing, f"{name} in {code} leaves bring.js to say in English: {missing}"
+
+
+def test_a_hard_spots_card_line_is_two_sentences_at_most_and_short() -> None:
+    """targum-internal#438, design.md §6: a line is one or two sentences, and a card's
+    line for a hard spot is 160 characters at most with its blanks filled."""
+    english = strings.catalogue("en")
+    keys = [key for key in english if key.startswith("reader.card.spot.he.")]
+    assert len(keys) == 13
+    for key in keys:
+        line = english[key]
+        filled = line
+        for blank in ("verb", "word", "bare", "pointed", "reading", "root", "binyan"):
+            filled = filled.replace("{" + blank + "}", "x" * 8)
+        for blank in ("preposition", "one", "other", "he", "tav", "et", "letter", "ending"):
+            filled = filled.replace("{" + blank + "}", "x" * 5)
+        filled = filled.replace("{adjective}", "x" * 5)
+        assert "{" not in filled, key
+        assert len(filled) <= 160, (key, len(filled))
+        assert filled.count(". ") <= 1 and filled.endswith("."), key
+        assert "!" not in line and ":" not in line, key

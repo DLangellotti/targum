@@ -258,6 +258,18 @@ bdi.unbroken { white-space: nowrap; }
   font-size: 0.8125rem;
 }
 .gloss-card .guessed[hidden] { display: none; }
+/* The line for the hard spot the word stands for (targum-internal#438), under the facts:
+   muted, at the card's size, and wrapping to the card as the line above does. Its Hebrew
+   is set in the reading face, in ink. */
+.gloss-card .card-spot {
+  display: block;
+  inline-size: 0;
+  min-inline-size: 100%;
+  margin-block-start: 0.3rem;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+.gloss-card .card-spot bdi { font-family: var(--reading); color: var(--ink); }
 /* A word of scripture's accent, named (design.md §12, "A word in scripture names its
    accent"): its own line under the reading, muted, at the card's size, and wrapping to
    the card for the reason the line above does. */
