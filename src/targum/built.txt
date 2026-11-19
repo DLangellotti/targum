@@ -7,7 +7,7 @@
 
 2026-11-18
 247 more Hebrew words show their root on their card, and 94 roots are corrected.
-Common Hebrew words such as עשה show their meaning on the card, where it sometimes came back empty.
+Common Hebrew words show their meaning on the card, where it sometimes came back empty.
 How to mark a word known by ear is now said on Your Words, beside the words themselves.
 
 2026-11-17
