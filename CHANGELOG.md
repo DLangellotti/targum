@@ -14,6 +14,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   "learned on targum" is gone; the label stays. `progress.ear.start` and
   `progress.count.learned.note` are retired; `lists.ear.tip` is new, its Russian a draft
   for ling-ru.
+- Meanings of Hebrew words in Hebrew are offered (targum-internal#538, David 2026-11-19):
+  `accounts.MEANINGS_OPEN` is `{"he"}`, so "Meanings of Hebrew words" shows on Your
+  languages, off until a reader chooses it. ling-he's three fixes come first:
+  - `names_itself` catches the headword with an ending (עצם in «עצמו») on a head of three
+    letters or more, and a short head gains no false hits.
+  - The prompt rules out a word of the same family where a plain word exists, and any
+    note on grammar or context.
+  - An inflected form is defined as its dictionary form, or left empty.
 - Russian function words are glossed from a hand table, `annotate.closed.RUSSIAN`
   (targum-internal#712).
   - **The problem:** a meaning is filed once a lemma and shared, and a function word's was
@@ -34,6 +42,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   no row (`gloss.would_buy`). A refused claim buys nothing: a held bare meaning is still
   answered, and otherwise the rail's own sentence is. The hourly limit per account is
   unchanged.
+- A chat turn's cards come back after a restart (targum-internal#735). With the live
+  feed gone (a deploy restarts the service), `/chat/turn` and `/chat/stream` answered with
+  the words alone: what a news search found, a quote and a set were drawn nowhere, though
+  a conversation opened again had them. Both now read them back from the stored turns,
+  and the stream sends each as its own event before the closing one.
 - The portion page is finished to §14 (targum-internal#409, slice 3; design.md §12,
   2026-11-19).
   - **PDF:** Download PDF is named in words beside its glyph, never by a tooltip alone.
@@ -60,6 +73,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     `immediately` (`billing.cancel(at_once=True)`) so it does not renew. A partial refund
     of a Plan payment ends nothing and is logged for the operator.
   - Anything else (pending, rejected, a credit or a chargeback) changes nothing.
+- A story's English is the one written beside it in its file, never bought
+  (`pipeline._story_english`). A box build of a `story:` text fell through to the machine
+  and would have paid a cent or two for an English it already had (builder-2's note on
+  the French A2 ship, 2026-11-19). A paragraph's English goes one to one onto its
+  sentences where it cuts into as many, and otherwise sits whole on the paragraph's
+  first sentence.
 - A meaning in the language itself never writes the word itself (targum-internal#538,
   ling-he's read of 2026-11-16). The prompt says so in plainer terms, and a definition that
   still writes the headword is not filed, so the card keeps the meaning in the reader's

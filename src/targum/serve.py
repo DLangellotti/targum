@@ -12207,11 +12207,32 @@ class Handler(BaseHTTPRequestHandler):
             error = error or CHAT_RESTARTED
         if error == CHAT_RESTARTED:
             error = self._say("chat.restarted", CHAT_RESTARTED)
+        # The cards the answer carried, read back from the turns it stored, as a
+        # conversation opened again reads them (targum-internal#735). With the live feed
+        # gone after a restart — a deploy, every few hours — a page that dropped its
+        # stream and polled got the answer's words and no card: a news search drew
+        # nothing, and the model's "pick one below" stood over an empty thread.
+        tools_named: dict[str, str] = {}
+        quotes: list[dict[str, Any]] = []
+        found: list[dict[str, Any]] = []
+        sets: list[dict[str, Any]] = []
+        for turn in turns:
+            if turn["n"] <= n:
+                continue
+            quotes.extend(self._quoted(turn))
+            more_found, more_sets = self._found_and_sets(turn, tools_named)
+            found.extend(more_found)
+            sets.extend(more_sets)
+        from .chat import session as chat_session
+
         return {
             "text": answered,
             "done": True,
             "error": error,
             "words": asked.get("words") if asked else None,
+            "quotes": quotes,
+            "found": found[: chat_session.MOST_FOUND],
+            "sets": sets,
         }
 
     #: How long a tail waits for the next event before it says it is still here.
@@ -12247,7 +12268,24 @@ class Handler(BaseHTTPRequestHandler):
                 state = self._chat_turn_state(chat_id, n)
                 kind = "error" if state["error"] else "done"
                 payload = {"message": state["error"]} if state["error"] else {"text": state["text"]}
-                self._chat_event(0, kind, json.dumps(payload, ensure_ascii=False))
+                # And the cards it carried, each as the event the live stream sends,
+                # before the one closing event (targum-internal#735).
+                index = 0
+                if not state["error"]:
+                    for quoted in state.get("quotes") or []:
+                        self._chat_event(index, "quote", json.dumps(quoted, ensure_ascii=False))
+                        index += 1
+                    if state.get("found"):
+                        self._chat_event(
+                            index,
+                            "found",
+                            json.dumps({"items": state["found"]}, ensure_ascii=False),
+                        )
+                        index += 1
+                    for made in state.get("sets") or []:
+                        self._chat_event(index, "set", json.dumps(made, ensure_ascii=False))
+                        index += 1
+                self._chat_event(index, kind, json.dumps(payload, ensure_ascii=False))
                 self._chat_seen(chat_id)
                 return
             while True:
