@@ -970,6 +970,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   second before the next. And the Readers table's 5,000-account timing gives Follow-up
   due a bar of its own (2.5 s): it reads all readers through `_growth`, and took 1.01 s
   on CI's 3.12 runner against a 1 s bar.
+- The Russian and French yardsticks, after qa-claude's read of targum#1343
+  (targum-internal#752). A list is never replaced by one counted from fewer words, so a
+  list made on the laptop from OPUS is not dropped at the month's turn by a box whose
+  ledger lacks those counts (`yardstick.SHRINKS`, the lists of what readers bring, may
+  still shrink); the Russian list ships by `targum tables push`. A reader learning French
+  and Russian is measured in Russian, where a list exists, not answered "not measured"
+  for French; `how_much_i_understand` takes a `language`, and its description no longer
+  promises French lists. A subtitle's dialogue dash no longer opens a lemma.
 - `how_much_i_understand` says a word's meaning once when its noun and verb keys hold the
   same senses in another order (נשא, seen on the live call of 2026-11-19).
 - A Sefaria range that starts mid-chapter keeps its verse numbers (targum-internal#530).

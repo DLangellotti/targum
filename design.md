@@ -432,7 +432,10 @@ Hebrew do I understand?" gets the measured answer, not a guess. A new tool,
   Another language's answer says it is not measured, never 0%. *(Since 2026-11-19,
   targum-internal#752: Russian and French are measured on their own conversation and news
   lists, filed `ru:` and `fr:`, once a list of theirs is on the box; until then they are
-  still not measured.)*
+  still not measured. A reader learning several languages is measured in Hebrew where
+  they learn it, else in the first of theirs that has a list, and a model may name the
+  `language` it asks about, so a reader of Hebrew and Russian can be answered on
+  Russian too. 2026-11-20, qa-claude on targum#1343.)*
 - **The 25 words are a short list on purpose.** They are the next words worth learning,
   sent with every call that names a list, and with news alone when none is named, so the
   answer stays small.
@@ -3637,7 +3640,10 @@ replaces the "Words you knew" card of "Your level, v3" (2026-10-29) on Your Prog
   (the commonest 20,000 content lemmas, each with its share of the list's running words)
   to the box's tables directory, never the repository, and no page serves it. A list
   stands until the month turns (David, 2026-10-30, on the language tables' question 4),
-  and every reader's line is then recomputed against the new one.
+  and every reader's line is then recomputed against the new one. *(2026-11-20,
+  qa-claude on targum#1343: a list is never replaced by one counted from fewer words than
+  it holds, so a list made from an outside corpus is not dropped by a ledger that lacks
+  that corpus's counts. The lists made of what readers bring may still shrink.)*
 - **A yardstick with no list is left out of the picker**, never shown as 0%. A register
   gets its first list once it holds 50,000 counted words, so no list is frozen for a
   month on a handful of texts. Where news has none yet, the picker opens on the next of

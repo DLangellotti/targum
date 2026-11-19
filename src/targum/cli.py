@@ -5539,6 +5539,11 @@ def tables_snapshot(
                 f"  {one.register}: [green]wrote[/green] v{one.version}"
                 f" ({one.tokens:,} words) [dim]{one.file}[/dim]"
             )
+        elif one.outcome == "kept":
+            console.print(
+                f"  {one.register}: v{one.version} kept, the counts here hold fewer words"
+                f" ({one.tokens:,}) than it does"
+            )
         else:
             console.print(f"  {one.register}: v{one.version} {one.outcome}")
 
