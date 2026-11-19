@@ -14,6 +14,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   "learned on targum" is gone; the label stays. `progress.ear.start` and
   `progress.count.learned.note` are retired; `lists.ear.tip` is new, its Russian a draft
   for ling-ru.
+- Russian function words are glossed from a hand table, `annotate.closed.RUSSIAN`
+  (targum-internal#712).
+  - **The problem:** a meaning is filed once a lemma and shared, and a function word's was
+    decided by the first sentence a reader tapped it in. Every как said "however
+    (concessive)", уж "already; grass snake", and пора "it's time" under "с тех пор".
+  - **The table:** 198 of the commonest pronouns, prepositions, conjunctions,
+    particles and grammatical adverbs, in English, for ling-ru to read.
+  - **Where it applies:** it comes before anything bought, in the glossary a build or a
+    free rebuild writes, and on the card's `/gloss`, which answers it at once and never
+    buys or claims.
+  - **What it doesn't touch:** content words keep their bought, sentence-grounded senses.
 - Every meaning `/gloss` buys goes through the rails (David, 2026-11-19; qa on
   targum#1335). A buy is a job row of kind `gloss`: targum pays (a `gift`, as a word
   said from its card is), it is claimed against the box's daily ceiling through

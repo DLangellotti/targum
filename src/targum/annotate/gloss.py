@@ -902,6 +902,13 @@ def build_glossary(
 
     missing: list[str] = []
     for lemma in wanted:
+        # A function word written by hand, ahead of anything bought: its senses are the
+        # constructions it builds, and the one sentence its meaning was bought or grounded
+        # on decided it for every text (targum-internal#712: every как "however").
+        written = closed.function_gloss(annotation.language, lemma, target_language)
+        if written:
+            keep(lemma, Sense(gloss=written, part=""))
+            continue
         key = gloss_key(cache, lemma, annotation.language, target_language, provider.name)
         stored = cache.get("gloss", key)
         if isinstance(stored, dict) and stored.get("gloss"):

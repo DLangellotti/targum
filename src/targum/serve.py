@@ -20053,6 +20053,23 @@ class Handler(BaseHTTPRequestHandler):
         # for cost a second time, on the dearer of the two, the moment a reader tapped
         # it. Bought once, free everywhere is the claim; this is what makes it true.
         provider = AnthropicGlosses(GLOSS_MODEL)
+        # A function word written by hand answers at once, grounded or not, and is never
+        # bought or grounded again (targum-internal#712): a sentence chose как's
+        # "however" for every Russian card. Free, so it claims nothing.
+        from .annotate import closed
+
+        written = closed.function_gloss(source, lemma, target)
+        if written:
+            return self._json(
+                {
+                    "lemma": lemma,
+                    "meaning": written,
+                    "citation": "",
+                    "plural": "",
+                    "cached": True,
+                    "grounded": True,
+                }
+            )
         if payload.get("free"):
             # A card opening asks this first: is the meaning already held? Answered from
             # the cache and never bought, so a page can ask for every word it shows.
