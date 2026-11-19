@@ -3197,7 +3197,7 @@ def torah_forward_page(book: str, chapter: int, language: str = "en") -> str:
 
 #: The date the four legal pages say they were last changed on. One line rather than
 #: four, because the date is the sentence on those pages nobody would notice going stale.
-LEGAL_CHANGED = "18 November 2026"
+LEGAL_CHANGED = "19 November 2026"
 #: Whether the Privacy Notice, as published, lets the back office show the languages an
 #: account reads in (clause 3.2) and how many were active in each language (clause 3.7),
 #: as David approved on 2026-11-17 (design's back-office plan). Set True in the change

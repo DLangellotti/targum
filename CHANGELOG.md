@@ -20,6 +20,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   language. A form the model cannot place comes back empty, and the prompt now says that
   no note about a form ever goes in the gloss. `scripts/meanings_itself_read.py` counts
   what it dropped.
+- The Privacy Notice no longer lists "whether it is paid monthly or every three months"
+  among what the Controller keeps about a plan (David, 2026-11-19): Plan is monthly only.
+  No other word changes. `LEGAL_CHANGED` is 19 November 2026, because the 18 November
+  text is already published and the date is the day the pages last changed.
 - The Hebrew root lexicon a deploy ships is named in `deploy/roots.pin`, so moving it on is
   a reviewed change rather than a symlink on the laptop. It now names
   `roots-he-2026-11-18b.json` (10,592 lemmas; targum-internal#592): 247 more words have a
