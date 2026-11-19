@@ -417,11 +417,13 @@ Hebrew do I understand?" gets the measured answer, not a guess. A new tool,
 `how_much_i_understand`, under the `record` scope, read only, hands the model what
 "How much Hebrew you understand is measured on a fixed yardstick" (2026-10-30) measures.
 
-- **Facts, never a forecast.** It sends the percentage on each yardstick with a snapshot,
-  the same figure Your Progress shows; that figure by week, the latest 26 weeks; how many of
-  each list's 1,000 and 2,000 commonest words are not known yet; the 25 commonest of them,
-  each with a gloss and its place on the list; what knowing the next 500, 1,000, 2,000 and
-  3,000 of them would make the figure; and the words marked known in the last 30 days.
+- **Facts, never a forecast.** For each yardstick with a snapshot it sends the
+  percentage, the same figure Your Progress shows; how many of the list's 1,000 and 2,000
+  commonest words are not known yet; and what knowing the next 500, 1,000, 2,000 and
+  3,000 of them would make the figure. For the list a model names, or news when it names
+  none, it also sends that figure by week, the latest 26 weeks, and the 25 commonest
+  unknown words, each with every meaning held for it and its place on the list. And the
+  words marked known in the last 30 days.
   "If you learned the next 1,000" is arithmetic on a fixed list. "In two months you will
   be at" is a promise, and targum makes none: a model may estimate from the pace, and is
   told to say it as an estimate.

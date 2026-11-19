@@ -1179,22 +1179,25 @@ def _ranked(stick: Any) -> list[str]:
 def _held_gloss(lemma: str, target: str) -> str | None:
     """The meaning already held for a yardstick's lemma, or None. Never spends.
 
-    Meanings are filed under `Token.glossed_as`: the bare lemma for most words, and
-    `lemma (verb)` for every verb. A yardstick counts a spelling, not a part of speech,
-    so where both are held both are said: משנה is a noun and a verb."""
+    Meanings are filed under `Token.glossed_as` (`models.filed_under`): the bare lemma for
+    most words, a part-of-speech mark for the spellings in `SPLIT_BY_POS` (עם, שום), and
+    `lemma (verb)` for every verb. A yardstick counts a spelling, not a part of speech, so
+    every meaning held for it is said: משנה is a noun and a verb."""
     try:
         from .. import models
         from ..annotate.gloss import GLOSS_MODEL, AnthropicGlosses, cached_gloss
 
         provider = AnthropicGlosses(GLOSS_MODEL).name
-        bare = cached_gloss(lemma, "he", target, provider)
+        marks = dict.fromkeys(models.SPLIT_BY_POS.get(lemma, {}).values())
+        keys = [lemma, *(lemma + mark for mark in marks)]
+        held = [cached_gloss(key, "he", target, provider) for key in keys]
         verb = cached_gloss(lemma + models.VERB_MARK, "he", target, provider)
     except Exception:  # noqa: BLE001 - a gloss is a courtesy; the figures stand without it
         return None
-    said = [one.gloss for one in (bare, verb) if one is not None and one.gloss]
-    if len(said) == 2 and said[0] != said[1]:
-        return f"{said[0]}; as a verb, {said[1]}"
-    return said[0] if said else None
+    said = list(dict.fromkeys(one.gloss for one in held if one is not None and one.gloss))
+    if verb is not None and verb.gloss and verb.gloss not in said:
+        said.append(f"as a verb, {verb.gloss}" if said else verb.gloss)
+    return "; ".join(said) if said else None
 
 
 def _weekly(got: dict[str, Any], began: int, now_ms: int) -> list[dict[str, Any]]:
@@ -4736,11 +4739,12 @@ REGISTRY: tuple[Tool, ...] = (
     Tool(
         "how_much_i_understand",
         "How much Hebrew the reader understands, measured on fixed word lists of everyday "
-        "conversation, news, literature, video and the Bible: the percentage now, by week, "
-        "the commonest words they don't know yet, and what knowing the next ones would make "
-        "it. Name a `register` for one list and its words; with none, every list, and the "
-        "words for news. Say these as measured. Any forecast is your own; say it as an "
-        "estimate. Never say a level or a rung. Read only.",
+        "conversation, news, literature, video and the Bible: the percentage now on each, "
+        "and what knowing the next commonest words would make it. Name a `register` for one "
+        "list with its last 26 weeks and the 25 commonest words they don't know yet; with "
+        "none, every list's figure, and the weeks and words for news. Say these as "
+        "measured. Any forecast is your own; say it as an estimate. Never say a level or a "
+        "rung. Read only.",
         _schema({"register": {"type": "string"}}),
         how_much_i_understand,
         scope="record",

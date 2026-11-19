@@ -2867,6 +2867,10 @@ def test_a_word_held_as_a_noun_and_a_verb_says_both(monkeypatch) -> None:
     assert tools._held_gloss("משנה", "en") == "doctrine; as a verb, changes"
     assert tools._held_gloss("אמר", "en") == "said", "a verb alone is found under its key"
     assert tools._held_gloss("ים", "en") is None
+    noun, prep = models.SPLIT_BY_POS["עם"]["NOUN"], models.SPLIT_BY_POS["עם"]["ADP"]
+    held.update({"עם" + noun: "people", "עם" + prep: "with"})
+    said = tools._held_gloss("עם", "en") or ""
+    assert set(said.split("; ")) == {"people", "with"}, "every part of speech held"
 
 
 def test_weeks_add_each_day_s_gain_by_its_sunday() -> None:
@@ -2927,8 +2931,7 @@ def test_pace_counts_this_month_s_words_and_reading_days(world) -> None:
         if at is not None and at >= now - 29 * 86_400_000
     )
     assert got["pace"]["known_last_30_days"] == known_now
-    days = got["pace"]["days_read_last_30"]
-    assert days in (1, 2), "two reading days in the month, the third 40 days back"
+    assert got["pace"]["days_read_last_30"] == 2, "today and yesterday; not 40 days back"
 
 
 def test_a_list_that_is_not_there_says_which_are(world) -> None:
