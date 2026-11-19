@@ -5708,6 +5708,15 @@ var targumReader = function () {
   // Whether one word's IPA puts the stress before its last syllable: more than one vowel
   // after the mark, as `plainly` counts syllables. Hebrew's minority, and the only words
   // the research would mark (hard-spots-2026-10-11); never a reading of two words.
+  // Whether the text's own marks placed this word's stress: its row is on the page, and
+  // the page says nothing of it was guessed. A page with no guessed table is either one
+  // where nothing was (a pointed, accented Tanakh) or one built before the table was, so
+  // only a Biblical page is taken at its word.
+  function stressPlaced(word) {
+    var row = rowOf(word);
+    if (!row) return false;
+    return guesses.length ? !(guesses[row[5]] & 1) : sourceRegister === "biblical";
+  }
   function stressBeforeEnd(ipa) {
     var text = String(ipa || "").trim();
     var at = text.lastIndexOf("\u02c8");
@@ -7035,27 +7044,34 @@ var targumReader = function () {
     // The line for the hard spot this word stands for, under the facts, filled with its
     // own letters (targum-internal#438): Hebrew's seven, said by `spotLine` in
     // `reader-rest.js` from what the build already worked out. The stress is passed only
-    // where it falls before the last syllable and the text's marks placed it.
+    // where it falls before the last syllable and the text's marks placed it. Before that
+    // file has arrived the line waits for it, and is placed then if the card is still
+    // this word's.
     if (language === "he" && !besideCell(word)) {
-      var spotSays = passOn("spotLine", [
-        {
-          line: row && row.length > 8 ? grammarTable[row[8]] || "" : "",
-          surface: bareOf(surface),
-          lemma: bareOf(wordOf(lemma)),
-          root: root ? root.split("").join("\u05be") : "",
-          binyan: binyan ? POINTED_BINYANIM[binyan] || binyan : "",
-          head: heads[index] || "",
-          register: sourceRegister,
-          reading: said && !(guessOf(word) & 1) && stressBeforeEnd(said) ? plainly(said, uiLanguage) : "",
-          preposition: prepositionShown,
-        },
-      ]);
-      if (spotSays) {
+      var spotFacts = {
+        line: row && row.length > 8 ? grammarTable[row[8]] || "" : "",
+        surface: bareOf(surface),
+        lemma: bareOf(wordOf(lemma)),
+        root: root ? root.split("").join("\u05be") : "",
+        binyan: binyan ? POINTED_BINYANIM[binyan] || binyan : "",
+        head: heads[index] || "",
+        register: sourceRegister,
+        reading: said && stressPlaced(word) && stressBeforeEnd(said) ? plainly(said, uiLanguage) : "",
+        preposition: prepositionShown,
+      };
+      var placeSpot = function () {
+        var spotSays = passOn("spotLine", [spotFacts]);
+        if (!spotSays) return;
         var spotLine = document.createElement("span");
         spotLine.className = "card-spot";
         mixedLine(spotLine, spotSays);
         facts.after(spotLine);
-      }
+      };
+      if (restFile) placeSpot();
+      else
+        spotWaiting = function () {
+          if (lookedUp === word && !card.querySelector(".card-spot")) placeSpot();
+        };
     }
 
     // The part of speech's own line. A name and a number say which they are — that is
@@ -10763,6 +10779,8 @@ var targumReader = function () {
    * `passOn`, which does nothing until it has arrived — a press on a page still arriving.
    */
   var restFile = null;
+  // A card's hard-spot line drawn before this file's other half arrived (`spotLine`).
+  var spotWaiting = null;
 
   function passOn(name, given) {
     return restFile ? restFile[name].apply(null, given) : undefined;
@@ -10974,6 +10992,11 @@ var targumReader = function () {
   function joinRest(make) {
     if (restFile) return;
     restFile = make(R);
+    if (spotWaiting) {
+      var waiting = spotWaiting;
+      spotWaiting = null;
+      waiting();
+    }
   }
   if (typeof window.targumReaderRest === "function") joinRest(window.targumReaderRest);
   else window.targumReaderRestWanted = joinRest;

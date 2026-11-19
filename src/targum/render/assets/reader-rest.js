@@ -2136,6 +2136,12 @@ window.targumReaderRest = function (R) {
     MascPlur: ["אנחנו", "הם"],
     FemPlur: ["אנחנו", "הן"],
   };
+  // The numbers whose gender speech drifts on, as DICTA files them: three to ten in both
+  // forms and the older spellings, and the ten of a teen (שלושה עשר, שלוש עשרה).
+  var SPOKEN_DRIFT = [
+    "שלושה", "שלוש", "שלשה", "שלש", "ארבעה", "ארבע", "חמישה", "חמשה", "חמש", "שישה",
+    "ששה", "שש", "שבעה", "שבע", "תשעה", "תשע", "עשרה", "עשר",
+  ];
   // The letters a feminine noun usually ends in.
   var FEMININE_ENDS = ["ה", "ת"];
   function endsIn(text, ending) {
@@ -2176,14 +2182,22 @@ window.targumReaderRest = function (R) {
       );
     }
     // A number's gender, as writing asks for it, and what speech mostly does instead
-    // (Meir 2013). DICTA tags a number by the noun it goes with: שלושה is Masc.
-    if (pos === "NUM" && gender === "Masc") {
+    // (Meir 2013). DICTA tags a number by the noun it goes with (שלושה is Masc, and so is
+    // שלוש before a masculine noun), and files both forms under either lemma, so the
+    // list holds both. Three to ten and the teens' halves only, where speech drifts;
+    // not אחד, שניים, מאה or אלף, and not שמונה, whose two forms are one. Modern text
+    // only, and never the bound form (שלושת), which speech keeps.
+    var counted =
+      SPOKEN_DRIFT.indexOf(word.lemma) >= 0 &&
+      word.register !== "biblical" &&
+      feat(line, "Definite") !== "Cons";
+    if (pos === "NUM" && counted && gender === "Masc") {
       return t(
         "reader.card.spot.he.agreement-number-m",
         "This is the form of the number for masculine nouns, as written Hebrew has it. In speech many people use the feminine form instead."
       );
     }
-    if (pos === "NUM" && gender === "Fem") {
+    if (pos === "NUM" && counted && gender === "Fem") {
       return t(
         "reader.card.spot.he.agreement-number-f",
         "This is the form of the number for feminine nouns. In speech many people use it with masculine nouns too."
