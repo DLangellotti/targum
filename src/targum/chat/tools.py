@@ -1307,7 +1307,7 @@ def _credits_left(ctx: Ctx) -> int | None:
     )
     if allowed is None:
         return None
-    used = ctx.store.hours_used(ctx.person.id, ctx.library._month_from())
+    used = ctx.store.hours_used(ctx.person.id, ctx.library.month_from_for(ctx.person.id))
     return max(0, int((allowed - used) // SECONDS_A_CREDIT))
 
 
@@ -2562,7 +2562,7 @@ def my_hours(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         paid_plan=plans.paid(ctx.person), owner=ctx.person.id if ctx.person else None
     )
     used = (
-        ctx.store.hours_used(ctx.person_id, ctx.library._month_from())
+        ctx.store.hours_used(ctx.person_id, ctx.library.month_from_for(ctx.person_id))
         if ctx.store is not None
         else 0.0
     )
@@ -2571,7 +2571,7 @@ def my_hours(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         "credits_used": credits_for(used),
         "credits_a_month": month,
         "credits_left": None if allowed is None else credits_for(max(0.0, allowed - used)),
-        "month_ends": ctx.library._month_ends(),
+        "month_ends": ctx.library.month_ends_for("en", ctx.person_id),
         "note": (
             "No monthly limit on this account."
             if allowed is None
