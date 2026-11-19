@@ -987,3 +987,47 @@ def test_an_admin_is_told_of_no_monthly_cap(tmp_path: Path) -> None:
     here = SimpleNamespace(store=store, library=library, _ui_language=lambda: "en")
     assert Handler._hours(here, boss)["allowed"] is None  # type: ignore[arg-type]
     assert Handler._hours(here, reader)["allowed"] == 8.0  # type: ignore[arg-type]
+
+
+def test_a_search_turn_s_cards_survive_a_restart(chatting) -> None:
+    """targum-internal#735: with the live feed gone (a restart, which a deploy is), a page
+    that polled or reconnected got the answer's words and none of its cards, so a news
+    search drew nothing. The turn's state and its stream read them back from the store."""
+    port, key, store, chats = chatting
+    chat = store.chat_open(None)
+    store.chat_say(chat, "user", "today's news", "today's news")
+    store.chat_say(
+        chat,
+        "assistant",
+        [{"type": "tool_use", "id": "s1", "name": "search_sources", "input": {"kind": "news"}}],
+        "",
+    )
+    rows = [
+        {"title": f"כתבה {n}", "link": f"https://news.example/{n}", "publisher": "ynet"}
+        for n in range(4)
+    ]
+    store.chat_say(
+        chat,
+        "user",
+        [{"type": "tool_result", "tool_use_id": "s1", "content": json.dumps({"items": rows})}],
+        "",
+    )
+    store.chat_say(chat, "assistant", [{"type": "text", "text": "הנה"}], "הנה")
+    asked = min(t["n"] for t in store.chat_turns(chat) if t["role"] == "user")
+    chats.feeds.clear()  # as after a restart
+
+    status, state, _ = call(port, "GET", f"/chat/turn/{chat}/{asked}?k={key}")
+    assert status == 200 and state["done"] is True and state["text"] == "הנה"
+    assert [row["link"] for row in state["found"]] == [
+        "https://news.example/0",
+        "https://news.example/1",
+        "https://news.example/2",
+    ], "cut to three, as the live stream cuts them"
+    assert state["quotes"] == [] and state["sets"] == []
+
+    connection = HTTPConnection("127.0.0.1", port, timeout=5)
+    connection.request("GET", f"/chat/stream/{chat}/{asked}?k={key}")
+    body = connection.getresponse().read().decode("utf-8")
+    connection.close()
+    assert "event: found\n" in body and "https://news.example/2" in body
+    assert body.index("event: found\n") < body.index("event: done\n"), "cards before the close"
