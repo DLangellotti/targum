@@ -208,3 +208,105 @@ def test_a_quarter_long_period_is_three_months_of_credits(store: Store) -> None:
         (day(2026, 10, 10), day(2026, 11, 10)),
         (day(2026, 11, 10), day(2026, 12, 10)),
     }
+
+
+# -- qa on #1334: a refunded plan is no fresh Free month ---------------------------------
+
+
+def refunded(store: Store, who: int, starts: datetime, minutes: int, sub: str) -> None:
+    """Subscribe at `starts` and be cancelled and refunded `minutes` later: the period
+    is trimmed to what it held, as `set_billing` trims it on Paddle's `canceled`."""
+    said = {"cadence": "month", "cancel_at_end": False, "customer": "ctm_1"}
+    store.set_billing(
+        who,
+        status="active",
+        subscription=sub,
+        period_start=starts.isoformat(),
+        period_end=(starts + timedelta(days=30)).isoformat(),
+        said_at=ms(starts),
+        **said,  # type: ignore[arg-type]
+    )
+    stop = starts + timedelta(minutes=minutes)
+    store.set_billing(
+        who,
+        status="canceled",
+        subscription=sub,
+        period_end="",
+        said_at=ms(stop),
+        ended_at=stop.isoformat(),
+        **said,  # type: ignore[arg-type]
+    )
+
+
+def test_subscribe_and_refund_hands_out_no_fresh_free_month(
+    store: Store, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """qa's probe: Free's 60 spent by 3 November, then subscribe at 10:00 and be refunded
+    at 10:05, three times. Free's allowance after each is what is left of the calendar
+    month's one 60, never a fresh 60."""
+    monkeypatch.setenv("TARGUM_PLANS", "1")
+    me = reader(store)
+    library = Library(
+        tmp_path / "out", max_cost=1000.0, budget=1000.0, store=store, upload_seconds=FULL
+    )
+    job(store, me, 60 * 60, day(2026, 11, 2), "free-month")
+    for n in range(3):
+        refunded(store, me, day(2026, 11, 3 + n, 10), 5, f"sub_{n}")
+        at = day(2026, 11, 3 + n, 12)
+        monkeypatch.setattr(accounts, "now", lambda at=at: ms(at))
+        monkeypatch.setattr("targum.serve.now", lambda at=at: ms(at))
+        start, _, paying = store.month_window(me, ms(at))
+        assert not paying and start > ms(day(2026, 11, 1)), "a Free month the period cut"
+        used = store.hours_used(me, library.month_from_for(me))
+        allowed = library.allowance(paid_plan=False, owner=me)
+        assert allowed is not None
+        assert allowed - used <= 0, f"round {n}: no Free credit is left in November"
+
+
+def test_free_use_before_a_period_counts_against_the_free_part_after_it(
+    store: Store, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """40 Free minutes on 2 November, a five-minute refunded Plan on the 3rd: 20 Free
+    minutes are left after it, the calendar month's 60 less the 40."""
+    monkeypatch.setenv("TARGUM_PLANS", "1")
+    me = reader(store)
+    library = Library(
+        tmp_path / "out", max_cost=1000.0, budget=1000.0, store=store, upload_seconds=FULL
+    )
+    job(store, me, 40 * 60, day(2026, 11, 2), "before")
+    refunded(store, me, day(2026, 11, 3, 10), 5, "sub_x")
+    job(
+        store,
+        me,
+        30 * 60,
+        day(
+            2026,
+            11,
+            3,
+            10,
+        )
+        + timedelta(minutes=2),
+        "inside-paid",
+    )
+    at = day(2026, 11, 4)
+    monkeypatch.setattr(accounts, "now", lambda: ms(at))
+    monkeypatch.setattr("targum.serve.now", lambda: ms(at))
+    assert store.free_used_earlier(me, ms(at)) == 40 * 60, "the paid minutes are not Free's"
+    allowed = library.allowance(paid_plan=False, owner=me)
+    assert allowed == 20 * 60
+    assert library.allowance(paid_plan=False, owner=reader(store, "z@example.com")) == FREE
+
+
+def test_a_top_up_is_not_refilled_by_free_parts_of_one_month(store: Store) -> None:
+    """The ledger shares the same Free allowance between the Free parts of a calendar
+    month: 100 credits bought, 80 minutes used before a refunded Plan and 80 after,
+    with Free's 60 for the month, leaves 0 of the 100, as one Free month would."""
+    me = reader(store)
+    store.grant_credits(me, 100, "txn_1")
+    store.db.execute("UPDATE credit_grant SET at = ?", (ms(day(2026, 11, 1)),))
+    store.db.commit()
+    job(store, me, 80 * 60, day(2026, 11, 2), "a")
+    refunded(store, me, day(2026, 11, 3, 10), 5, "sub_y")
+    job(store, me, 80 * 60, day(2026, 11, 10), "b")
+    left = store.grant_seconds(me, ms(day(2026, 12, 1)), FULL, FREE)
+    assert round(left / 60) == 0

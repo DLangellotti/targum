@@ -2937,7 +2937,15 @@ class Library:
             granted = self.store.grant_seconds(
                 owner, self.month_from_for(owner), self.upload_seconds, free
             )
-        return plans.month_seconds(self.upload_seconds, paid_plan=paid_plan, granted=granted)
+        base = plans.month_seconds(self.upload_seconds, paid_plan=paid_plan)
+        if base is None:
+            return None
+        if self.store is not None and owner is not None:
+            # A Free month a paid period cut short shares the calendar month's one Free
+            # allowance with the part before it (qa on targum#1334): subscribing and being
+            # refunded must not hand out a fresh month each time.
+            base = max(0.0, base - self.store.free_used_earlier(owner, now()))
+        return base + granted
 
     def _on_plan(self, owner: int | None) -> bool:
         """Whether this owner is on Plan by their account: plans on, and the operator or a

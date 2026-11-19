@@ -33,6 +33,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     so the paid days count once.
   - **One thing moves:** a month that was part Plan and part Free is now two months, the
     Plan's and then Free's, instead of one calendar month with a prorated allowance.
+  - **The Free parts of one calendar month share one Free allowance**, however many paid
+    periods cut it (qa on targum#1334). Subscribing and being refunded at once used to
+    hand out a fresh 60 each time. `Store.free_used_earlier` takes the month's earlier
+    Free use off the Free part after a period, and the top-up ledger counts the parts as
+    one month.
   - **Still calendar months, as they should be:** a subscription's monthly cap, the grow
     round's cap, Anki's sounds and the subscriptions mail.
 - The Hebrew root lexicon a deploy ships is named in `deploy/roots.pin`, so moving it on is
