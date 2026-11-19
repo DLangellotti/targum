@@ -217,6 +217,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ### Added
 - `scripts/voice_scenes.py` gives the director 4,096 tokens of answer: 1,024 ran out near 80
   turns, and French's A2 scenes run to 72. Only what is written is billed.
+- `how_much_i_understand`, a connector and chat tool under the `record` scope
+  (targum-internal#750, David 2026-11-18; design.md §12). A reader's own model gets what
+  Your Progress measures: the percentage on each yardstick, the commonest words not known
+  yet with their held meanings, and what knowing the next 500 to 3,000 would make it.
+  News, or the list named, also sends its last 26 weeks and 25 words. Facts only: targum
+  forecasts nothing. Hebrew only; another language answers that it is not measured.
 - The back office's Readers table (design's plan, 2026-11-17, PR 4). It shows every
   account but staff (the operators, admins and test accounts).
   - **Columns:** address, plan (Plan, "Beta until March 4" or Free), last seen (the
