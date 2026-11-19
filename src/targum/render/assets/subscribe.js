@@ -63,16 +63,40 @@
       }
     }
     settle();
+    // On a series' own page the switch says what happened under it (targum-internal#409):
+    // still saving past three seconds, a press that did not go through, and a press made
+    // offline. `words.note` is that line; a Library row has none and stays quiet.
+    function tell(said) {
+      if (!words.note) return;
+      words.note.textContent = said || "";
+      words.note.hidden = !said;
+    }
     press.addEventListener("click", function () {
+      if (typeof navigator !== "undefined" && navigator.onLine === false) {
+        tell(words.offline);
+        return;
+      }
       press.disabled = true;
+      tell("");
+      var slow = setTimeout(function () {
+        tell(words.slow);
+      }, 3000);
       ask("/account/follows", { series: series, on: !on })
         .then(function (answer) {
-          if (answer && Array.isArray(answer.follows)) on = answer.follows.indexOf(series) >= 0;
+          if (!answer || !Array.isArray(answer.follows)) throw new Error("not saved");
+          on = answer.follows.indexOf(series) >= 0;
           held = Promise.resolve(answer);
           settle();
+          tell("");
         })
-        .catch(function () {})
+        .catch(function () {
+          // Left as it was: the switch shows what the account still holds.
+          settle();
+          var away = typeof navigator !== "undefined" && navigator.onLine === false;
+          tell(away ? words.offline : words.failed);
+        })
         .then(function () {
+          clearTimeout(slow);
           press.disabled = false;
         });
     });
@@ -112,9 +136,18 @@
     var box = document.getElementById("series-subscribe");
     if (!box) return;
     var press = box.querySelector("button");
+    var note = document.createElement("p");
+    note.className = "series-subscribe-note";
+    note.setAttribute("role", "status");
+    note.hidden = true;
+    box.appendChild(note);
     var words = {
       subscribe: box.getAttribute("data-subscribe") || "",
       subscribed: box.getAttribute("data-subscribed") || "",
+      slow: box.getAttribute("data-slow") || "",
+      failed: box.getAttribute("data-failed") || "",
+      offline: box.getAttribute("data-offline") || "",
+      note: note,
     };
     seriesSwitch(press, box.getAttribute("data-series") || "", words).then(function (shown) {
       box.hidden = !shown;

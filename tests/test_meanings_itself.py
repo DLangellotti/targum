@@ -20,6 +20,7 @@ from typing import Any
 
 import pytest
 
+from targum import accounts as accounts_module
 from targum import serve
 from targum.accounts import MEANINGS_IN_ITSELF, Store, meanings_open
 from targum.annotate import gloss as gloss_module
@@ -76,7 +77,7 @@ def test_a_pair_keeps_its_prompt_and_the_language_itself_has_its_own() -> None:
     itself = system_for("he", "he")
     assert itself != SYSTEM.format(source="Hebrew", target="Hebrew")
     assert "simple Hebrew" in itself and "without nikkud" in itself
-    assert "Never the word itself" in itself
+    assert "Never write the word itself" in itself
     assert "without nikkud" not in system_for("fr", "fr")
 
 
@@ -187,8 +188,9 @@ def test_aramaic_and_yiddish_are_never_offered(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setenv("TARGUM_MEANINGS_OPEN", "he,arc,yi,de")
     assert meanings_open() == frozenset({"he"})
     monkeypatch.delenv("TARGUM_MEANINGS_OPEN")
-    # Off on every install until each language's read has passed.
-    assert meanings_open() == frozenset()
+    # Hebrew is open everywhere since ling-he's read passed (2026-11-19); the others stay
+    # off until each one's read has.
+    assert meanings_open() == frozenset({"he"})
 
 
 def test_an_account_from_before_the_column_opens(tmp_path: Path) -> None:
@@ -329,6 +331,16 @@ def test_chosen_a_tap_buys_once_and_the_cache_answers_after(
     status, answer = post(port, session, "/gloss", tap)
     assert status == 200 and answer["meaning"] == "מקום שגרים בו"
     assert bought == [(["בית"], "he", "he")], "bought once, then the shared cache"
+    # Through the rails (targum#1336): the one buy is one job row of kind `gloss`,
+    # claimed against the box ceiling; the cached tap after it made none.
+    import sqlite3
+
+    db = sqlite3.connect(hosted[2])
+    claimed = db.execute(
+        "SELECT COUNT(*) FROM job WHERE kind = 'gloss' AND source = 'gloss:he-he'"
+    ).fetchone()[0]
+    db.close()
+    assert claimed == 1
     status, answer = post(port, session, "/gloss", peek)
     assert answer["meaning"] == "מקום שגרים בו" and answer["cached"] is True
 
@@ -340,6 +352,7 @@ def test_chosen_a_tap_buys_once_and_the_cache_answers_after(
 
     # And only while the row is offered here.
     monkeypatch.delenv("TARGUM_MEANINGS_OPEN")
+    monkeypatch.setattr(accounts_module, "MEANINGS_OPEN", frozenset())
     status, answer = post(port, session, "/gloss", {**tap, "lemma": "ספר"})
     assert status == 400 and answer["error"] == NOT_THERE
     assert get(port, session, "/account/me")["meaningsInItself"] == []
@@ -355,8 +368,9 @@ def test_the_choice_is_refused_where_it_is_not_offered(
 ) -> None:
     port, session, _ = hosted
     monkeypatch.delenv("TARGUM_MEANINGS_OPEN", raising=False)
+    monkeypatch.setattr(accounts_module, "MEANINGS_OPEN", frozenset())
     status, _ = post(port, session, "/account/meanings", {"language": "he", "itself": True})
-    assert status == 400, "the switch is off until the read passes"
+    assert status == 400, "the switch is off where the row is not offered"
     monkeypatch.setenv("TARGUM_MEANINGS_OPEN", "he,fr,ru,it")
     for code in ("arc", "yi"):
         status, _ = post(port, session, "/account/meanings", {"language": code, "itself": True})
@@ -374,3 +388,260 @@ def test_your_words_and_practice_never_ask_for_a_meaning() -> None:
     where a card already bought it: neither script so much as names `/gloss`."""
     for name in ("lists.js", "charts.js", "yours.js"):
         assert "/gloss" not in (ASSETS / name).read_text(encoding="utf-8"), name
+
+
+def test_an_answer_that_added_a_mark_lands_on_the_bare_form(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """#538, 2026-11-18: asked for עשה, the model answered `עשה (verb)`, because the
+    prompt lists the marks; seven of eleven common words came back so, and each was paid
+    for and dropped. Such an answer is the bare form's, unless the batch asked for the
+    marked form itself."""
+
+    class Usage:
+        input_tokens = 10
+        output_tokens = 5
+
+    said = {"עשה": "עשה (verb)", "הכי": "הכי (adverb)", "אלף": "אלף (number)"}
+
+    class Messages:
+        def parse(self, **kwargs: Any) -> Any:
+            entries = [
+                gloss_module._Entry(lemma=said.get(form, form), gloss="הגדרה", part_of_speech="x")
+                for form in [
+                    line[6:]
+                    for line in kwargs["messages"][0]["content"].split("\n")
+                    if line.startswith("form: ")
+                ]
+            ]
+            return type(
+                "R", (), {"parsed_output": gloss_module._Batch(entries=entries), "usage": Usage()}
+            )()
+
+    provider = gloss_module.AnthropicGlosses(gloss_module.GLOSS_MODEL)
+    monkeypatch.setattr(
+        provider._provider, "client", lambda: type("C", (), {"messages": Messages()})()
+    )
+    found = provider.gloss(["עשה", "הכי", "אלף", "בית"], "he", "he")
+    assert set(found) == {"עשה", "הכי", "אלף", "בית"}
+    assert gloss_module.answered_for({"עשה (verb)": "עשה (verb)", "עשה": "עשה"}, "עשה (verb)") == (
+        "עשה (verb)"
+    ), "a batch that asked for the marked form keeps it"
+    assert (
+        gloss_module.answered_for({"עם (noun)": "עם (noun)", "עם": "עם (noun)"}, "עם (verb)")
+        is None
+    )
+    assert gloss_module.answered_for({"בית": "בית"}, "בית (plural)") is None, "not a mark"
+
+
+@pytest.mark.parametrize("stray_first", [True, False], ids=["stray-first", "exact-first"])
+def test_a_stray_mark_never_overwrites_the_exact_answer(
+    monkeypatch: pytest.MonkeyPatch, stray_first: bool
+) -> None:
+    """qa on targum#1325: with עם and עם (noun) both asked, a stray `עם (verb)` falls back
+    to the bare form; it must not replace the bare answer, in either order, and the
+    marked noun keeps its own."""
+
+    class Usage:
+        input_tokens = 10
+        output_tokens = 5
+
+    exact = gloss_module._Entry(lemma="עם", gloss="ביחד", part_of_speech="preposition")
+    stray = gloss_module._Entry(lemma="עם (verb)", gloss="שגוי", part_of_speech="verb")
+    noun = gloss_module._Entry(lemma="עם (noun)", gloss="אומה", part_of_speech="noun")
+
+    class Messages:
+        def parse(self, **kwargs: Any) -> Any:
+            entries = [stray, exact, noun] if stray_first else [exact, stray, noun]
+            return type(
+                "R", (), {"parsed_output": gloss_module._Batch(entries=entries), "usage": Usage()}
+            )()
+
+    provider = gloss_module.AnthropicGlosses(gloss_module.GLOSS_MODEL)
+    monkeypatch.setattr(
+        provider._provider, "client", lambda: type("C", (), {"messages": Messages()})()
+    )
+    found = provider.gloss(["עם", "עם (noun)"], "he", "he")
+    assert found["עם"].gloss == "ביחד"
+    assert found["עם (noun)"].gloss == "אומה"
+    assert set(found) == {"עם", "עם (noun)"}
+
+
+def test_a_fallback_alone_still_lands(monkeypatch: pytest.MonkeyPatch) -> None:
+    class Usage:
+        input_tokens = 10
+        output_tokens = 5
+
+    class Messages:
+        def parse(self, **kwargs: Any) -> Any:
+            entries = [
+                gloss_module._Entry(lemma="פנה (verb)", gloss="הסתובב", part_of_speech="verb")
+            ]
+            return type(
+                "R", (), {"parsed_output": gloss_module._Batch(entries=entries), "usage": Usage()}
+            )()
+
+    provider = gloss_module.AnthropicGlosses(gloss_module.GLOSS_MODEL)
+    monkeypatch.setattr(
+        provider._provider, "client", lambda: type("C", (), {"messages": Messages()})()
+    )
+    assert provider.gloss(["פנה"], "he", "he")["פנה"].gloss == "הסתובב"
+
+
+def test_a_definition_that_writes_the_word_itself_is_dropped(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ling-he's read, 2026-11-16: יושב was defined with יושב, עומק with העומק. Such a
+    definition explains nothing, so it is not filed and the card keeps the meaning in the
+    reader's own language. A translation pair is never held to it."""
+
+    class Usage:
+        input_tokens = 10
+        output_tokens = 5
+
+    said = {
+        "יושב": "נמצא במקום, יושב ולא זז",
+        "עומק": "מידת העומק של דבר",
+        "ים": "מקום עם מים רבים",
+        "בית": "מקום שגרים בו",
+    }
+
+    class Messages:
+        def parse(self, **kwargs: Any) -> Any:
+            entries = [
+                gloss_module._Entry(lemma=form, gloss=said[form], part_of_speech="noun")
+                for form in [
+                    line[6:]
+                    for line in kwargs["messages"][0]["content"].split("\n")
+                    if line.startswith("form: ")
+                ]
+            ]
+            return type(
+                "R", (), {"parsed_output": gloss_module._Batch(entries=entries), "usage": Usage()}
+            )()
+
+    provider = gloss_module.AnthropicGlosses(gloss_module.GLOSS_MODEL)
+    monkeypatch.setattr(
+        provider._provider, "client", lambda: type("C", (), {"messages": Messages()})()
+    )
+    assert set(provider.gloss(list(said), "he", "he")) == {"ים", "בית"}, "ים is not in מים"
+    assert set(provider.gloss(list(said), "he", "en")) == set(said), "a pair is never held"
+    names = gloss_module.names_itself
+    assert names("עומק (noun)", "מידת העומק", "he") and names("ספר", "וספר", "he")
+    assert not names("ים", "מים", "he") and not names("כל", "הכל", "he")
+    assert names("maison", "une maison", "fr") and not names("maison", "un logement", "fr")
+
+
+def test_the_prompt_keeps_the_headword_out_and_asks_for_nothing_it_cannot_place() -> None:
+    """ling-he's two prompt points (#538): the word never in its own definition, and an
+    empty gloss, never a note about it, for a form the model cannot place."""
+    prompt = system_for("he", "he")
+    assert "Never write the word itself anywhere in the definition" in prompt
+    assert "return it with an empty gloss. Never" in prompt
+    assert "write a note about the form" in prompt
+    assert system_for("he", "en") == SYSTEM.format(source="Hebrew", target="English")
+
+
+@pytest.mark.parametrize("why", ["empty", "names itself"])
+def test_a_word_with_no_meaning_in_itself_is_asked_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, why: str
+) -> None:
+    """qa on targum#1328: a meaning the model left empty, or one the headword guard
+    dropped, was cached as nothing at all, so every later tap on the word paid again. It
+    is kept as "asked, no meaning": the next tap asks nobody, nothing shows it, and a
+    translation pair is untouched by it."""
+
+    class Usage:
+        input_tokens = 10
+        output_tokens = 5
+
+    calls: list[str] = []
+
+    class Messages:
+        def parse(self, **kwargs: Any) -> Any:
+            calls.append(kwargs["messages"][0]["content"])
+            said = "" if why == "empty" else "נמצא במקום, יושב ולא זז"
+            entries = [gloss_module._Entry(lemma="יושב", gloss=said, part_of_speech="verb")]
+            return type(
+                "R", (), {"parsed_output": gloss_module._Batch(entries=entries), "usage": Usage()}
+            )()
+
+    provider = gloss_module.AnthropicGlosses(gloss_module.GLOSS_MODEL)
+    monkeypatch.setattr(
+        provider._provider, "client", lambda: type("C", (), {"messages": Messages()})()
+    )
+    cache = Cache(tmp_path / "cache")
+    line = "הוא יושב על הכיסא"
+    assert gloss_one("יושב", "he", "he", provider, cache=cache, context=line) is None
+    assert len(calls) == 1
+    assert gloss_one("יושב", "he", "he", provider, cache=cache, context=line) is None
+    assert len(calls) == 1, "the second tap asks nobody"
+    assert gloss_module.cached_gloss("יושב", "he", "he", provider.name, cache=cache) is None
+    stored = cache.get("gloss", gloss_key(cache, "יושב", "he", "he", provider.name))
+    assert stored == {"gloss": "", gloss_module.NO_MEANING: True, "grounded": True}
+    # Forgetting it lets the word be asked again, as forgetting any meaning does.
+    gloss_module.forget_gloss("יושב", "he", "he", provider.name, cache=cache)
+    assert gloss_one("יושב", "he", "he", provider, cache=cache, context=line) is None
+    assert len(calls) == 2
+
+
+def test_a_bare_no_meaning_is_asked_once_more_with_a_sentence(tmp_path: Path) -> None:
+    class Empty(FakeGlosses):
+        def gloss(self, lemmas, source_language, target_language, on_progress=None, contexts=None):  # type: ignore[no-untyped-def]
+            self.asked.append((list(lemmas), source_language, target_language))
+            return {}
+
+    provider = Empty()
+    cache = Cache(tmp_path / "cache")
+    assert gloss_one("זור", "he", "he", provider, cache=cache) is None
+    assert gloss_one("זור", "he", "he", provider, cache=cache) is None
+    assert len(provider.asked) == 1
+    assert gloss_one("זור", "he", "he", provider, cache=cache, context="משפט") is None
+    assert gloss_one("זור", "he", "he", provider, cache=cache, context="משפט") is None
+    assert len(provider.asked) == 2, "grounded once, then settled"
+    # A translation pair keeps its old way: nothing is written for an empty answer.
+    assert gloss_one("זור", "he", "en", provider, cache=cache, context="משפט") is None
+    assert cache.get("gloss", gloss_key(cache, "זור", "he", "en", provider.name)) is None
+
+
+def test_hebrew_is_offered_by_default_and_off_until_chosen(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """David, 2026-11-19 (#538): Hebrew's row is offered on every install with no setting,
+    and nobody has meanings in Hebrew until they choose them."""
+    monkeypatch.delenv("TARGUM_MEANINGS_OPEN", raising=False)
+    assert meanings_open() == frozenset({"he"})
+    store = Store(tmp_path / "targum.db")
+    store.make_test_account("reader@example.com")
+    token = store.start_sign_in("reader@example.com")
+    signed = store.finish_sign_in(token)
+    assert signed is not None
+    assert store.meanings_in_itself(signed[0].id) == [], "off until the reader chooses"
+
+
+def test_a_definition_with_the_headword_and_an_ending_is_caught() -> None:
+    """ling-he, 2026-11-19: עצם was defined with «עצמו». A headword of three letters or
+    more with one of Hebrew's endings counts, and a short head gains no false hits."""
+    names = gloss_module.names_itself
+    assert names("עצם", "האדם או הדבר עצמו", "he")
+    assert names("תלמיד", "אחד התלמידים בכיתה", "he")
+    assert names("שותף", "עושה איתו בפעולה משותפת", "he")
+    assert names("ספר", "דפים כרוכים; ספרו של אדם", "he")
+    # No new false hits: a two-letter head never takes an ending, and on a three-letter
+    # head a final מ, נ or כ is as often another word as an ending.
+    assert not names("ים", "ימים רבים", "he")
+    assert not names("שלו", "שלום לכם", "he")
+    assert not names("חי", "חיים ונושם", "he")
+    assert not names("שם", "שמה של העיר", "he")
+
+
+def test_the_prompt_asks_for_the_sense_only_and_the_lemma_of_an_inflected_form() -> None:
+    """ling-he's other two fixes (2026-11-19): no word of the same family where a plain
+    word exists, no note on grammar or context, and an inflected form defined as its
+    dictionary form or left empty."""
+    prompt = system_for("he", "he")
+    assert "own root or family where a plain word of another root says it" in prompt
+    assert "The gloss is the word's sense and nothing else" in prompt
+    assert "קחו is defined as לקחת would be" in prompt
+    assert "If you cannot tell which dictionary form it is" in prompt
+    assert system_for("he", "en") == SYSTEM.format(source="Hebrew", target="English")

@@ -12,6 +12,7 @@ translation, so Wiktionary through Wiktextract can slot in beside it later.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Collection, Mapping
 from typing import Any, NamedTuple, Protocol
 
@@ -150,9 +151,21 @@ For each {source} dictionary form you are given, return one short definition in 
 - Three to twelve everyday {source} words, simpler than the word itself. The sense the
   sentence gives first, where a sentence is given; a second sense after a semicolon
   only where the word is genuinely ambiguous.
-- Never the word itself, or a word of its own family, as the explanation. No
-  transliteration, no translation into another language, no example sentence.
-- For a grammatical word, say in {source} what it does.{unpointed}
+- Never write the word itself anywhere in the definition: not as the explanation, not
+  inflected, not with a prefix or a suffix, not inside a longer phrase. Nor a word of its
+  own root or family where a plain word of another root says it: explain עצם with
+  "גוף" or "דבר", never with "עצמו". Explain it with other words, as a dictionary for
+  learners does. No transliteration, no translation into another language, no example
+  sentence.
+- The gloss is the word's sense and nothing else. No note on its grammar, its form, its
+  register or the sentence it was met in: never "plural of…", "imperative", "here it
+  means…" or "in this sentence…".
+- A form that is inflected (an imperative, a conjugated verb, a function word with a
+  pronoun ending) is defined as its dictionary form: קחו is defined as לקחת would be, and
+  its citation is that dictionary form. If you cannot tell which dictionary form it is,
+  return an empty gloss.
+- For a grammatical word, say in {source} what it does, in plain words, not by naming
+  its grammar.{unpointed}
 - Give the part of speech as one of: noun, verb, adjective, adverb, preposition,
   pronoun, conjunction, particle, other.
 - For a verb, give citation: the form a learner would keep, in {source} — the
@@ -161,8 +174,10 @@ For each {source} dictionary form you are given, return one short definition in 
 - For a noun whose plural is irregular — the ending does not match the gender, or the
   stem changes — give plural: that plural form, in {source}. For a regular plural
   leave it empty.
-- If a form is not a word of {source}, return it with an empty gloss rather than
-  guessing."""
+- If you cannot place a form (it is not a word of {source}, it looks misspelt or
+  mis-heard, or you cannot tell which word it is), return it with an empty gloss. Never
+  write a note about the form in the gloss, such as "unclear", "perhaps a typo" or what a
+  phrase it belongs to means: whatever is in the gloss is shown as the meaning."""
 
 #: Hebrew definitions go unpointed to start (Decision 3 on #538): whoever chooses them
 #: reads unpointed Hebrew, and nikkud is the least sure part of a model's Hebrew.
@@ -179,6 +194,99 @@ def system_for(source_language: str, target_language: str) -> str:
         code = _base(source_language)
         return SYSTEM_ITSELF.format(source=source, unpointed=_UNPOINTED.get(code, ""))
     return SYSTEM.format(source=source, target=language_name(target_language))
+
+
+#: The one-letter prefixes Hebrew writes on a word: and, the, in, to, from, that, as.
+_HE_PREFIXES = "והבלמשכ"
+
+
+def names_itself(form: str, definition: str, language: str) -> bool:
+    """Whether a definition in the word's own language writes the word itself (#538:
+    "יושב" defined as "נמצא במקום, יושב ולא זז", "עומק" as "מידת העומק של דבר"). A word
+    of the definition counts as the headword where it is the headword, or in Hebrew a
+    headword of three letters or more with one or two prefix letters on it, or with one
+    of Hebrew's endings after it (עצם in «עצמו», ling-he 2026-11-19). Such a definition
+    is dropped, and the card keeps the meaning in the reader's own language."""
+    bare = form
+    for mark in MARKS:
+        if bare.endswith(mark):
+            bare = bare[: -len(mark)]
+            break
+    if _base(language) == "he":
+        head = _folded(_letters(bare))
+        if len(head) < 2:
+            return False
+        for word in re.findall(r"[\u05d0-\u05ea\u0591-\u05c7]+", definition):
+            letters = _folded(_letters(word))
+            # A prefix or an ending is looked past only on a head of three letters or
+            # more: ים is not in מים, nor in ימים.
+            for cut in range(3 if len(head) >= 3 else 1):
+                rest = letters[cut:]
+                if rest == head:
+                    return True
+                if len(head) >= 3 and rest.startswith(head) and _an_ending(rest[len(head) :], head):
+                    return True
+                if cut >= len(letters) or letters[cut] not in _HE_PREFIXES:
+                    break
+        return False
+    head = bare.strip().casefold()
+    return len(head) > 1 and head in re.findall(r"\w+", definition.casefold())
+
+
+#: The endings Hebrew puts on a noun, an adjective or a verb (his, her, my, their, the
+#: plurals and the feminine), as the letters they are written in, final forms folded.
+_HE_ENDINGS = frozenset(
+    {
+        "ו",
+        "ה",
+        "י",
+        "ת",
+        "מ",
+        "נ",
+        "כ",
+        "ימ",
+        "ות",
+        "יו",
+        "יה",
+        "הו",
+        "נו",
+        "כמ",
+        "כנ",
+        "המ",
+        "הנ",
+        "תי",
+        "תמ",
+        "תנ",
+        "ית",
+        "יות",
+        "ייה",
+        "יהמ",
+        "יהנ",
+        "יכמ",
+        "ינו",
+    }
+)
+#: On a head of three letters only these one-letter endings count: a final מ, נ or כ
+#: after three letters is as often another word (שלו, שלום) as an ending.
+_HE_SHORT_ENDINGS = frozenset({"ו", "ה", "י", "ת"})
+_FINALS = str.maketrans("ךםןףץ", "כמנפצ")
+
+
+def _an_ending(rest: str, head: str) -> bool:
+    """Whether what follows the headword in a word of the definition is an ending."""
+    if len(rest) == 1 and len(head) == 3:
+        return rest in _HE_SHORT_ENDINGS
+    return rest in _HE_ENDINGS
+
+
+def _folded(letters: str) -> str:
+    """Hebrew letters with their final forms written as the plain ones (עצם and עצמו)."""
+    return letters.translate(_FINALS)
+
+
+def _letters(text: str) -> str:
+    """The Hebrew letters of a word alone, points and marks dropped."""
+    return "".join(ch for ch in text if "\u05d0" <= ch <= "\u05ea")
 
 
 def _base(code: str) -> str:
@@ -216,6 +324,26 @@ def filed_as(batch: list[str]) -> dict[str, str]:
         if len(forms) == 1:
             wanted.setdefault(bare, forms[0])
     return wanted
+
+
+def answered_for(wanted: Mapping[str, str], returned: str) -> str | None:
+    """The form a returned entry answers, from `filed_as`'s table: itself, or the bare
+    form it was asked as where the model added a mark of its own (#538, 2026-11-18).
+
+    The other way round from the dropped mark `filed_as` already catches: asked for עשה,
+    the model answered `עשה (verb)`, because the prompt lists the marks. Seven of eleven
+    common Hebrew words came back so in the in-language read, and each was paid for and
+    then dropped, so a third of the read showed no meaning. Filed under the bare form
+    only where the batch did not ask for that marked form itself."""
+    asked = wanted.get(returned)
+    if asked is not None:
+        return asked
+    for mark in MARKS:
+        if returned.endswith(mark):
+            bare = returned[: -len(mark)].strip()
+            if wanted.get(bare) == bare:
+                return bare
+    return None
 
 
 def entries_for(lemmas: list[str], contexts: Mapping[str, str] | None = None) -> str:
@@ -318,10 +446,25 @@ class AnthropicGlosses:
                 if isinstance(parsed, _Batch):
                     wanted = filed_as(part)
                     for entry in parsed.entries:
-                        asked = wanted.get(entry.lemma.strip())
+                        returned = entry.lemma.strip()
+                        asked = answered_for(wanted, returned)
                         said = entry.gloss.strip()
                         if bare:
                             said = unpointed(said).strip()
+                        # A form filed by taking off a mark the model added is a fallback:
+                        # it never overwrites an answer already filed, and an exact answer
+                        # arriving after it replaces it (qa on targum#1325).
+                        if asked and asked in out and returned not in wanted:
+                            continue
+                        # A definition that writes the word itself explains nothing; the
+                        # card keeps the meaning in the reader's language (#538).
+                        if (
+                            asked
+                            and said
+                            and _same(source_language, target_language)
+                            and names_itself(asked, said, source_language)
+                        ):
+                            continue
                         if asked and said:
                             out[asked] = Sense(
                                 said,
@@ -482,6 +625,48 @@ def estimate(lemma_count: int, model: str) -> float:
     ) / 1_000_000
 
 
+def one_word_estimate(source_language: str, target_language: str, model: str) -> float:
+    """What one tapped word can cost, as the claim reserves it before the buy (targum#1335
+    qa, David 2026-11-19: every paid `/gloss` buy through the rails). A single word's
+    call is mostly its system prompt, so that is counted, at a token for every three
+    characters, with the word, its sentence and a long answer beside it. A ceiling
+    rather than a guess: the claim is settled to what was spent once the answer is in."""
+    from ..translate.anthropic_provider import DEFAULT_MODEL, PRICES
+
+    in_price, out_price = PRICES.get(model, PRICES[DEFAULT_MODEL])
+    system = len(system_for(source_language, target_language)) // 3
+    asked = system + TOKENS_PER_LEMMA_IN + 200
+    answered = TOKENS_PER_LEMMA_OUT * 4
+    return (asked * in_price + answered * out_price) / 1_000_000
+
+
+def would_buy(
+    lemma: str,
+    source_language: str,
+    target_language: str,
+    provider: str,
+    context: str = "",
+    cache: Cache | None = None,
+) -> bool:
+    """Whether `gloss_one` would ask the model about this word now, read off the cache
+    alone: nothing held, or held bare and a sentence has come. A meaning in the language
+    itself that was asked for and could not be given (`NO_MEANING`) is not asked again.
+    The serve side claims against the rails only where this is true, so a cached tap
+    makes no job row. Never spends."""
+    cache = cache or Cache()
+    stored = cache.get("gloss", gloss_key(cache, lemma, source_language, target_language, provider))
+    if isinstance(stored, dict) and stored.get("gloss"):
+        return bool(context) and not bool(stored.get("grounded"))
+    if (
+        _same(source_language, target_language)
+        and isinstance(stored, dict)
+        and stored.get(NO_MEANING)
+        and (stored.get("grounded") or not context)
+    ):
+        return False
+    return True
+
+
 def cached_gloss(
     lemma: str,
     source_language: str,
@@ -582,6 +767,11 @@ def fill_from_cache(
     return grown
 
 
+#: The cache's mark for a meaning in the language itself that was asked for and could not
+#: be given (qa on targum#1328). Its record has an empty `gloss`, so nothing shows it.
+NO_MEANING = "no_meaning"
+
+
 def gloss_one(
     lemma: str,
     source_language: str,
@@ -623,6 +813,19 @@ def gloss_one(
     held = _sense_of(stored) if isinstance(stored, dict) and stored.get("gloss") else None
     if held is not None and (held.grounded or not context):
         return held
+    itself = _same(source_language, target_language)
+    # Asked already, and no meaning came back that could be shown (qa on targum#1328):
+    # answered as nothing, never asked again, so a word the model cannot define in its
+    # own language costs once and not on every tap. Bare, it is asked once more with a
+    # sentence, as a bare sense is grounded.
+    if (
+        itself
+        and held is None
+        and isinstance(stored, dict)
+        and stored.get(NO_MEANING)
+        and (stored.get("grounded") or not context)
+    ):
+        return None
 
     try:
         if context:
@@ -640,6 +843,11 @@ def gloss_one(
         raise
     found = fresh.get(lemma)
     if not found:
+        if itself and held is None:
+            # The model left it empty, or `names_itself` dropped what it wrote: kept as
+            # "asked, no meaning", which no reader of the cache shows (each wants a
+            # `gloss`), so the card keeps the meaning in the reader's language.
+            cache.put("gloss", key, {"gloss": "", NO_MEANING: True, "grounded": bool(context)})
         return held
     sense = Sense(*found)._replace(grounded=bool(context))
     cache.put("gloss", key, _record(sense, grounded=sense.grounded))

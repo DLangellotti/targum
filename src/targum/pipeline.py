@@ -7,6 +7,7 @@ document.json and rerunning is a supported way to work, not a trick.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Sequence
 from concurrent.futures import Future
 from dataclasses import dataclass, field
@@ -148,6 +149,59 @@ def named_in(source: Document, segmented: SegmentedDocument) -> dict[str, str]:
         if segment.kind is BlockKind.byline
         and segment.text.strip() in {line.strip() for line in BYLINES_HE}
     }
+
+
+#: Where an English paragraph is cut into sentences, to meet a story's sentences one for
+#: one: after a stop, a question or an exclamation (a closing quote may follow it), before
+#: whatever starts the next sentence.
+_ENGLISH_SENTENCE = re.compile(r"(?<=[.!?…])[\"”’)]*\s+(?=[\"“‘(A-Z0-9])")
+
+
+def _story_english(source: Document, segmented: SegmentedDocument) -> Translation | None:
+    """A story's English, which the scene loop wrote paragraph by paragraph beside its
+    French (`ingest/fetch/story.py`), so a build never buys one (builder-2's note on the
+    French A2 ship, 2026-11-19: `story:` fell through to the machine).
+
+    A paragraph is one block and may be several sentences. Where its English cuts into as
+    many sentences as the French did, they go one to one; where it does not, the whole
+    paragraph's English goes with its first sentence and the rest carry none, which reads
+    as a paragraph's gloss rather than as a wrong line. None where the file holds no
+    English at all, so nothing changes for a story that has none."""
+    from .ingest.fetch import story as story_module
+
+    paragraphs = [
+        paragraph
+        for paragraph in story_module.read(source.source.split(":", 1)[1])["paragraphs"]
+        if str(paragraph.get("text", "")).strip()
+    ]
+    english = {f"b{n:04d}": str(p.get("english") or "").strip() for n, p in enumerate(paragraphs)}
+    if not any(english.values()):
+        return None
+    by_block: dict[str, list[str]] = {}
+    for segment in segmented.segments:
+        by_block.setdefault(segment.block_id, []).append(segment.id)
+    segments: dict[str, str] = {}
+    for block, ids in by_block.items():
+        said = english.get(block, "")
+        if not said:
+            continue
+        cut = [one.strip() for one in _ENGLISH_SENTENCE.split(said) if one.strip()]
+        if len(cut) == len(ids):
+            segments.update(zip(ids, cut, strict=True))
+        else:
+            segments[ids[0]] = said
+            segments.update({one: "" for one in ids[1:]})
+    if not segments:
+        return None
+    return Translation(
+        name=source.title or "a story",
+        document_hash=segmented.document_hash,
+        source_language=segmented.language,
+        target_language="en",
+        provider="authored",
+        kind="authored",
+        segments=segments,
+    )
 
 
 class Build:
@@ -891,6 +945,8 @@ class Build:
                 kind="authored",
                 segments=segments,
             )
+        if source.source.startswith("story:"):
+            return _story_english(source, segmented)
         if not source.source.startswith("dialogue:"):
             return None
         from .dialogue import index as dialogue_index

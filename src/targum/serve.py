@@ -2858,6 +2858,25 @@ class Library:
         said = said_in(ui, "date.month-day", "{month} {day}", month=named, day=1)
         return said.replace(" ", "\u00a0")
 
+    def month_from_for(self, owner: int | None) -> int:
+        """Where this reader's allowance month began: a paid Plan's own month, from the day
+        it began, and the calendar month for everybody else (`Store.month_window`; Terms
+        of sale clause 2, David 2026-11-19). The calendar month with no store or owner."""
+        if self.store is None or owner is None:
+            return self._month_from()
+        return self.store.month_window(int(owner), now())[0]
+
+    def month_ends_for(self, ui: str = "en", owner: int | None = None) -> str:
+        """When this reader's allowance comes back, as `_month_ends` says it: the day their
+        Plan's month ends, or the first of next month for everybody else."""
+        if self.store is None or owner is None:
+            return self._month_ends(ui)
+        ends = datetime.fromtimestamp(self.store.month_window(int(owner), now())[1] / 1000, UTC)
+        english = ends.strftime("%B")
+        named = said_in(ui, f"date.month.{ends.month}", english)
+        said = said_in(ui, "date.month-day", "{month} {day}", month=named, day=ends.day)
+        return said.replace(" ", "\u00a0")
+
     def settle(self, job: Job, length: float | None = None) -> None:
         """Swap what a build reserved for what it spent — and, for a turn of
         conversation, the seconds it was reserved at for the seconds it ran to.
@@ -2915,8 +2934,32 @@ class Library:
             # An earlier month is counted at the allowance it had: Plan's where the reader
             # was on Plan then, Free's otherwise (`Store.grant_seconds`).
             free = plans.month_seconds(self.upload_seconds, paid_plan=False) or 0.0
-            granted = self.store.grant_seconds(owner, self._month_from(), self.upload_seconds, free)
-        return plans.month_seconds(self.upload_seconds, paid_plan=paid_plan, granted=granted)
+            granted = self.store.grant_seconds(
+                owner, self.month_from_for(owner), self.upload_seconds, free
+            )
+        base = plans.month_seconds(self.upload_seconds, paid_plan=paid_plan)
+        if base is None:
+            return None
+        if self.store is not None and owner is not None:
+            # A Free month a paid period cut short shares the calendar month's one Free
+            # allowance with the part before it (qa on targum#1334): subscribing and being
+            # refunded must not hand out a fresh month each time.
+            base = max(0.0, base - self.store.free_used_earlier(owner, now()))
+        return base + granted
+
+    def top_up_left(self, owner: int) -> float:
+        """What is left unused of this reader's top-ups now, in seconds: their top-ups less
+        what this month has spent past its own allowance (`claim` spends the month's
+        allowance first, then the top-ups). What a refund may take back (Terms of sale
+        clause 9)."""
+        if self.store is None or self.upload_seconds is None:
+            return 0.0
+        free = plans.month_seconds(self.upload_seconds, paid_plan=False) or 0.0
+        start = self.month_from_for(owner)
+        granted = self.store.grant_seconds(owner, start, self.upload_seconds, free)
+        allowed = self.allowance(paid_plan=self._on_plan(owner), owner=owner) or 0.0
+        used = self.store.hours_used(owner, start)
+        return max(0.0, min(granted, allowed - used))
 
     def _on_plan(self, owner: int | None) -> bool:
         """Whether this owner is on Plan by their account: plans on, and the operator or a
@@ -2945,7 +2988,7 @@ class Library:
         ui = ui or job.ui
         allowed = self.allowance(owner=job.owner) or 0.0
         used = (
-            self.store.hours_used(job.owner, self._month_from())
+            self.store.hours_used(job.owner, self.month_from_for(job.owner))
             if self.store is not None and job.owner is not None
             else allowed
         )
@@ -2971,7 +3014,7 @@ class Library:
                 ui,
                 "job.plan.fact",
                 "They reset on {date}.",
-                date=self._month_ends(ui),
+                date=self.month_ends_for(ui, job.owner),
             ),
             "plan",
         )
@@ -2983,6 +3026,7 @@ class Library:
         *,
         need: float | None = None,
         left: float | None = None,
+        owner: int | None = None,
     ) -> str:
         """Which ceiling stopped this, and when it lifts, in the language `ui` names.
 
@@ -3005,7 +3049,7 @@ class Library:
                         "It needs {need} credits and you have {left} left. They reset on {date}.",
                         need=max(credits_left + 1, credits_of(need)),
                         left=credits_left,
-                        date=self._month_ends(ui),
+                        date=self.month_ends_for(ui, owner),
                     ),
                     said_in(
                         ui,
@@ -3034,7 +3078,7 @@ class Library:
                     "job.out-of.credits",
                     "You've used this month's credits. Top up, or they reset on {date}.",
                     credits=f"{allowed / SECONDS_A_CREDIT:g}",
-                    date=self._month_ends(ui),
+                    date=self.month_ends_for(ui, owner),
                 ),
                 said_in(
                     ui,
@@ -3068,7 +3112,7 @@ class Library:
                     "You've used this month's credits for audio and chat. Top up, or they "
                     "reset on {date}.",
                     credits=f"{allowed / SECONDS_A_CREDIT:g}",
-                    date=self._month_ends(ui),
+                    date=self.month_ends_for(ui, owner),
                 ),
                 said_in(
                     ui, "job.out-of.texts-and-library", "Your texts and the library still open"
@@ -5457,7 +5501,7 @@ class Library:
                 self._since(),
                 owner=job.owner,
                 per_account=None if admin else self.account_budget,
-                month_from=self._month_from(),
+                month_from=self.month_from_for(job.owner),
                 # Only a recording spends the hours. A text upload is any length and
                 # costs no clock time, so it is not charged against them. Nor is a
                 # gift: targum pays for it, and their eight hours are theirs (#399).
@@ -5478,8 +5522,8 @@ class Library:
                 return self._plan_refusal(job, need=room[0] if room else None)
             if room is not None:
                 need, left = room
-                return self._out_of(refused, job.ui, need=need, left=left)
-            return self._out_of(refused, job.ui)
+                return self._out_of(refused, job.ui, need=need, left=left, owner=job.owner)
+            return self._out_of(refused, job.ui, owner=job.owner)
         with self.lock:
             blocked = self.why_blocked(job.estimate, job.ui)
             if not blocked:
@@ -5491,7 +5535,7 @@ class Library:
         it needs once a stopped build's credit is taken off, and what is left."""
         assert self.store is not None and job.owner is not None
         allowed = self._month_for(job) or 0.0
-        used = self.store.hours_used(job.owner, self._month_from())
+        used = self.store.hours_used(job.owner, self.month_from_for(job.owner))
         credit = (
             self.store.prepaid(job.owner, job.source, job.id) if job.audio and not job.gift else 0.0
         )
@@ -5519,7 +5563,7 @@ class Library:
         job.blocked = (
             self._plan_refusal(job, need=need)
             if self._held_to_free(job)
-            else self._out_of("hours", job.ui, need=need, left=left)
+            else self._out_of("hours", job.ui, need=need, left=left, owner=job.owner)
         )
         job.stage = "blocked"
 
@@ -5565,7 +5609,7 @@ class Library:
                 self._since(),
                 owner=owner,
                 per_account=None if admin else self.account_budget,
-                month_from=self._month_from(),
+                month_from=self.month_from_for(owner),
                 per_month_length=None if admin else self.allowance(paid_plan=on_plan, owner=owner),
             )
             if refused == "hours" and not admin and not on_plan and plans.on():
@@ -5573,8 +5617,12 @@ class Library:
                 return self._plan_refusal(jobs[0], ui=ui, need=need), room, refused
             if refused == "hours":
                 need = sum(job.seconds for job in jobs if job.audio and not self.free_to_read(job))
-                return self._out_of(refused, ui, need=need, left=room), room, refused
-            return (self._out_of(refused, ui) if refused else ""), room, refused
+                return (
+                    self._out_of(refused, ui, need=need, left=room, owner=owner),
+                    room,
+                    refused,
+                )
+            return (self._out_of(refused, ui, owner=owner) if refused else ""), room, refused
         total = sum(job.estimate for job in jobs)
         with self.lock:
             blocked = self.why_blocked(total, ui)
@@ -5692,7 +5740,7 @@ class Library:
             # sum a recording's seconds land in, so there is one ledger and not two. A
             # voice made for a text (kind `voice`, targum-internal#246) comes out of it
             # the same way.
-            month_from=self._month_from(),
+            month_from=self.month_from_for(job.owner),
             length=0.0 if job.gift else job.seconds,
             # Chatting stays included on Free (design.md §12, "Free and Plan, behind a
             # switch"): held by the daily rail above, not by the month's 60. Its seconds
@@ -5707,8 +5755,8 @@ class Library:
         if refused == "hours" and self._held_to_free(job):
             return self._plan_refusal(job)
         if refused == "hours":
-            return self._out_of("talk-hours", job.ui)
-        return self._out_of("chat" if refused == "account" else refused, job.ui)
+            return self._out_of("talk-hours", job.ui, owner=job.owner)
+        return self._out_of("chat" if refused == "account" else refused, job.ui, owner=job.owner)
 
     @staticmethod
     def _gloss_cost(
@@ -7328,6 +7376,31 @@ class _Headless(io.BufferedIOBase):
         return len(data)
 
 
+def portion_recordings(portion: Any, language: str) -> dict[str, bool]:
+    """What the portion page says about the reader behind it (targum-internal#409): whether
+    it has a chanted recording (a festival's has none: PocketTorah has no chanting for
+    them), and whether it is an Exodus portion built without Rashi, which the page says
+    comes before Shemot (David, 2026-11-19) until December's rebuild puts Rashi back. Read
+    off the built files, so the line goes by itself when the rebuild lands."""
+    from .parasha.build import served_as
+    from .parasha.calendar import root
+
+    reader = root() / "read" / served_as(portion.folder, language.split("-")[0].lower()) / "reader"
+    if not reader.is_dir():
+        return {}
+    chanted = any((reader / "audio").glob("chanted-*.mp3"))
+    rashi_soon = False
+    if "Exodus" in (portion.books or ()):
+        first = reader / "sec-0001.html"
+        if not first.is_file():
+            first = reader / "index.html"
+        try:
+            rashi_soon = b'data-companion="rashi"' not in first.read_bytes()
+        except OSError:
+            rashi_soon = False
+    return {"chanted": chanted, "rashi_soon": rashi_soon}
+
+
 class Handler(BaseHTTPRequestHandler):
     # Overridden on the type built in start(). Off here so a Handler made by hand —
     # which is how the tests make one — behaves like a machine somebody runs themselves.
@@ -8212,6 +8285,7 @@ class Handler(BaseHTTPRequestHandler):
             subscribed=self._series_subscribed("parasha"),
             token=self._series_token(),
             pictures=self._authorised(),
+            **portion_recordings(portion, self._public_language()),
         )
         return self._send(200, page.encode("utf-8"), HTML)
 
@@ -12133,11 +12207,32 @@ class Handler(BaseHTTPRequestHandler):
             error = error or CHAT_RESTARTED
         if error == CHAT_RESTARTED:
             error = self._say("chat.restarted", CHAT_RESTARTED)
+        # The cards the answer carried, read back from the turns it stored, as a
+        # conversation opened again reads them (targum-internal#735). With the live feed
+        # gone after a restart — a deploy, every few hours — a page that dropped its
+        # stream and polled got the answer's words and no card: a news search drew
+        # nothing, and the model's "pick one below" stood over an empty thread.
+        tools_named: dict[str, str] = {}
+        quotes: list[dict[str, Any]] = []
+        found: list[dict[str, Any]] = []
+        sets: list[dict[str, Any]] = []
+        for turn in turns:
+            if turn["n"] <= n:
+                continue
+            quotes.extend(self._quoted(turn))
+            more_found, more_sets = self._found_and_sets(turn, tools_named)
+            found.extend(more_found)
+            sets.extend(more_sets)
+        from .chat import session as chat_session
+
         return {
             "text": answered,
             "done": True,
             "error": error,
             "words": asked.get("words") if asked else None,
+            "quotes": quotes,
+            "found": found[: chat_session.MOST_FOUND],
+            "sets": sets,
         }
 
     #: How long a tail waits for the next event before it says it is still here.
@@ -12173,7 +12268,24 @@ class Handler(BaseHTTPRequestHandler):
                 state = self._chat_turn_state(chat_id, n)
                 kind = "error" if state["error"] else "done"
                 payload = {"message": state["error"]} if state["error"] else {"text": state["text"]}
-                self._chat_event(0, kind, json.dumps(payload, ensure_ascii=False))
+                # And the cards it carried, each as the event the live stream sends,
+                # before the one closing event (targum-internal#735).
+                index = 0
+                if not state["error"]:
+                    for quoted in state.get("quotes") or []:
+                        self._chat_event(index, "quote", json.dumps(quoted, ensure_ascii=False))
+                        index += 1
+                    if state.get("found"):
+                        self._chat_event(
+                            index,
+                            "found",
+                            json.dumps({"items": state["found"]}, ensure_ascii=False),
+                        )
+                        index += 1
+                    for made in state.get("sets") or []:
+                        self._chat_event(index, "set", json.dumps(made, ensure_ascii=False))
+                        index += 1
+                self._chat_event(index, kind, json.dumps(payload, ensure_ascii=False))
                 self._chat_seen(chat_id)
                 return
             while True:
@@ -13669,11 +13781,15 @@ class Handler(BaseHTTPRequestHandler):
         )
         # `self.store` rather than the chat's: the same store, and this answer is owed
         # whether or not a conversation is configured at all.
-        used = self.store.hours_used(person_id, self.library._month_from()) if self.store else 0.0
+        used = (
+            self.store.hours_used(person_id, self.library.month_from_for(person_id))
+            if self.store
+            else 0.0
+        )
         return {
             "used": round(used / 3600, 2),
             "allowed": None if allowed is None else round(allowed / 3600, 2),
-            "ends": self.library._month_ends(self._ui_language()),
+            "ends": self.library.month_ends_for(self._ui_language(), person_id),
         }
 
     def _me(self) -> None:
@@ -13876,11 +13992,11 @@ class Handler(BaseHTTPRequestHandler):
             return {
                 "credits": {"left": None, "back": self.library._month_ends(self._ui_language())}
             }
-        used = self.store.hours_used(person.id, self.library._month_from())
+        used = self.store.hours_used(person.id, self.library.month_from_for(person.id))
         return {
             "credits": {
                 "left": max(0, int((allowed - used) // SECONDS_A_CREDIT)),
-                "back": self.library._month_ends(self._ui_language()),
+                "back": self.library.month_ends_for(self._ui_language(), person.id),
             }
         }
 
@@ -15154,13 +15270,24 @@ class Handler(BaseHTTPRequestHandler):
         if not self.store.billing_seen(event_id, kind):
             return self._json({"seen": True})
         try:
-            outcome = billing.handle(self.store, event)
+            outcome = billing.handle(
+                self.store,
+                event,
+                top_up_left=self.library.top_up_left,
+                cancel_now=lambda subscription: billing.cancel(subscription, at_once=True),
+            )
         except Exception as error:
             # Written down as any escaped error is, and answered 500 rather than dropped,
             # so Paddle knows to send it again.
             self.store.billing_unseen(event_id)
             incidents_module.record(self.library.incidents, self.path, error)
             return self._json({"error": "not handled"}, 500)
+        if outcome.kind in ("refund", "review"):
+            # A refund's outcome in the journal, by Paddle's ids and the account's number,
+            # never an address: a partial one is the operator's to decide.
+            print(
+                f"billing: {kind} {event_id} {outcome.kind} for {outcome.person}: {outcome.detail}"
+            )
         if outcome.kind == "unknown-account":
             # Nobody here to give it to. Said in the journal with Paddle's own id, never
             # an address, so the operator can look it up in Paddle's dashboard.
@@ -19950,7 +20077,13 @@ class Handler(BaseHTTPRequestHandler):
         if not lemma or not source or len(lemma) > MAX_LEMMA:
             return self._json({"error": "bad request"}, 400)
 
-        from .annotate.gloss import GLOSS_MODEL, AnthropicGlosses, cached_gloss, gloss_one
+        from .annotate.gloss import (
+            GLOSS_MODEL,
+            AnthropicGlosses,
+            cached_gloss,
+            gloss_one,
+            would_buy,
+        )
 
         # The same model the build's own glossary was bought with. The provider's name
         # is part of the cache key, so asking here with the provider's default — Opus,
@@ -20009,7 +20142,8 @@ class Handler(BaseHTTPRequestHandler):
         # never counted. Past the ceiling a bare meaning already held is still answered,
         # ungrounded, so the card keeps what it had and only the new purchase waits.
         held = cached_gloss(lemma, source, target, provider.name)
-        if held is None or (sentence and not held.grounded):
+        buying = would_buy(lemma, source, target, provider.name, context=sentence)
+        if buying:
             person = self._person()
             who = f"gloss:{person.id}" if person is not None else "gloss:" + digest(self._visitor())
             if self.store.asking_too_often(who, limit=GLOSSES_PER_HOUR):
@@ -20032,6 +20166,33 @@ class Handler(BaseHTTPRequestHandler):
                     },
                     429,
                 )
+        # A buy goes through the rails like every other spend (David, 2026-11-19, qa on
+        # targum#1335): a job row of kind `gloss`, targum's to pay as a word said from
+        # its card is, claimed against the box's daily ceiling and settled to what the
+        # call cost, so the ceiling and the ledger see every meaning bought. One claim a
+        # buy: a tap answered from the cache, held or settled as no meaning, claims
+        # nothing and makes no row. The hourly limit above still holds per account.
+        job = self._gloss_job(source, target) if buying else None
+        if job is not None:
+            refused = self.library.claim_turn(job, kind="gloss")
+            if refused:
+                job.stage = "blocked"
+                job.blocked = refused
+                self.library.remember(job)
+                # Refused, nothing is bought: the card keeps what it holds — a bare
+                # meaning, ungrounded, or the meaning in the reader's own language under
+                # one in the word's — and is told plainly when there is nothing.
+                if held is not None:
+                    return self._json(
+                        {
+                            "lemma": lemma,
+                            "meaning": held.gloss,
+                            "citation": held.citation,
+                            "plural": held.plural,
+                            "grounded": False,
+                        }
+                    )
+                return self._json(self._refusal(refused), 429)
         try:
             sense = gloss_one(
                 lemma,
@@ -20044,8 +20205,10 @@ class Handler(BaseHTTPRequestHandler):
                 ),
             )
         except TargumError as error:
+            self._settle_gloss(job, provider, failed=True)
             return self._json({"error": self._told(error)}, 502)
         except Exception as error:
+            self._settle_gloss(job, provider, failed=True)
             traceback.print_exc()
             incidents_module.record(self.library.incidents, "/gloss", error)
             return self._json(
@@ -20057,6 +20220,7 @@ class Handler(BaseHTTPRequestHandler):
                 },
                 502,
             )
+        self._settle_gloss(job, provider)
         return self._json(
             {
                 "lemma": lemma,
@@ -20066,6 +20230,44 @@ class Handler(BaseHTTPRequestHandler):
                 "grounded": bool(sense and sense.grounded),
             }
         )
+
+    def _gloss_job(self, source: str, target: str) -> Job:
+        """The job row one bought meaning is claimed and settled on: kind `gloss`, a
+        `gift` because targum pays and no credit is the reader's, owned by whoever asked
+        so the back office can say whose taps spent, and reserved at what one word can
+        cost (`one_word_estimate`)."""
+        from .annotate.gloss import GLOSS_MODEL, one_word_estimate
+
+        person = self._person()
+        job = Job(
+            ui=self._page_language(),
+            id=f"gloss-{secrets.token_hex(6)}",
+            source=f"gloss:{source}-{target}",
+            estimate=one_word_estimate(source, target, GLOSS_MODEL),
+            stage="working",
+            owner=person.id if person else None,
+            home=self._home(),
+            admin=bool(person and self.store.is_admin(person.email)),
+            kind="gloss",
+            gift=True,
+        )
+        self.library.jobs[job.id] = job
+        self.library.remember(job)
+        return job
+
+    def _settle_gloss(self, job: Job | None, provider: Any, *, failed: bool = False) -> None:
+        """A claimed buy settled to what the call spent, or given back when it spent
+        nothing (a failure before the model answered)."""
+        if job is None:
+            return
+        spent = float(provider._provider.spent.cost())
+        job.stage = "failed" if failed else "done"
+        if spent > 0:
+            job.spent = spent
+            self.library.settle(job)
+        else:
+            self.library.release(job)
+        self.library.remember(job)
 
     def _meanings_in_itself(self) -> set[str]:
         """The languages whose meanings may be bought in the language itself for whoever

@@ -5028,5 +5028,13 @@
   "lists.ear.tip": "Know a word when you hear it but not when you read it? Open the word and press {press}.",
   "progress.count.ear.one": "{n} known by ear",
   "progress.count.ear.other": "{n} known by ear",
-  "sentences.open-word": "Open the card for {word}"
+  "sentences.open-word": "Open the card for {word}",
+  "parasha.page.read-again": "Read it again from aliyah 1",
+  "parasha.page.no-chanting": "No chanted recording for this reading; the spoken reading is here.",
+  "parasha.page.rashi-exodus-soon": "Rashi on Exodus comes before Shemot.",
+  "parasha.page.not-ready": "Not ready yet",
+  "parasha.page.aliyah-n": "Aliyah {n}",
+  "series.subscribe.slow": "Still saving…",
+  "series.subscribe.failed": "We couldn't save that. Try again.",
+  "series.subscribe.offline": "You're offline. Subscribe when you're back."
 }

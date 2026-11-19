@@ -14,11 +14,112 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   "learned on targum" is gone; the label stays. `progress.ear.start` and
   `progress.count.learned.note` are retired; `lists.ear.tip` is new, its Russian a draft
   for ling-ru.
+- Meanings of Hebrew words in Hebrew are offered (targum-internal#538, David 2026-11-19):
+  `accounts.MEANINGS_OPEN` is `{"he"}`, so "Meanings of Hebrew words" shows on Your
+  languages, off until a reader chooses it. ling-he's three fixes come first:
+  - `names_itself` catches the headword with an ending (עצם in «עצמו») on a head of three
+    letters or more, and a short head gains no false hits.
+  - The prompt rules out a word of the same family where a plain word exists, and any
+    note on grammar or context.
+  - An inflected form is defined as its dictionary form, or left empty.
+- Every meaning `/gloss` buys goes through the rails (David, 2026-11-19; qa on
+  targum#1335). A buy is a job row of kind `gloss`: targum pays (a `gift`, as a word
+  said from its card is), it is claimed against the box's daily ceiling through
+  `Library.claim_turn`, and it is settled to what the call cost, so the ceiling and the
+  ledger see it. It is reserved at one word's ceiling (`gloss.one_word_estimate`). A tap
+  the cache answers (held, grounded, or settled as no meaning) claims nothing and writes
+  no row (`gloss.would_buy`). A refused claim buys nothing: a held bare meaning is still
+  answered, and otherwise the rail's own sentence is. The hourly limit per account is
+  unchanged.
+- A chat turn's cards come back after a restart (targum-internal#735). With the live
+  feed gone (a deploy restarts the service), `/chat/turn` and `/chat/stream` answered with
+  the words alone: what a news search found, a quote and a set were drawn nowhere, though
+  a conversation opened again had them. Both now read them back from the stored turns,
+  and the stream sends each as its own event before the closing one.
+- The portion page is finished to §14 (targum-internal#409, slice 3; design.md §12,
+  2026-11-19).
+  - **PDF:** Download PDF is named in words beside its glyph, never by a tooltip alone.
+  - **Rows:** each aliyah's number is said inside its row for a screen reader.
+  - **Once every aliyah is read**, the press is "Read it again from aliyah 1".
+  - **A reading with no chanted recording** (a festival's) says so once.
+  - **An Exodus portion built without Rashi** says "Rashi on Exodus comes before Shemot.",
+    read off the built reader, so the line goes when December's rebuild lands.
+  - **A row with nothing built behind it** says "Not ready yet" and is not a link.
+  - **Subscribe** says when it is still saving past three seconds, when it did not go
+    through, and when it was pressed offline.
+  - The Russian is drafted for ling-ru's first pass.
+- Paddle refunds are applied as the Terms of sale say (clause 9, approved by David
+  2026-11-19). `adjustment.created` and `adjustment.updated`, with action `refund` and status
+  `approved`, are now handled (`billing._refund`):
+  - **A top-up's refund** takes back its credits, as far as they are still unused, and never
+    below nothing (`Library.top_up_left`). The take-back is recorded as a row of minus
+    credits in `credit_grant`, keyed on Paddle's adjustment, so the same refund said twice
+    takes back once. A partial refund takes back the same share of the credits as it is of
+    the $3 a unit cost, where it is in US dollars; in any other currency it takes nothing
+    back and is logged for the operator (`review`).
+  - **A Plan payment refunded in full** ends the Plan at once, recorded as a cancel is
+    (`plan_ended`, the paid period trimmed), and asks Paddle to cancel the subscription
+    `immediately` (`billing.cancel(at_once=True)`) so it does not renew. A partial refund
+    of a Plan payment ends nothing and is logged for the operator.
+  - Anything else (pending, rejected, a credit or a chargeback) changes nothing.
+- A story's English is the one written beside it in its file, never bought
+  (`pipeline._story_english`). A box build of a `story:` text fell through to the machine
+  and would have paid a cent or two for an English it already had (builder-2's note on
+  the French A2 ship, 2026-11-19). A paragraph's English goes one to one onto its
+  sentences where it cuts into as many, and otherwise sits whole on the paragraph's
+  first sentence.
+- A meaning in the language itself never writes the word itself (targum-internal#538,
+  ling-he's read of 2026-11-16). The prompt says so in plainer terms, and a definition that
+  still writes the headword is not filed, so the card keeps the meaning in the reader's
+  language. A form the model cannot place comes back empty, and the prompt now says that
+  no note about a form ever goes in the gloss. `scripts/meanings_itself_read.py` counts
+  what it dropped.
+- The Privacy Notice no longer lists "whether it is paid monthly or every three months"
+  among what the Controller keeps about a plan (David, 2026-11-19): Plan is monthly only.
+  No other word changes. `LEGAL_CHANGED` is 19 November 2026, because the 18 November
+  text is already published and the date is the day the pages last changed.
+- A paid Plan's 480 credits run per month of the Plan, from the day it began, not per
+  calendar month (David, 2026-11-19; Terms of sale clause 2). `Store.month_window` cuts
+  the months from Paddle's paid periods (`plan_period`): a Plan begun on the 15th resets
+  on the 15th, one begun on 31 January resets on 28 or 29 February and then 31 March, and
+  a period longer than a month is cut into months from its own start. `claim`,
+  `claim_set`, `claim_turn`, the quote, the refusals' "they reset on", the account page,
+  the chat's `my_hours` and the top-up ledger (`grant_seconds`) all read it, through
+  `Library.month_from_for` and `month_ends_for`.
+  - **Unchanged:** Free, comped beta readers and the operator keep the calendar month in
+    UTC. A Plan reader between periods also keeps it, from where the last period ended,
+    so the paid days count once.
+  - **One thing moves:** a month that was part Plan and part Free is now two months, the
+    Plan's and then Free's, instead of one calendar month with a prorated allowance.
+  - **The Free parts of one calendar month share one Free allowance**, however many paid
+    periods cut it (qa on targum#1334). Subscribing and being refunded at once used to
+    hand out a fresh 60 each time. `Store.free_used_earlier` takes the month's earlier
+    Free use off the Free part after a period, and the top-up ledger counts the parts as
+    one month.
+  - **Still calendar months, as they should be:** a subscription's monthly cap, the grow
+    round's cap, Anki's sounds and the subscriptions mail.
+- The Hebrew root lexicon a deploy ships is named in `deploy/roots.pin`, so moving it on is
+  a reviewed change rather than a symlink on the laptop. It now names
+  `roots-he-2026-11-18b.json` (10,592 lemmas; targum-internal#592): 247 more words have a
+  root, and 94 roots change. A language with no line
+  ships `~/.targum/roots-<language>.json` as before, and `TARGUM_ROOTS_HE` still names a
+  file outright. The deploy prints which file it took.
+- Taking money no longer needs a quarterly price (`billing.REQUIRED_PRICES`: the month and
+  the top-up). Plan is monthly only and the box names no quarter, and `configured()` still
+  asked for one, so with plans on every pay press, top-up and Manage would have stayed off.
+  Found walking the Paddle go-live checklist (2026-11-18). The billing tests now run as the
+  box is, with no quarter named.
 - The level card's footnote drops "A guide, not a placement." (David, 2026-11-18): "Ulpan
   classes in Israel go from aleph, for beginners, to vav." and "The European scale goes
   from A1, for beginners, to C2." Russian drops the matching sentence. The `ladder.note`
   that `my_progress` hands the chat and the connector says "The ladder's name only, never
   the reader's level." instead, so it is a model's label and not the page's dropped line.
+- A meaning the model answers with a mark it added itself, `עשה (verb)` for עשה, is filed
+  under the form it was asked for (`gloss.answered_for`, targum-internal#538). Asked for
+  the bare form, the model added a mark from the prompt's list on seven of eleven common
+  Hebrew words in the 2026-11-18 diagnosis ($0.04); `filed_as` matched none of them, so each
+  was paid for and dropped, and a third of the in-language read showed no meaning. A batch
+  that asked for the marked form itself keeps it.
 - A Hebrew noun's plural or an adjective's feminine or plural that DICTA gave as its own
   lemma is filed under its headword, so the card finds its meaning: עצים under עץ, לירות
   under לירה, מלאה under מלא (targum-internal#697e, from ling-he's analyser read).
@@ -32,6 +133,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     tokens change, across 495 spellings. Every spelling was read, and the ones the table
     gets wrong in context are kept as DICTA gave them (`nouns.KEPT`: ימות, אמהות, אמות,
     שניים, רבות, לחיים, בעלים and a few more). צעירה stays: it is a noun of its own.
+  - ling-he's read of the change list (2026-11-20) kept 21 more, 76 tokens the table
+    filed under another word's headword: בימות ("in the days of") under בימה, שתות ("a
+    sixth") under שת, ארבות under ארבה "locust", שבלים under שובל, חטים, טליות, כנים,
+    חכים, חיצים, חצים, גבים, הלנות, עונות and a few singles. The change is then 2,556
+    tokens, and 1.9% of them are wrong, nearly all where DICTA's lemma was already
+    another word's.
   - `lemma_check` 7 and `occurrences` 17: a free recount at page-build and count time.
     No annotator rename, and `SCHEMA_VERSION` is untouched. The root stays, since a
     plural's root is its singular's. A headword with no meaning bought yet gets one at
@@ -133,6 +240,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ### Added
 - `scripts/voice_scenes.py` gives the director 4,096 tokens of answer: 1,024 ran out near 80
   turns, and French's A2 scenes run to 72. Only what is written is billed.
+- `how_much_i_understand`, a connector and chat tool under the `record` scope
+  (targum-internal#750, David 2026-11-18; design.md §12). A reader's own model gets what
+  Your Progress measures: the percentage on each yardstick, the commonest words not known
+  yet with their held meanings, and what knowing the next 500 to 3,000 would make it.
+  News, or the list named, also sends its last 26 weeks and 25 words. Facts only: targum
+  forecasts nothing. Hebrew only; another language answers that it is not measured.
 - The back office's Readers table (design's plan, 2026-11-17, PR 4). It shows every
   account but staff (the operators, admins and test accounts).
   - **Columns:** address, plan (Plan, "Beta until March 4" or Free), last seen (the
@@ -149,6 +262,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   - **Speed:** at 5,000 accounts every order and filter answers in well under a second.
     Last seen is one grouped join, not four subqueries a row.
   - It replaces the Readers page's Accounts table and its thirty-day strip.
+- `scripts/build_roots.py --split N` re-asks a request that ran out of tokens as parts
+  of N rows. The parts merge back into the run's own request, and every part's tokens
+  are counted (targum-internal#592). Rows 7700–7799 of the 2026-10-31 Hebrew run went
+  this way, at $0.62. `root_lexicon.score_against_wiktionary` scores a Hebrew lexicon
+  against Wiktionary under the gold set's weak-letter rules.
 - One reader's page in the back office, `/back-office/readers/<id>` (design's plan,
   2026-11-17, PR 5). Its sections, in order:
   1. Who they are: plan, joined, came from, last seen, leaving, and Write or Send again.
@@ -865,6 +983,8 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   second before the next. And the Readers table's 5,000-account timing gives Follow-up
   due a bar of its own (2.5 s): it reads all readers through `_growth`, and took 1.01 s
   on CI's 3.12 runner against a 1 s bar.
+- `how_much_i_understand` says a word's meaning once when its noun and verb keys hold the
+  same senses in another order (נשא, seen on the live call of 2026-11-19).
 - A Sefaria range that starts mid-chapter keeps its verse numbers (targum-internal#530).
   `Genesis 1:20-2:3` was numbered from one, so its first verse was called 1:1, and a
   verse's ref is what the reader, a recording and Onkelos's names are keyed by

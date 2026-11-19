@@ -68,14 +68,19 @@
     <div class="series-acts">
       <div class="series-acts-row">
         {%- if pdf_href %}
-        <a class="btn ghost outline series-pdf" href="{{ pdf_href }}" title="{{ t("parasha.page.download-pdf", "Download PDF") }}" aria-label="{{ t("parasha.page.download-pdf", "Download PDF") }}"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 1.5h5.5L12.5 4.5v10h-8.5zM9.5 1.5v3h3M6 8.5h4.5M6 11h4.5"/></svg></a>
+        {#- Named in words, not by its glyph alone: a title is never shown to a phone or a
+            keyboard (design.md §14, "Nothing is hover-only", 2026-10-21; #409). -#}
+        <a class="btn ghost outline series-pdf" href="{{ pdf_href }}" aria-label="{{ t("parasha.page.download-pdf", "Download PDF") }}"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 1.5h5.5L12.5 4.5v10h-8.5zM9.5 1.5v3h3M6 8.5h4.5M6 11h4.5"/></svg><span class="series-pdf-label">{{ t("parasha.page.download-pdf", "Download PDF") }}</span></a>
         {%- endif %}
         {%- if signed_in %}
         {#- One press, because a series is free: the switch is the subscription. Drawn in
             the state the account is in, and `subscribe.js` keeps it so. -#}
         <div class="series-subscribe" id="series-subscribe" data-series="{{ series.id }}"
           data-subscribe="{{ t("subs.subscribe", "Subscribe") }}"
-          data-subscribed="{{ t("follow.subscribed", "Subscribed") }}">
+          data-subscribed="{{ t("follow.subscribed", "Subscribed") }}"
+          data-slow="{{ t("series.subscribe.slow", "Still saving…") }}"
+          data-failed="{{ t("series.subscribe.failed", "We couldn't save that. Try again.") }}"
+          data-offline="{{ t("series.subscribe.offline", "You're offline. Subscribe when you're back.") }}">
           <button type="button" class="btn {{ 'tonal is-on' if subscribed else 'filled' }} series-switch" aria-pressed="{{ 'true' if subscribed else 'false' }}">
             <svg class="bell-off" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 2.2a3.6 3.6 0 0 0-3.6 3.6v2.4L3.2 10.6h9.6l-1.2-2.4V5.8A3.6 3.6 0 0 0 8 2.2zM6.6 12.6a1.4 1.4 0 0 0 2.8 0M12.5 1.5v3M11 3h3"/></svg>
             <svg class="bell-on" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 2.2a3.6 3.6 0 0 0-3.6 3.6v2.4L3.2 10.6h9.6l-1.2-2.4V5.8A3.6 3.6 0 0 0 8 2.2zM6.6 12.6a1.4 1.4 0 0 0 2.8 0M6.2 6.6l1.3 1.3 2.3-2.4"/></svg>
@@ -141,13 +146,23 @@
         </div>
         {%- if schedules_apart %}<p class="series-note">{{ t("parasha.page.israel-and-the-diaspora-are-reading-different", "Israel and the diaspora are reading different portions this week.") }}</p>{% endif %}
         {%- if now.festival %}<p class="series-note">{{ now.festival }}</p>{% endif %}
+        {%- if now.no_chanting %}<p class="series-note series-no-chanting">{{ now.no_chanting }}</p>{% endif %}
+        {%- if now.rashi_soon %}<p class="series-note series-rashi-soon">{{ now.rashi_soon }}</p>{% endif %}
         <ol class="rows series-parts">
           {%- for part in parts %}
           <li class="row">
             {%- if part.number %}<span class="series-number" aria-hidden="true">{{ part.number }}</span>{% else %}<span class="series-number is-list" aria-hidden="true"><svg viewBox="0 0 16 16" focusable="false"><path d="M5.5 4h8M5.5 8h8M5.5 12h8M2.5 4h0M2.5 8h0M2.5 12h0"/></svg></span>{% endif %}
             <span class="row-main">
-              <a class="series-row-title" href="{{ part.href }}"><bdi lang="he" dir="rtl">{{ part.name }}</bdi>{% if part.english %} <span class="series-en">{{ part.english }}</span>{% endif %}</a>
-              {%- if part.line %}<span class="series-row-line">{{ part.line }}</span>{% endif %}
+              {#- The number is drawn beside the row for the eye; for a screen reader it is
+                  said inside the link, so the row's name is "Aliyah 3, ‹name›" (#409). -#}
+              {%- set named_as %}{% if part.number %}<span class="visually-hidden">{{ t("parasha.page.aliyah-n", "Aliyah {n}", n=part.number) }} </span>{% endif %}<bdi lang="he" dir="rtl">{{ part.name }}</bdi>{% if part.english %} <span class="series-en">{{ part.english }}</span>{% endif %}{% endset %}
+              {%- if part.href %}
+              <a class="series-row-title" href="{{ part.href }}">{{ named_as }}</a>
+              {%- else %}
+              {#- Nothing built behind it on this machine: said, and not a link to a 404. -#}
+              <span class="series-row-title is-not-ready">{{ named_as }}</span>
+              {%- endif %}
+              {%- if part.line or not part.href %}<span class="series-row-line">{{ part.line }}{% if not part.href %}{% if part.line %} · {% endif %}<span class="series-not-ready">{{ t("parasha.page.not-ready", "Not ready yet") }}</span>{% endif %}</span>{% endif %}
             </span>
             <span class="series-row-end">{{ mark_of(part.mark, part.stopped) }}</span>
           </li>

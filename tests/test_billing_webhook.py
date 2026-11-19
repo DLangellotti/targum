@@ -507,11 +507,11 @@ def test_an_event_whose_handling_fails_is_handled_on_the_retry(
     real = billing.handle
     calls: list[str] = []
 
-    def once(store: Store, said: dict[str, Any]) -> billing.Outcome:
+    def once(store: Store, said: dict[str, Any], **given: Any) -> billing.Outcome:
         calls.append(str(said["event_id"]))
         if len(calls) == 1:
             raise RuntimeError("the disk was full")
-        return real(store, said)
+        return real(store, said, **given)
 
     monkeypatch.setattr(billing, "handle", once)
     body, signature = signed(event)

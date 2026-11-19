@@ -387,6 +387,53 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### The portion page says what it lacks, and is finished on three calls — 2026-11-19
+
+David, 2026-11-19, on the three questions of the portion page's finish spec
+(targum-internal#409, slice 3):
+
+- **Rashi on Exodus is said to be coming.** Until December's rebuild puts Rashi back on
+  Exodus, an Exodus portion says "Rashi on Exodus comes before Shemot." under its aliyot.
+  It is read off the built reader, so the line goes by itself when the rebuild lands. A
+  reader who had Rashi on Genesis looks for it, and a missing column with no word is a
+  fault they cannot tell from a bug.
+- **Ki Tavo at 1.74 s still closes the speed line.** His 2026-10-21 acceptance of the
+  longest aliyah's first tap stands for §14's line 5 on the portion reader.
+- **The portion page is not saved offline; its readers are.** The page is a list of
+  addresses, and every reader on it can be saved for offline. Opened offline, the page is
+  the browser's own offline page, as every desk page that is not saved is.
+
+What the page draws with them: Download PDF in words beside its glyph, never the glyph and
+a tooltip; each aliyah's number said inside its row for a screen reader; "Read it again
+from aliyah 1" once every aliyah is read; one line where a reading has no chanted
+recording; "Not ready yet" on a row with nothing built behind it, never a link to a 404;
+and Subscribe saying when it is still saving past three seconds, when it did not go
+through, and when it was pressed offline.
+
+### The yardstick figures reach the reader's own model — 2026-11-18
+
+David, 2026-11-18 (targum-internal#750): a reader asking their own model "how much
+Hebrew do I understand?" gets the measured answer, not a guess. A new tool,
+`how_much_i_understand`, under the `record` scope, read only, hands the model what
+"How much Hebrew you understand is measured on a fixed yardstick" (2026-10-30) measures.
+
+- **Facts, never a forecast.** For each yardstick with a snapshot it sends the
+  percentage, the same figure Your Progress shows; how many of the list's 1,000 and 2,000
+  commonest words are not known yet; and what knowing the next 500, 1,000, 2,000 and
+  3,000 of them would make the figure. For the list a model names, or news when it names
+  none, it also sends that figure by week, the latest 26 weeks, and the 25 commonest
+  unknown words, each with every meaning held for it and its place on the list. And the
+  words marked known in the last 30 days.
+  "If you learned the next 1,000" is arithmetic on a fixed list. "In two months you will
+  be at" is a promise, and targum makes none: a model may estimate from the pace, and is
+  told to say it as an estimate.
+- **No level.** The tool says no rung or letter, as `my_progress` does not.
+- **Hebrew only** until other languages have yardsticks of their own (targum-internal#752).
+  Another language's answer says it is not measured, never 0%.
+- **The 25 words are a short list on purpose.** They are the next words worth learning,
+  sent with every call that names a list, and with news alone when none is named, so the
+  answer stays small.
+
 ### The back office counts paying readers by source tag — 2026-11-18
 
 2026-11-18, David: paying readers by source tag, for the go/no-go. The go/no-go on
@@ -1028,6 +1075,15 @@ and nothing is bought" still holds for every reader who has not made this one ch
 - Your Words and the practice card show the meaning in the language where it is held,
   and never buy. The translation beside each line, the chrome and the chat are
   unchanged.
+
+**Hebrew is offered — 2026-11-19.** David, on ling-he's second read and her three fixes
+(targum-internal#538). A definition never writes its word, with a prefix or an ending
+(עצם, never «עצמו»), nor a word of its family where a plain word says it. A meaning is
+the word's sense and nothing more: no note on its grammar or its sentence. An inflected
+form (קחו) is defined as its dictionary form (לקחת), or left empty. A meaning that cannot
+be given is kept as asked and empty, so it is never bought twice, and the card keeps the
+English. The row is offered on every install, and off for every reader until they choose
+it. French, Russian and Italian wait for their own reads.
 
 ### An offline copy follows its text when opened online, and Remove can be undone — 2026-11-14
 
@@ -8409,6 +8465,9 @@ and is sharpened (targum-internal#399):
 - **"Talk to targum" shows its chat on a phone, drawn as /chat draws it** (§9): turns at
   opposite edges in one ink, the correction in small capitals, why folded under a
   hairline, no bubbles. Claude and ChatGPT are one line beside it.
+  *(Amended 2026-11-15, David: for the reader's lines, superseded by "Talk is a sheet
+  over a dimmed page", 2026-10-09 — the reader's lines are in the teal wash at the end
+  edge, targum's on the card.)*
 - **Every colour the page draws is a named token** in its `:root`, and `test_landing.py`
   keeps literals out of the rules; spacing takes eight steps (`--space-1` to `--space-8`);
   the page breaks at 30, 40 and 56rem only.

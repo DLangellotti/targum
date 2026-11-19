@@ -20,15 +20,15 @@ def said(markup: str) -> str:
 
 
 def test_the_notice_is_dated_the_day_david_approved_it() -> None:
-    assert LEGAL_CHANGED == "18 November 2026"
+    assert LEGAL_CHANGED == "19 November 2026"
 
 
 PRIVACY = [
     "Payment. Where the Data Subject pays for a plan or for further credits, the sale is"
     " made to the Data Subject by Paddle.com Market Limited, as stated at clause 4.3, and"
     " the Controller receives no card, bank or postal details and no sum of money. The"
-    " Controller keeps the following: the plan; whether it is paid monthly or every three"
-    " months; its status as last reported by Paddle; the day upon which the period paid"
+    " Controller keeps the following: the plan; its status as last reported by Paddle;"
+    " the day upon which the period paid"
     " for ends; whether the Data Subject has cancelled it so that it ends upon that day;"
     " the time at which a renewal first failed; the periods for which each plan was paid;"
     " the identifiers which Paddle assigns to the Data Subject as its customer and to each"
@@ -105,3 +105,13 @@ def test_paddle_is_its_own_recipient_clause_and_the_old_4_3_follows_it() -> None
         "Save as provided at clauses 4.2 and 4.3"
     )
     assert "Save as provided at clause 4.2," not in page
+
+
+def test_the_notice_names_no_quarterly_plan() -> None:
+    """Plan is monthly only (David, 2026-11-18), and the item saying whether a plan is
+    paid monthly or every three months is deleted (David, 2026-11-19), with no other
+    change to the clause."""
+    page = said(legal_page("privacy"))
+    assert "every three months" not in page
+    assert "whether it is paid monthly" not in page
+    assert "keeps the following: the plan; its status as last reported by Paddle;" in page

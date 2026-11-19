@@ -870,7 +870,9 @@ def get_ready(library: Any, store: Store, *, most: int = ROUND) -> Readied:
         refused = library.press(job)
         if refused:
             allowed = library.allowance(paid_plan=plans.paid(person), owner=person.id)
-            spent = store.hours_used(person.id, month_from)
+            # The reader's own allowance month (a paid Plan's from its day), as `claim`
+            # counted it; `month_from` above is the calendar's, for the cap they chose.
+            spent = store.hours_used(person.id, library.month_from_for(person.id))
             why = (
                 "credits"
                 if allowed is not None and not person.admin and spent + job.seconds > allowed
