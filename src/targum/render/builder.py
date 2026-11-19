@@ -5717,12 +5717,17 @@ def parasha_page(
     subscribed: bool = False,
     token: str = "",
     pictures: bool = False,
+    chanted: bool | None = None,
+    rashi_soon: bool = False,
 ) -> str:
     """The weekly portion's page (design.md §12, "A series is one page of the desk, for
     everyone", 2026-10-09; board SeriesPortion): this Shabbat's reading — or, at
     `/parasha/<name>`, one portion any week of the year — its aliyot and haftarah as rows
     with the reader's marks, its press, Diaspora and Israel, next Shabbat and the weeks
-    before. `view` is `series_view.portion_view`'s answer; `pictures` says whether the
+    before. `chanted` False says once that the reading has no chanted recording (a
+    festival's: PocketTorah has none); None says nothing. `rashi_soon` says Rashi on
+    Exodus comes before Shemot (David, 2026-11-19; #409), until the Exodus rebuild.
+    `view` is `series_view.portion_view`'s answer; `pictures` says whether the
     asker may be handed `/thumb/` (a stranger may not, and has the scroll instead).
 
     Everything about the reading comes off the corpus index and the calendar's cache, as
@@ -5832,7 +5837,12 @@ def parasha_page(
                 "stopped": False,
             }
         )
-    if stopped_at and stopped_at not in finished and stopped_at.isdigit():
+    every = sections > 1 and all(str(n) in finished for n in range(1, sections + 1))
+    if every:
+        # All read: the press is to read it again, not "Read Bereshit" as if new (#409).
+        go_label = t("parasha.page.read-again", "Read it again from aliyah 1")
+        go_href = f"/parasha/read/{reading}/reader/sec-0001.html"
+    elif stopped_at and stopped_at not in finished and stopped_at.isdigit():
         go_label = t("series.portion.pick-up", "Pick up at aliyah {n}", n=stopped_at)
         go_href = f"/parasha/read/{reading}/reader/sec-{int(stopped_at):04d}.html"
     elif finished and sections > 1 and len(finished) < sections:
@@ -5886,6 +5896,19 @@ def parasha_page(
         "go_href": go_href,
         "go_label": go_label,
         "festival": festival,
+        "no_chanting": (
+            t(
+                "parasha.page.no-chanting",
+                "No chanted recording for this reading; the spoken reading is here.",
+            )
+            if chanted is False
+            else ""
+        ),
+        "rashi_soon": (
+            t("parasha.page.rashi-exodus-soon", "Rashi on Exodus comes before Shemot.")
+            if rashi_soon
+            else ""
+        ),
     }
     schedules = None
     apart = False

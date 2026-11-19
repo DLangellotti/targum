@@ -14,6 +14,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   "learned on targum" is gone; the label stays. `progress.ear.start` and
   `progress.count.learned.note` are retired; `lists.ear.tip` is new, its Russian a draft
   for ling-ru.
+- The portion page is finished to §14 (targum-internal#409, slice 3; design.md §12,
+  2026-11-19).
+  - **PDF:** Download PDF is named in words beside its glyph, never by a tooltip alone.
+  - **Rows:** each aliyah's number is said inside its row for a screen reader.
+  - **Once every aliyah is read**, the press is "Read it again from aliyah 1".
+  - **A reading with no chanted recording** (a festival's) says so once.
+  - **An Exodus portion built without Rashi** says "Rashi on Exodus comes before Shemot.",
+    read off the built reader, so the line goes when December's rebuild lands.
+  - **A row with nothing built behind it** says "Not ready yet" and is not a link.
+  - **Subscribe** says when it is still saving past three seconds, when it did not go
+    through, and when it was pressed offline.
+  - The Russian is drafted for ling-ru's first pass.
 - A meaning in the language itself never writes the word itself (targum-internal#538,
   ling-he's read of 2026-11-16). The prompt says so in plainer terms, and a definition that
   still writes the headword is not filed, so the card keeps the meaning in the reader's
