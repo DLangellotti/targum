@@ -30,7 +30,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from .registers import EVERYDAY, NEWS, PICKER, PODCASTS, SOCIAL, VIDEO, pooled
+from .registers import EVERYDAY, NEWS, PODCASTS, SOCIAL, VIDEO, every_picker, pooled
 
 if TYPE_CHECKING:
     from .store import Store
@@ -68,7 +68,21 @@ RULE = "yardstick/1"
 BOX_DIR = Path("/var/lib/targum/tables")
 LAPTOP_DIR = Path.home() / ".targum" / "tables"
 
-_FILE = re.compile(r"^yardstick-(?P<register>[a-z]+)-v(?P<version>\d+)\.json$")
+#: A snapshot's file: `yardstick-news-v3.json` for Hebrew, `yardstick-ru-conversation-v1.json`
+#: for another language's (targum-internal#752), whose register `ru:conversation` is
+#: written with a hyphen, since a colon is no character for a file's name.
+_FILE = re.compile(r"^yardstick-(?P<register>(?:[a-z]{2,3}-)?[a-z]+)-v(?P<version>\d+)\.json$")
+
+
+def file_stem(register: str) -> str:
+    """How a register is spelled in its snapshot's file name: `ru-conversation` for
+    `ru:conversation`, and a Hebrew register as it is."""
+    return register.replace(":", "-")
+
+
+def _register_of_stem(stem: str) -> str:
+    head, sep, tail = stem.partition("-")
+    return f"{head}:{tail}" if sep else stem
 
 
 def directory() -> Path:
@@ -226,7 +240,7 @@ def versions(register: str, where: Path | None = None) -> list[tuple[int, Path]]
     found = []
     for file in folder.iterdir():
         matched = _FILE.match(file.name)
-        if matched and matched["register"] == register:
+        if matched and _register_of_stem(matched["register"]) == register:
             found.append((int(matched["version"]), file))
     return sorted(found)
 
@@ -285,7 +299,7 @@ def write(
     version = (held[-1][0] if held else 0) + 1
     made = {"version": version, "made_at": stamp, **made}
     folder.mkdir(parents=True, exist_ok=True)
-    file = folder / f"yardstick-{register}-v{version}.json"
+    file = folder / f"yardstick-{file_stem(register)}-v{version}.json"
     partial = file.with_suffix(".json.partial")
     partial.write_text(json.dumps(made, ensure_ascii=False, sort_keys=True), encoding="utf-8")
     partial.replace(file)
@@ -295,11 +309,12 @@ def write(
 def write_all(
     store: Store, where: Path | None = None, *, force: bool = False, now: datetime | None = None
 ) -> list[Written]:
-    """`write` for each register the card's picker may offer, and no other: targum's own
+    """`write` for each register the card's picker may offer, in every language that has
+    yardsticks (`registers.every_picker`, targum-internal#752), and no other: targum's own
     scenes and the weekly are never a yardstick (David, 2026-10-30). What learners bring
     is (`registers.IMPORTS`, 2026-11-01), once its pool crosses `FLOOR` like any other:
     every row of it already stands on ten readers' material."""
-    return [write(store, register, where, force=force, now=now) for register in PICKER]
+    return [write(store, register, where, force=force, now=now) for register in every_picker()]
 
 
 #: (file, its mtime) → the yardstick read from it, so a page load reads no file twice.
@@ -309,7 +324,7 @@ _LOADED: dict[tuple[str, float], Yardstick] = {}
 def load(register: str, where: Path | None = None) -> Yardstick | None:
     """The newest snapshot of one register, or None where there is none (or it cannot be
     read). A register with none is absent from the card, never a 0%."""
-    if register not in PICKER:
+    if register not in every_picker():
         return None
     held = versions(register, where)
     for version, file in reversed(held):

@@ -2954,6 +2954,40 @@ def test_a_reader_of_another_language_is_not_measured(world) -> None:
     assert tools.how_much_i_understand(both, {})["measured"] is True
 
 
+def test_a_russian_reader_is_measured_on_russian_lists_alone(world) -> None:
+    """targum-internal#752: a Russian reader is measured on `ru:` lists, with their own
+    Russian words, and is told the lists by their bare names. Hebrew's lists never
+    measure them, and French without a list of its own is still not measured."""
+    _yardstick("news", _NEWS)
+    _yardstick("ru-news", {"дом": 0.6, "море": 0.3, "книга": 0.1})
+    _yardstick("ru-conversation", {"дом": 0.5, "знать": 0.5})
+    library, store, person, home = world
+    store.push(
+        person,
+        {
+            "words": [
+                {"language": "ru", "lemma": "дом", "status": 9, "at": 1, "seen": 1},
+                {"language": "ru", "lemma": "книга", "status": 2, "at": 1, "seen": 1},
+            ]
+        },
+    )
+    ctx = replace(context(library, store, person, home), learning={"ru"})
+    got = tools.how_much_i_understand(ctx, {})
+    assert got["measured"] is True and got["language"] == "ru"
+    by_name = {one["register"]: one for one in got["registers"]}
+    assert set(by_name) == {"news", "conversation"}
+    assert by_name["news"]["percent"] == 60 and by_name["conversation"]["percent"] == 50
+    assert [row["lemma"] for row in by_name["news"]["next_words"]] == ["море", "книга"]
+    named = tools.how_much_i_understand(ctx, {"register": "conversation"})
+    assert [one["register"] for one in named["registers"]] == ["conversation"]
+    assert tools.how_much_i_understand(ctx, {"register": "bible"}) == {
+        "error": "no such list",
+        "registers": ["conversation", "news"],
+    }
+    french = replace(ctx, learning={"fr"})
+    assert tools.how_much_i_understand(french, {}) == {"language": "fr", "measured": False}
+
+
 def test_a_reader_with_no_words_has_no_history_and_the_whole_list_ahead(tmp_path: Path) -> None:
     _yardstick("news", _NEWS)
     store = Store(tmp_path / "words.db")
@@ -2982,7 +3016,7 @@ def test_the_whole_answer_stays_small(world, monkeypatch) -> None:
 
     for register in PICKER:
         _yardstick(register, {f"{register}{n:05d}": 1 / 5000 for n in range(5000)})
-    monkeypatch.setattr(tools, "_held_gloss", lambda lemma, target: "a meaning " * 6)
+    monkeypatch.setattr(tools, "_held_gloss", lambda lemma, target, language="he": "a meaning " * 6)
     library, store, person, home = world
     with store.write() as db:
         db.execute(

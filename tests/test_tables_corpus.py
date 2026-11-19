@@ -125,7 +125,7 @@ def test_a_long_line_is_cut_at_spaces() -> None:
 def test_the_command_counts_a_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     ledger = tmp_path / "corpus.db"
     monkeypatch.setenv("TARGUM_LEDGER", str(ledger))
-    monkeypatch.setattr(corpus, "default_annotator", Stand)
+    monkeypatch.setattr(corpus, "default_annotator", lambda language="he": Stand())
     sample = tmp_path / "sample.txt"
     sample.write_text("\n".join(LINES) + "\n", encoding="utf-8")
     args = ["tables", "count-corpus", str(sample), "--register", "literature"]
@@ -136,3 +136,31 @@ def test_the_command_counts_a_file(tmp_path: Path, monkeypatch: pytest.MonkeyPat
     assert Store(ledger).total(WORDS, "literature") == 14
     refused = CliRunner().invoke(app, [*args[:3], "--register", "news", *args[5:]])
     assert refused.exit_code != 0
+    french = CliRunner().invoke(app, [*args, "--language", "fr"])
+    assert french.exit_code != 0 and "never spends" in french.output
+
+
+def test_a_russian_corpus_is_filed_under_its_own_language(tmp_path: Path) -> None:
+    """targum-internal#752: Russian counts go to `ru:conversation`, never to the register
+    Hebrew's list reads."""
+    store = Store(tmp_path / "corpus.db")
+    result = corpus.count_corpus(LINES, store, annotator=Stand(), size=3, language="ru", **OPTS)
+    assert result.tokens == 14 == store.total(WORDS, "ru:conversation")
+    assert store.total(WORDS, "conversation") == 0
+
+
+def test_a_language_with_no_free_reader_is_never_counted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """French words are read by the model, which spends; a count never spends, so French
+    is refused, and Russian is refused where the local reader is not installed."""
+    store = Store(tmp_path / "corpus.db")
+    with pytest.raises(ValueError, match="without buying"):
+        corpus.count_corpus(LINES, store, language="fr", **OPTS)
+    assert corpus.default_annotator("fr") is None
+    from targum.annotate import russian
+
+    monkeypatch.setattr(russian, "available", lambda: False)
+    assert corpus.default_annotator("ru") is None
+    with pytest.raises(ValueError, match="never spends"):
+        corpus.count_corpus(LINES, store, language="ru", **OPTS)

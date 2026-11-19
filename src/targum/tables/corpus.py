@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from . import roots
-from .registers import BIBLE, CONVERSATION, LITERATURE
+from .registers import BIBLE, CONVERSATION, HEBREW, LITERATURE, in_language
 from .store import Contribution, Store
 from .words import PHRASES, RULE, WORDS, count
 
@@ -38,6 +38,12 @@ PHRASE_FLOOR = 3
 #: The registers an outside corpus may be filed under: the yardsticks a backfill feeds.
 #: News is counted from the feeds by its own job, never from a downloaded corpus.
 REGISTERS = (CONVERSATION, LITERATURE, BIBLE)
+
+#: The languages an outside corpus may be counted in, each by the reader a build of that
+#: language uses and nothing bought (targum-internal#752): DICTA for Hebrew, the local
+#: Russian reader for Russian. French words are read by the model, which spends, so French
+#: is not counted here until a free French reader is decided on.
+LANGUAGES = (HEBREW, "ru")
 
 #: The longest line handed over, in characters; a longer one is cut at spaces. A line
 #: past this is a paragraph nobody split, and the model's batch is sized by its longest.
@@ -121,10 +127,24 @@ def contributions(
     }
 
 
-def default_annotator() -> Any:
-    """The annotator a build reads modern Hebrew with, less the pronouncer, which adds
-    readings and no lemma. Built lazily: nothing is loaded until a chunk is read."""
+def default_annotator(language: str = HEBREW) -> Any:
+    """The annotator a build reads a language with, less the pronouncer, which adds
+    readings and no lemma, or None where this machine cannot read the language without
+    buying. Built lazily: nothing is loaded until a chunk is read.
+
+    Russian is the local reader (`annotate.russian`) or nothing, as for the news feeds:
+    never the model, which a Russian build falls back to where the `russian` extra is
+    missing, because a count never spends."""
     from ..annotate import Annotator
+
+    if language == "ru":
+        from ..annotate import russian
+
+        if not russian.available():
+            return None
+        return Annotator(lemmatizer=russian.RussianLemmatizer())
+    if language != HEBREW:
+        return None
     from ..annotate.lemma import for_source
 
     return Annotator(lemmatizer=for_source("corpus:he", language="he"))
@@ -170,13 +190,16 @@ def count_corpus(
     register: str,
     source: str,
     licence: str,
+    language: str = HEBREW,
     annotator: Any = None,
     size: int = CHUNK,
     tokens: int | None = None,
     stop: Callable[[], str] | None = None,
     say: Callable[[str], None] | None = None,
 ) -> CorpusResult:
-    """Count a corpus, one line a sentence, into `register`. Returns what was done.
+    """Count a corpus, one line a sentence, into `register` in `language`. Returns what
+    was done. Another language's counts are filed under `<language>:<register>`
+    (`registers.in_language`), so they never reach a Hebrew list.
 
     `tokens` ends the run once that many words are counted, whole chunks only, so a
     sample can be grown later by running again with a larger figure. `stop` is asked
@@ -186,7 +209,17 @@ def count_corpus(
         raise ValueError(f"an outside corpus is filed under {REGISTERS}, not {register}")
     if not source or not licence:
         raise ValueError("every contribution names its source and its licence")
-    annotator = annotator if annotator is not None else default_annotator()
+    code = (language or HEBREW).split("-")[0].lower()
+    if annotator is None:
+        if code not in LANGUAGES:
+            raise ValueError(
+                f"an outside corpus is counted in {LANGUAGES}, not {code}: nothing else is"
+                " read here without buying"
+            )
+        annotator = default_annotator(code)
+        if annotator is None:
+            raise ValueError(f"no free {code} reader on this machine; a count never spends")
+    filed_under = in_language(register, code)
     tool = str(annotator.name)
     result = CorpusResult()
     for at, chunk in enumerate(chunks(raw, size)):
@@ -194,7 +227,7 @@ def count_corpus(
             result.stopped = f"the sample reached {result.tokens} words"
             break
         unit = unit_of(source, chunk)
-        filed = contributions(unit, register=register, source=source, licence=licence, tool=tool)
+        filed = contributions(unit, register=filed_under, source=source, licence=licence, tool=tool)
         if all(store.is_current(one.id) for one in filed.values()):
             result.held += 1
             result.sentences += len(chunk)
@@ -206,7 +239,7 @@ def count_corpus(
         if reason:
             result.stopped = reason
             break
-        counted = tally(chunk, annotator, unit)
+        counted = tally(chunk, annotator, unit, language=code)
         for table, one in filed.items():
             store.write(one, counted[table])
         result.counted += 1

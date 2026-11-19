@@ -128,6 +128,10 @@ def test_scenes_and_the_weekly_are_never_a_yardstick(tmp_path: Path) -> None:
         "podcasts",
         "everyday",
         "imports",
+        "ru:conversation",
+        "ru:news",
+        "fr:conversation",
+        "fr:news",
     }
     assert all(one.outcome == "short" for one in done), "they are all empty here"
 
@@ -325,3 +329,33 @@ def test_a_small_pool_is_blended_by_its_size() -> None:
     assert yardstick.blend_share(800_000, 200_000) == pytest.approx(0.2)
     assert yardstick.blend_share(100_000, 900_000) == yardstick.BLEND_CAP
     assert yardstick.blend_share(0, 900_000) == 0.0
+
+
+def test_another_languages_list_is_its_own_file_and_its_own_counts(tmp_path: Path) -> None:
+    """targum-internal#752: Russian conversation is filed `ru:conversation` and written
+    to `yardstick-ru-conversation-v1.json`; it reads none of Hebrew's counts, and
+    Hebrew's list reads none of its."""
+    from targum.tables import registers
+
+    store = _store(tmp_path, register="ru:conversation")
+    _store(tmp_path, register="conversation", lemmas=5, scale=1)
+    where = tmp_path / "tables"
+    done = yardstick.write(store, "ru:conversation", where, now=NOW)
+    assert done.outcome == "written"
+    assert done.file == where / "yardstick-ru-conversation-v1.json"
+    assert yardstick.write(store, "conversation", where, now=NOW).outcome == "short"
+    assert yardstick.versions("conversation", where) == []
+    assert [v for v, _ in yardstick.versions("ru:conversation", where)] == [1]
+    stick = yardstick.load("ru:conversation", where)
+    assert stick is not None and stick.register == "ru:conversation"
+    assert yardstick.load("conversation", where) is None
+    assert level.coverage_on("ru:conversation", [_lemma(0)], where) == pytest.approx(
+        stick.weights[_lemma(0)]
+    )
+    assert registers.picker("ru") == ("ru:conversation", "ru:news")
+    assert registers.picker("fr-FR") == ("fr:conversation", "fr:news")
+    assert registers.picker("it") == ()
+    assert registers.picker("he") == registers.PICKER
+    assert registers.bare_register("ru:news") == "news"
+    assert registers.bare_register("imports:news") == "imports:news"
+    assert yardstick.load("it:conversation", where) is None, "no picker, no list"

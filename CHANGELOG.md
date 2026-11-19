@@ -223,6 +223,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   yet with their held meanings, and what knowing the next 500 to 3,000 would make it.
   News, or the list named, also sends its last 26 weeks and 25 words. Facts only: targum
   forecasts nothing. Hebrew only; another language answers that it is not measured.
+- Russian and French yardsticks (targum-internal#752; design.md §12). Each language gets
+  conversation and news lists of its own, filed `ru:conversation`, `fr:news` and so on
+  (`registers.picker`), written as `yardstick-ru-conversation-v1.json`, and never read
+  off Hebrew's counts. `tables snapshot` writes them once their counts cross the floor;
+  the box's nightly Russian news count already feeds `ru:news`. `tables count-corpus
+  --language ru` counts an outside corpus with the local Russian reader, never the model.
+  French is refused there: its words are read by the model, and a count never spends.
+  `how_much_i_understand` and the Progress card measure a Russian or French reader on
+  their own lists once one is on the box, titled "How much Russian you understand" /
+  "How much French you understand" (new strings, Russian by ling-ru's first pass).
 - The back office's Readers table (design's plan, 2026-11-17, PR 4). It shows every
   account but staff (the operators, admins and test accounts).
   - **Columns:** address, plan (Plan, "Beta until March 4" or Free), last seen (the

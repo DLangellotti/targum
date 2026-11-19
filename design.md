@@ -429,7 +429,10 @@ Hebrew do I understand?" gets the measured answer, not a guess. A new tool,
   told to say it as an estimate.
 - **No level.** The tool says no rung or letter, as `my_progress` does not.
 - **Hebrew only** until other languages have yardsticks of their own (targum-internal#752).
-  Another language's answer says it is not measured, never 0%.
+  Another language's answer says it is not measured, never 0%. *(Since 2026-11-19,
+  targum-internal#752: Russian and French are measured on their own conversation and news
+  lists, filed `ru:` and `fr:`, once a list of theirs is on the box; until then they are
+  still not measured.)*
 - **The 25 words are a short list on purpose.** They are the next words worth learning,
   sent with every call that names a list, and with news alone when none is named, so the
   answer stays small.
@@ -3656,7 +3659,14 @@ replaces the "Words you knew" card of "Your level, v3" (2026-10-29) on Your Prog
   closes, each option 44px under a thumb. The choice, and Week or Month, are remembered
   in this browser only.
 - **Only Hebrew has yardsticks.** A language without one keeps "Words you knew" as it
-  was, and so does a Hebrew reader who knows no word on any list yet.
+  was, and so does a Hebrew reader who knows no word on any list yet. *(2026-11-19,
+  targum-internal#752: Russian and French get conversation and news lists of their own,
+  counted with the reader each language's builds use and never with anything bought, and
+  filed `ru:conversation`, `fr:news` and so on, so no list is read off another language's
+  words. The card shows for them once a list lands, titled "How much Russian you
+  understand" or "How much French you understand". Russian conversation is a sample of
+  OPUS OpenSubtitles v2024, counted on the laptop; Russian news is the box's own nightly
+  count. French waits: its words are read by the model, and a count never spends.)*
 - **The Russian strings are drafts** (ling-ru, shipped for David's later read).
 
 What it keeps: every figure is a real count over a stated list (§6), nothing on it
