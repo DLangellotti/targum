@@ -31,6 +31,7 @@ heard of yet, and the phone puts it back on the next sync.
 
 from __future__ import annotations
 
+import calendar as calendar_module
 import contextlib
 import hashlib
 import json
@@ -2129,6 +2130,16 @@ CREATE TABLE IF NOT EXISTS fault_fixed (
 
 #: What a reader is told about a line targum was answering when it restarted.
 CHAT_RESTARTED = "We restarted while we were answering. Ask again."
+
+
+def _add_months(moment: datetime, months: int) -> datetime:
+    """`moment` that many months on, its day of the month kept where the month has it and
+    the month's last day where it does not: a Plan begun on 31 January renews on 28 (or
+    29) February, then 31 March."""
+    index = moment.month - 1 + months
+    year, month = moment.year + index // 12, index % 12 + 1
+    last = calendar_module.monthrange(year, month)[1]
+    return moment.replace(year=year, month=month, day=min(moment.day, last))
 
 
 def now() -> int:
@@ -4838,6 +4849,46 @@ class Store:
             )
             return done.rowcount == 1
 
+    def month_window(self, owner: int | None, at: int) -> tuple[int, int, bool]:
+        """The allowance month `at` falls in, for this reader: its start, its end, and
+        whether it is a paid Plan's month (Terms of sale clause 2, David 2026-11-19).
+
+        A paid Plan's credits run per month **of the Plan**, from the day it began: the
+        month is the paid period Paddle said (`plan_period`), and a period longer than a
+        month is cut into months from its own start, the day kept (the 31st falls back to
+        the month's last day). Every other reader, Free, a comped beta reader and the
+        operator, keeps the calendar month in UTC, as before; and so does a Plan reader
+        between periods, from the end of the last one. The months tile time, so nothing
+        is counted twice or never."""
+        calendar = datetime.fromtimestamp(at / 1000, UTC)
+        first = datetime(calendar.year, calendar.month, 1, tzinfo=UTC)
+        start = int(first.timestamp() * 1000)
+        end = int(_add_months(first, 1).timestamp() * 1000)
+        if owner is None:
+            return start, end, False
+        rows = [
+            (int(row["starts"]), int(row["ends"]))
+            for row in self.db.execute(
+                "SELECT starts, ends FROM plan_period WHERE person = ? AND ends > starts",
+                (int(owner),),
+            )
+        ]
+        covering = [one for one in rows if one[0] <= at < one[1]]
+        later = [one[0] for one in rows if one[0] > at]
+        if covering:
+            starts, ends = max(covering)
+            began = datetime.fromtimestamp(starts / 1000, UTC)
+            months = 0
+            while int(_add_months(began, months + 1).timestamp() * 1000) <= at:
+                months += 1
+            window_start = int(_add_months(began, months).timestamp() * 1000)
+            window_end = int(_add_months(began, months + 1).timestamp() * 1000)
+            return window_start, min(window_end, ends, *later), True
+        before = [one[1] for one in rows if one[1] <= at]
+        if before:
+            start = max(start, max(before))
+        return start, (min(end, *later) if later else end), False
+
     def grant_seconds(self, owner: int | None, month_from: int, full: float, free: float) -> float:
         """What is left of this reader's top-ups for this month, in seconds: every grant
         made, less what earlier months spent past their own allowance.
@@ -4859,15 +4910,12 @@ class Store:
         ).fetchall()
         if not rows:
             return 0.0
-        first = datetime.fromtimestamp(int(rows[0]["at"]) / 1000, UTC)
-        start = datetime(first.year, first.month, 1, tzinfo=UTC)
+        # Month by month as `month_window` cuts them, which is how `claim` counts them:
+        # a paid Plan's own months, and the calendar's for everything else.
+        begin = self.month_window(owner, int(rows[0]["at"]))[0]
         left = 0.0
-        while (begin := int(start.timestamp() * 1000)) < month_from:
-            year, month = (
-                (start.year + 1, 1) if start.month == 12 else (start.year, start.month + 1)
-            )
-            start = datetime(year, month, 1, tzinfo=UTC)
-            whole = int(start.timestamp() * 1000)
+        while begin < month_from:
+            _, whole, _ = self.month_window(owner, begin)
             end = min(whole, month_from)
             left += 60.0 * sum(int(r["credits"]) for r in rows if begin <= int(r["at"]) < end)
             used = self.db.execute(
@@ -4877,6 +4925,7 @@ class Store:
             ).fetchone()
             base = free + (full - free) * self._plan_share(int(owner), begin, whole)
             left = max(0.0, left - max(0.0, float(used["used"]) - base))
+            begin = whole
         return left + 60.0 * sum(int(r["credits"]) for r in rows if int(r["at"]) >= month_from)
 
     def _plan_share(self, owner: int, begin: int, end: int) -> float:

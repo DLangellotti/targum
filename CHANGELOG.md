@@ -20,6 +20,21 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   language. A form the model cannot place comes back empty, and the prompt now says that
   no note about a form ever goes in the gloss. `scripts/meanings_itself_read.py` counts
   what it dropped.
+- A paid Plan's 480 credits run per month of the Plan, from the day it began, not per
+  calendar month (David, 2026-11-19; Terms of sale clause 2). `Store.month_window` cuts
+  the months from Paddle's paid periods (`plan_period`): a Plan begun on the 15th resets
+  on the 15th, one begun on 31 January resets on 28 or 29 February and then 31 March, and
+  a period longer than a month is cut into months from its own start. `claim`,
+  `claim_set`, `claim_turn`, the quote, the refusals' "they reset on", the account page,
+  the chat's `my_hours` and the top-up ledger (`grant_seconds`) all read it, through
+  `Library.month_from_for` and `month_ends_for`.
+  - **Unchanged:** Free, comped beta readers and the operator keep the calendar month in
+    UTC. A Plan reader between periods also keeps it, from where the last period ended,
+    so the paid days count once.
+  - **One thing moves:** a month that was part Plan and part Free is now two months, the
+    Plan's and then Free's, instead of one calendar month with a prorated allowance.
+  - **Still calendar months, as they should be:** a subscription's monthly cap, the grow
+    round's cap, Anki's sounds and the subscriptions mail.
 - The Hebrew root lexicon a deploy ships is named in `deploy/roots.pin`, so moving it on is
   a reviewed change rather than a symlink on the laptop. It now names
   `roots-he-2026-11-18b.json` (10,592 lemmas; targum-internal#592): 247 more words have a

@@ -503,16 +503,19 @@ def test_a_month_is_counted_at_the_plan_it_was_on(tmp_path: Path) -> None:
     assert store.grant_seconds(me.id, ms(dec), FULL, FREE) == 150 * 60, "Free's month"
 
 
-def test_a_month_partly_on_plan_is_prorated(tmp_path: Path) -> None:
-    """Plan for the first 10 days of a 30-day month: the month's allowance is Free's 60
-    and a third of the 420 between Free and Plan, so 200."""
+def test_a_plan_that_ended_mid_month_leaves_a_free_month_from_its_end(tmp_path: Path) -> None:
+    """Plan for the first 10 days of November, then Free. Since 2026-11-19 a paid Plan's
+    month is its own (Terms of sale clause 2), so the paid ten days are one month with
+    Plan's allowance, and Free's month runs from the 11th. A 250-minute job on the 20th
+    is Free's 60 and 190 of the top-up's 300, so 110 are left. (It was 250 when the
+    calendar month was prorated: 60 and a third of the 420 between Free and Plan.)"""
     store = Store(tmp_path / "targum.db")
     me = signed_up(store, "a@example.com")
     _grant_at(store, me.id, 300, datetime(2026, 11, 1, tzinfo=UTC), "txn_1")
     _paid(store, me.id, datetime(2026, 11, 1, tzinfo=UTC), datetime(2026, 11, 11, tzinfo=UTC))
     _job(store, me.id, 250 * 60, datetime(2026, 11, 20, tzinfo=UTC), "nov")
     left = store.grant_seconds(me.id, ms(datetime(2026, 12, 1, tzinfo=UTC)), FULL, FREE)
-    assert round(left / 60, 6) == 250
+    assert round(left / 60, 6) == 110
 
 
 def test_a_plan_cancelled_at_once_counts_only_for_the_time_it_held(tmp_path: Path) -> None:
