@@ -1017,6 +1017,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   second before the next. And the Readers table's 5,000-account timing gives Follow-up
   due a bar of its own (2.5 s): it reads all readers through `_growth`, and took 1.01 s
   on CI's 3.12 runner against a 1 s bar.
+- A book saved in parts no longer reads as saved on the Saved page
+  (targum-internal#720, P2 8). Opening a contents page keeps that page alone, and the
+  row said "text" with Keep while every chapter was not on the device. It now says
+  "Contents only", or "{n} of {total} parts", counted from the same files the reader
+  marks its chapters from (`TargumOffline.parts`). `/offline.json?part=1` tells the
+  whole's page count as `whole`; a copy kept before that says "{n} parts saved". Keep
+  on such a row saves the rest of the book, fetching only what is not already kept.
+  `saved.contents-only`, `saved.parts-of` and `saved.parts-saved` are new, their Russian
+  a first pass for ling-ru.
 - The Russian and French yardsticks, after qa-claude's read of targum#1343
   (targum-internal#752). A list is never replaced by one counted from fewer words, so a
   list made on the laptop from OPUS is not dropped at the month's turn by a box whose

@@ -237,6 +237,8 @@
           name: told.name || "",
           pages: told.pages || 0,
           part: !!told.part,
+          // How many pages the whole has, where only a part is asked for.
+          whole: told.whole || 0,
           files: files,
           film: (told.files || []).some(function (file) {
             return file.film;
@@ -431,6 +433,7 @@
                   name: planned.name || was.name || "",
                   pages: pages,
                   part: planned.part,
+                  whole: planned.part ? planned.whole || was.whole || 0 : pages,
                   open: was.open || keyOf(options.open || page),
                   // Once a reader has saved it themselves, opening it again never makes
                   // it one of the texts that are kept on their own and let go.
@@ -759,12 +762,35 @@
     });
   }
 
-  /* Kept until removed: a text or a playlist saved on its own becomes one the reader saved. */
+  /* Kept until removed: a text or a playlist saved on its own becomes one the reader saved.
+     A text kept only in the parts that were opened is saved whole, since that is what
+     Keep promises (targum-internal#720, P2 8): the rest is fetched, and what was kept
+     already is not fetched again. */
   function keepIt(id) {
-    return change(function (index) {
-      if (index.items[id]) index.items[id].how = "you";
-      return index;
+    return readIndex().then(function (index) {
+      var item = index.items[id];
+      if (item && item.part) {
+        return save(item.open || id, { how: "you", title: item.title, kind: item.kind }).done;
+      }
+      return change(function (fresh) {
+        if (fresh.items[id]) fresh.items[id].how = "you";
+        return fresh;
+      });
     });
+  }
+
+  /* How much of a text kept in parts is here, counted in parts: the contents page is not
+     one of them. `{kept, total}`, with `total` 0 where a copy saved before the server
+     told the count does not know it, and `null` for a text kept whole. The Saved page
+     says it with this, and the reader marks its chapters from the same `files`
+     (`hasPage`), so the two agree. */
+  function partsOf(item) {
+    if (!item || !item.part) return null;
+    var kept = (item.files || []).filter(function (one) {
+      return /\.html$/i.test(one) && !/\/index\.html$/i.test(one);
+    }).length;
+    var total = Math.max(0, Number(item.whole || 0) - 1);
+    return { kept: kept, total: total >= kept ? total : 0 };
   }
 
   /* Let go of the texts kept on their own beyond the reader's number, oldest opened first,
@@ -2022,6 +2048,7 @@
     // What runs as every page opens, here for a test to run and wait on.
     sweep: sweep,
     keep: keepIt,
+    parts: partsOf,
     keepPage: keepPage,
     trim: trim,
     choices: choices,

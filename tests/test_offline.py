@@ -165,6 +165,8 @@ def test_a_part_alone_is_its_page_and_the_sidecars_it_names(served: tuple[int, P
         "/reader/book-he/reader/video/part-002.webm",
     ], "the page, and the film it plays — not the next part's"
     assert told["pages"] == 1
+    # And how many pages the whole has, so a part says "1 of 3 parts" (#720, P2 8).
+    assert told["whole"] == 4
     assert told["bytes"] == sum(file["bytes"] for file in told["files"])
 
     # The contents page is a part of its own, by the text's address or by its file.
@@ -174,7 +176,7 @@ def test_a_part_alone_is_its_page_and_the_sidecars_it_names(served: tuple[int, P
 
     # Without `part`, the whole, as the reader's press asks for it.
     told = json.loads(get(port, f"/offline.json?page={page}&k={TOKEN}")[2])
-    assert "part" not in told and told["pages"] == 4
+    assert "part" not in told and "whole" not in told and told["pages"] == 4
 
     # A text of one page has no parts: asked for one, it is listed whole.
     book(out / "local" / "one-he", chapters=1)

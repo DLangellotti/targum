@@ -21211,22 +21211,6 @@ class Handler(BaseHTTPRequestHandler):
         if found is None:
             return self._json({"error": "not found"}, 404)
         prefix, bases, about = found
-        # Saved on its own, a text with a contents page keeps only the part that was
-        # opened (David, 2026-10-10; design.md §12): `?part=1` narrows the list to that
-        # one page and the sidecars it names. The whole is the reader's press.
-        if asked.get("part", [""])[0] == "1":
-            narrowed = self._offline_part(page, prefix, bases)
-            if narrowed is not None:
-                return self._json(
-                    {
-                        **about,
-                        "base": prefix,
-                        "part": True,
-                        "files": narrowed,
-                        "pages": sum(1 for f in narrowed if str(f["url"]).endswith(".html")),
-                        "bytes": sum(int(f["bytes"]) for f in narrowed),
-                    }
-                )
         files: list[dict[str, Any]] = []
         for under, base, deep in bases:
             try:
@@ -21248,6 +21232,26 @@ class Handler(BaseHTTPRequestHandler):
                         "film": suffix in FILM_KINDS,
                     }
                 )
+        pages = sum(1 for file in files if str(file["url"]).endswith(".html"))
+        # Saved on its own, a text with a contents page keeps only the part that was
+        # opened (David, 2026-10-10; design.md §12): `?part=1` narrows the list to that
+        # one page and the sidecars it names. The whole is the reader's press. `whole`
+        # is how many pages the whole has, so the Saved page can say "2 of 14 parts"
+        # rather than calling a contents page the book (targum-internal#720, P2 8).
+        if asked.get("part", [""])[0] == "1":
+            narrowed = self._offline_part(page, prefix, bases)
+            if narrowed is not None:
+                return self._json(
+                    {
+                        **about,
+                        "base": prefix,
+                        "part": True,
+                        "files": narrowed,
+                        "pages": sum(1 for f in narrowed if str(f["url"]).endswith(".html")),
+                        "whole": pages,
+                        "bytes": sum(int(f["bytes"]) for f in narrowed),
+                    }
+                )
         if not files:
             return self._json({"error": "not found"}, 404)
         return self._json(
@@ -21255,7 +21259,7 @@ class Handler(BaseHTTPRequestHandler):
                 **about,
                 "base": prefix,
                 "files": files,
-                "pages": sum(1 for file in files if str(file["url"]).endswith(".html")),
+                "pages": pages,
                 "bytes": sum(int(file["bytes"]) for file in files),
             }
         )
