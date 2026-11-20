@@ -634,6 +634,57 @@ def test_a_save_can_be_stopped_and_a_failure_tried_again(browser, served: Served
         context.close()
 
 
+def test_a_failed_save_of_a_book_kept_in_parts_deletes_nothing_and_counts_its_own(
+    browser,  # noqa: F811
+    served: Served,
+) -> None:
+    """qa-claude on #1352. A save of a text saved before that fails deletes no file: another
+    save of the same text may hold them before its index names them. The copy stays as
+    it was counted, and a later save takes the files left over in without fetching them."""
+    book(served.out / "local" / "book-he")
+    base = "/reader/book-he/reader/"
+    context = browser.new_context(service_workers="allow")
+    context.add_init_script(NONE_ON_ITS_OWN)
+    context.add_init_script(HANG)
+    page = context.new_page()
+
+    def cached() -> list[str]:
+        return sorted(
+            {
+                u.split("?")[0].rsplit("/", 1)[1]
+                for u in page.evaluate(KEYS)
+                if base in u and u.split("?")[0].endswith(".html")
+            }
+        )
+
+    try:
+        page.goto(served.url(f"{base}index.html"))
+        page.wait_for_function("() => navigator.serviceWorker.controller !== null")
+        page.evaluate("(p) => window.TargumOffline.save(p, { part: true }).done", page.url)
+        assert page.evaluate(PARTS, base)["files"] == [f"{base}index.html"]
+
+        page.evaluate("() => { window.FAIL_ON = 'sec-0003'; }")
+        failed = page.evaluate(
+            "(p) => window.TargumOffline.save(p, { how: 'you' }).done"
+            ".then(() => 'saved', (e) => e.reason)",
+            page.url,
+        )
+        assert failed == "failed"
+        still = page.evaluate(PARTS, base)
+        assert still["part"] and still["files"] == [f"{base}index.html"], "counted as it was"
+        assert cached() == ["index.html", "sec-0001.html", "sec-0002.html"], "nothing deleted"
+
+        page.evaluate("() => { window.FAIL_ON = ''; }")
+        before = len(served.asked)
+        page.evaluate("(p) => window.TargumOffline.save(p, { how: 'you' }).done", page.url)
+        fetched = [p.split("?")[0] for p in served.asked[before:] if p.startswith(base)]
+        assert fetched == [f"{base}sec-0003.html"], "only what was not there"
+        whole = page.evaluate(PARTS, base)
+        assert not whole["part"] and len([f for f in whole["files"] if f.endswith(".html")]) == 4
+    finally:
+        context.close()
+
+
 FULL = """
 (() => {
   const put = Cache.prototype.put;
@@ -875,6 +926,52 @@ def test_the_saved_page_lists_both_groups_and_moves_one_with_keep(
         page.wait_for_selector("#saved-none:not([hidden])")
         texts = [item for item in page.evaluate(LIST) if item["kind"] != "page"]
         assert texts == [], "and the line that the account keeps the rest stood beside it"
+    finally:
+        context.close()
+
+
+def test_a_book_kept_in_parts_says_how_much_and_keep_only_changes_hands(
+    browser,  # noqa: F811
+    saved_served: Served,
+) -> None:
+    """targum-internal#720, P2 8: a book whose contents page alone was kept read "text"
+    with Keep, as if it were saved, while every chapter was not on the device. The row
+    says how much of it is here. Keep still only changes hands and fetches nothing
+    (design.md §12, 2026-11-20): the rest is saved from the reader."""
+    served = saved_served
+    book(served.out / "local" / "parts-he")
+    base = "/reader/parts-he/reader/"
+    context = browser.new_context(service_workers="allow")
+    page = context.new_page()
+
+    def row_says(group: str) -> str:
+        page.goto(served.url("/you/saved"))
+        page.wait_for_selector(f"#saved-{group}:not([hidden]) .saved-row")
+        return page.locator(f"#saved-{group} .saved-row .saved-kept").text_content() or ""
+
+    try:
+        page.goto(served.url(f"{base}index.html"))
+        kept(page, base)
+        page.wait_for_function(
+            "(id) => (window.TargumOffline.saved(id) || {}).part === true", arg=base
+        )
+        assert row_says("auto") == "Contents only"
+
+        page.goto(served.url(f"{base}sec-0002.html"))
+        page.wait_for_function(
+            "(id) => (window.TargumOffline.saved(id) || {}).pages === 2", arg=base, timeout=15000
+        )
+        assert row_says("auto") == "1 of 3 parts"
+
+        before = len(served.asked)
+        page.locator("#saved-auto .saved-keep-it").click()
+        page.wait_for_selector("#saved-mine:not([hidden]) .saved-row", timeout=15000)
+        assert page.locator("#saved-auto").is_hidden()
+        assert page.locator("#saved-mine .saved-kept").text_content() == "1 of 3 parts"
+        still = page.evaluate(PARTS, base)
+        assert still["part"] and still["how"] == "you"
+        fetched = [p for p in served.asked[before:] if p.startswith(("/reader/", "/offline.json"))]
+        assert fetched == [], "Keep fetches nothing"
     finally:
         context.close()
 

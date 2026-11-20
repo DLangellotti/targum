@@ -1024,6 +1024,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   second before the next. And the Readers table's 5,000-account timing gives Follow-up
   due a bar of its own (2.5 s): it reads all readers through `_growth`, and took 1.01 s
   on CI's 3.12 runner against a 1 s bar.
+- A book saved in parts no longer reads as saved on the Saved page
+  (targum-internal#720, P2 8; design.md §12, 2026-11-20). Opening a contents page keeps
+  that page alone, and the row said "text" with Keep while every chapter was not on the
+  device. It now says "Contents only", or "{kept} of {n} parts", counted from the same
+  files the reader marks its chapters from (`TargumOffline.parts`). `/offline.json?part=1`
+  tells the whole's page count as `whole`, a count rather than a listing; a copy kept
+  before that says "{n} parts saved". Keep still only changes hands. A save that fails
+  on a text saved before deletes nothing, since another save of it may be using those
+  files; what is left over is not counted, and the next save takes it in unfetched.
+  `saved.contents-only`, `saved.parts-of` and `saved.parts-saved` are new, their Russian
+  a first pass for ling-ru.
 - The Saved page and /connect open with no connection before the first save
   (targum-internal#720 P2 5, #721 P2 8; David, 2026-11-20; design.md §12). A page opened
   online by a signed-in reader keeps both quietly, once each, where offline they were the

@@ -240,6 +240,8 @@
           name: told.name || "",
           pages: told.pages || 0,
           part: !!told.part,
+          // How many pages the whole has, where only a part is asked for.
+          whole: told.whole || 0,
           files: files,
           film: (told.files || []).some(function (file) {
             return file.film;
@@ -434,6 +436,7 @@
                   name: planned.name || was.name || "",
                   pages: pages,
                   part: planned.part,
+                  whole: planned.part ? planned.whole || was.whole || 0 : pages,
                   open: was.open || keyOf(options.open || page),
                   // Once a reader has saved it themselves, opening it again never makes
                   // it one of the texts that are kept on their own and let go.
@@ -462,6 +465,11 @@
       })
       .catch(function (error) {
         var reason = stopped ? "stopped" : isFull(error) ? "full" : (error && error.reason) || "failed";
+        /* A text saved before keeps everything, what this save fetched too: another save
+           of the same text may be running and hold those files before its index names
+           them, so nothing it could use is deleted (qa-claude on #1352). What is left
+           over is not counted (`partsOf` and `hasPage` read the index), and the next save
+           of the text finds it in the cache and takes it in without fetching it. */
         var undo = wasSaved ? Promise.resolve() : forgetFiles(put);
         return undo.then(function () {
           throw reasoned(reason);
@@ -762,12 +770,28 @@
     });
   }
 
-  /* Kept until removed: a text or a playlist saved on its own becomes one the reader saved. */
+  /* Kept until removed: a text or a playlist saved on its own becomes one the reader saved.
+     It changes hands and fetches nothing (design.md §12): a text kept in parts stays in
+     its parts, and says so on the Saved page; the rest is saved from the reader. */
   function keepIt(id) {
     return change(function (index) {
       if (index.items[id]) index.items[id].how = "you";
       return index;
     });
+  }
+
+  /* How much of a text kept in parts is here, counted in parts: the contents page is not
+     one of them. `{kept, total}`, with `total` 0 where a copy saved before the server
+     told the count does not know it, and `null` for a text kept whole. The Saved page
+     says it with this, and the reader marks its chapters from the same `files`
+     (`hasPage`), so the two agree. */
+  function partsOf(item) {
+    if (!item || !item.part) return null;
+    var kept = (item.files || []).filter(function (one) {
+      return /\.html$/i.test(one) && !/\/index\.html$/i.test(one);
+    }).length;
+    var total = Math.max(0, Number(item.whole || 0) - 1);
+    return { kept: kept, total: total >= kept ? total : 0 };
   }
 
   /* Let go of the texts kept on their own beyond the reader's number, oldest opened first,
@@ -2092,6 +2116,7 @@
     // What runs as every page opens, here for a test to run and wait on.
     sweep: sweep,
     keep: keepIt,
+    parts: partsOf,
     keepPage: keepPage,
     trim: trim,
     choices: choices,
