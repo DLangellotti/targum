@@ -28,6 +28,11 @@ and on what terms is worth more than the paperwork it saves.
 
 Rebuilt by `scripts/hebrew_paradigms.py`, which names the dump it read.
 
+`src/targum/annotate/nouns.json.gz` — Hebrew noun plurals and adjective feminines and
+plurals mapped to their headword, about 20,800 forms, derived from the Wikidata lexeme
+dump of 2026-11-13 (targum-internal#697e). CC0 1.0 Universal, as the paradigms are, and
+recorded here for the same reason. Rebuilt by `scripts/hebrew_nouns.py`.
+
 `src/targum/disposable.txt` — about 9,960 throwaway e-mail domains, which the back
 office reads to flag a sign-up from one (targum-internal#544). Vendored from
 <https://github.com/disposable-email-domains/disposable-email-domains>,

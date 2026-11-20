@@ -14,6 +14,37 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   "learned on targum" is gone; the label stays. `progress.ear.start` and
   `progress.count.learned.note` are retired; `lists.ear.tip` is new, its Russian a draft
   for ling-ru.
+- Home's Continue drops a text the reader has finished (David, 2026-11-20;
+  targum-internal#695, #703 P2-16; design.md §12, "Continue is for unfinished reading").
+  Finished is what the shelf's row already says Finished: every part recorded in
+  `targum:docs`, or the whole marked done. A finished text no longer sits there saying
+  "Pick up at chapter 4" over its last chapter, and there is no "Read again" card. With
+  everything finished Continue is not drawn and the suggestion stands, labelled "One to
+  try next"; "Nothing here yet" stays for a reader who has opened nothing. No new strings.
+- The noun table (#697e) files a Hebrew word under its headword only where two checks
+  pass (targum-internal#755, from ling-he's read of targum#1323). `lemma_check` 8, a free
+  recount: no rename, no `SCHEMA_VERSION`.
+  - An adjective's headword must be an adjective. Wikidata files a people's adjectives
+    under its country, so a headword with no final י that the table gives a masculine
+    plural in יים is a place, not the adjective (`nouns.nouns_of_nisbas`, 207 of them:
+    אירופה, צרפת, רוסיה, טורקיה). Only פורה and בוכה, adjectives in ה, are spared
+    (`nouns.ADJECTIVES_IN_HE`).
+  - The spelling on the page must be a form of the new headword: the headword, a form
+    the table files under it, or the headword with a noun's or an adjective's ending and
+    any possessive, perhaps without a ו or a י the headword spells (באזניו, החפשית), but
+    never with one it lacks. A pointed word is read in plene spelling first
+    (`nouns.plene`), so הַדַּיָּנִים "judges" is no form of דין and שְׁמֹנָה "eight" none
+    of שמן; a י the article doubles (הַיְּלָדִים, שֶׁיְּלָדָיו) is one י. Three spellings
+    with a letter their headword lacks were read one by one and are let in by name
+    (`nouns.SPELLED`: הבטלונים, לעיזים, הסלולאריים), since a rule would let unpointed
+    שמונה back under שמן.
+  - Re-measured over the laptop's 483 Hebrew texts: 2,502 tokens change instead of 2,556.
+    The 54 that no longer change hold 34 of the 43 ling-he found inherited wrong, and 13
+    more wrong ones the read had passed (כְתֻבּוֹת under כתבה, מְעֻוָּת under מעה,
+    נְסָכֶיהָ under נס, וְכִיְּרוֹ under כירה). 14 wrong ones are left of 2,502 (0.6%,
+    from 1.9% as ling-he counted, 2.4% with the 13). 7 right changes are lost, where
+    DICTA's lemma was another word that happened to land on the right meaning
+    (ריקניות 4, תמהון 2, פגימה 1).
 - Meanings of Hebrew words in Hebrew are offered (targum-internal#538, David 2026-11-19):
   `accounts.MEANINGS_OPEN` is `{"he"}`, so "Meanings of Hebrew words" shows on Your
   languages, off until a reader chooses it. ling-he's three fixes come first:
@@ -120,6 +151,29 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   Hebrew words in the 2026-11-18 diagnosis ($0.04); `filed_as` matched none of them, so each
   was paid for and dropped, and a third of the in-language read showed no meaning. A batch
   that asked for the marked form itself keeps it.
+- A Hebrew noun's plural or an adjective's feminine or plural that DICTA gave as its own
+  lemma is filed under its headword, so the card finds its meaning: עצים under עץ, לירות
+  under לירה, מלאה under מלא (targum-internal#697e, from ling-he's analyser read).
+  - `annotate/nouns.json.gz` (98 KB, CC0): Wikidata's lexemes, the same source as the
+    verb tables, written by `scripts/hebrew_nouns.py`. It maps a noun's plurals and an
+    adjective's feminine and plural forms to their one headword, and only where the form
+    belongs to one headword, is no Hebrew headword of any part of speech itself (חנות,
+    מלכות, חיים and מים stay), is no construct form (על גבי), and ends as an inflection
+    does. A noun's feminine singular is never reduced: חברה is more than חבר's.
+  - Measured over the laptop's 483 Hebrew texts: 2,802 of 320,723 noun and adjective
+    tokens change, across 495 spellings. Every spelling was read, and the ones the table
+    gets wrong in context are kept as DICTA gave them (`nouns.KEPT`: ימות, אמהות, אמות,
+    שניים, רבות, לחיים, בעלים and a few more). צעירה stays: it is a noun of its own.
+  - ling-he's read of the change list (2026-11-20) kept 21 more, 76 tokens the table
+    filed under another word's headword: בימות ("in the days of") under בימה, שתות ("a
+    sixth") under שת, ארבות under ארבה "locust", שבלים under שובל, חטים, טליות, כנים,
+    חכים, חיצים, חצים, גבים, הלנות, עונות and a few singles. The change is then 2,556
+    tokens, and 1.9% of them are wrong, nearly all where DICTA's lemma was already
+    another word's.
+  - `lemma_check` 7 and `occurrences` 17: a free recount at page-build and count time.
+    No annotator rename, and `SCHEMA_VERSION` is untouched. The root stays, since a
+    plural's root is its singular's. A headword with no meaning bought yet gets one at
+    the next `rebuild --gloss`, a few cents.
 - "Tell us" is "Send feedback" to readers, «Отправить отзыв» in Russian (David,
   2026-11-17): the account menu's row, the box's title, the reader's ⋯ row and the press
   on every fault panel, all `fault.tell-us`. Code, routes and the back office keep
@@ -233,6 +287,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   yet with their held meanings, and what knowing the next 500 to 3,000 would make it.
   News, or the list named, also sends its last 26 weeks and 25 words. Facts only: targum
   forecasts nothing. Hebrew only; another language answers that it is not measured.
+- Russian and French yardsticks (targum-internal#752; design.md §12). Each language gets
+  conversation and news lists of its own, filed `ru:conversation`, `fr:news` and so on
+  (`registers.picker`), written as `yardstick-ru-conversation-v1.json`, and never read
+  off Hebrew's counts. `tables snapshot` writes them once their counts cross the floor;
+  the box's nightly Russian news count already feeds `ru:news`. `tables count-corpus
+  --language ru` counts an outside corpus with the local Russian reader, never the model.
+  French is refused there: its words are read by the model, and a count never spends.
+  `how_much_i_understand` and the Progress card measure a Russian or French reader on
+  their own lists once one is on the box, titled "How much Russian you understand" /
+  "How much French you understand" (new strings, Russian by ling-ru's first pass).
 - The back office's Readers table (design's plan, 2026-11-17, PR 4). It shows every
   account but staff (the operators, admins and test accounts).
   - **Columns:** address, plan (Plan, "Beta until March 4" or Free), last seen (the
@@ -970,6 +1034,37 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   second before the next. And the Readers table's 5,000-account timing gives Follow-up
   due a bar of its own (2.5 s): it reads all readers through `_growth`, and took 1.01 s
   on CI's 3.12 runner against a 1 s bar.
+- Save for offline's row answers a thumb over 44px again (targum-internal#716, P2 20a).
+  On a phone its Save, Stop, Again, Remove from this device and Undo measured 32px: the
+  row's own `.offline-row .offline-*` rules set 2rem and beat the coarse-pointer 44px,
+  which named the buttons bare; in the reader's ⋯ Stop stayed 36px under a three-class
+  rule. The 44px now names them under `.offline-row`, and ⋯'s Stop as
+  `.m-menu .m-offline .offline-stop`. `test_every_thumbed_control_reaches_44px` holds
+  those selectors, and `test_every_press_on_the_offline_row_answers_a_thumb` measures
+  Save, Stop, Remove and Undo at a phone's coarse pointer in all three places the row is
+  drawn: the reader's ⋯, a text's contents and a playlist's page. The desk is as it was.
+- The Phrases tab counts the corrected lines it shows (targum-internal#716, P2 20). It
+  read only the saved phrases, so a reader with three corrections and none saved saw
+  "Phrases 0" over a list of three. The count is the saved phrases plus this language's
+  corrections, as the record lists them, on Your Words and Your Phrases alike; Your
+  Words now asks for the record once, after its rows, for that count alone.
+- The Russian and French yardsticks, after qa-claude's read of targum#1343
+  (targum-internal#752). A list is never replaced by one counted from fewer words, so a
+  list made on the laptop from OPUS is not dropped at the month's turn by a box whose
+  ledger lacks those counts (`yardstick.SHRINKS`, the lists of what readers bring, may
+  still shrink); the Russian list ships by `targum tables push`. A reader learning French
+  and Russian is measured in Russian, where a list exists, not answered "not measured"
+  for French; `how_much_i_understand` takes a `language`, and its description no longer
+  promises French lists. A subtitle's dialogue dash no longer opens a lemma.
+- The yardsticks' keep rule, after qa-claude's read of targum#1345
+  (targum-internal#752). A list is kept only where this ledger lacks one of the sources
+  in its provenance (`yardstick.missing_sources`), not whenever the new count is
+  smaller, so a fixed corpus whose count falls after a rule or annotator change still
+  gets its new list. A changed `RULE` and `tables snapshot --force` always write.
+  `tables push --register ru:conversation` carries one register's rows and no fixes, so
+  a corpus counted for one list moves no other.
+- `how_much_i_understand` says a word's meaning once when its noun and verb keys hold the
+  same senses in another order (נשא, seen on the live call of 2026-11-19).
 - A Sefaria range that starts mid-chapter keeps its verse numbers (targum-internal#530).
   `Genesis 1:20-2:3` was numbered from one, so its first verse was called 1:1, and a
   verse's ref is what the reader, a recording and Onkelos's names are keyed by

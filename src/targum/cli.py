@@ -5297,12 +5297,21 @@ def tables_push(
         Path | None,
         typer.Option("--store", help="The account database whose fixes go. Default: the laptop's."),
     ] = None,
+    register: Annotated[
+        str | None,
+        typer.Option(
+            "--register",
+            help="Carry one register's rows alone, e.g. ru:conversation, and no fixes.",
+        ),
+    ] = None,
 ) -> None:
     """Carry the laptop's language-table rows to the box (targum-internal#587), and the
     fixes its corrections ledger holds by the author, an editor or a model (#585).
 
     Exports every row this laptop wrote and imports it there over SSH as the targum user,
-    never as root. Safe to run again: the box keeps what it already holds.
+    never as root. Safe to run again: the box keeps what it already holds. `--register`
+    carries one register's rows and nothing else, so a corpus counted for one list moves
+    no other list (targum-internal#752).
     """
     import tempfile
 
@@ -5314,15 +5323,16 @@ def tables_push(
     remote = f"sudo -u targum /usr/local/bin/targum tables import --ledger {BOX_LEDGER}"
     with tempfile.TemporaryFile("w+", encoding="utf-8") as handle:
         written = 0
-        for line in store.export("laptop"):
+        for line in store.export("laptop", register):
             handle.write(line + "\n")
             written += 1
         carried = 0
-        for line in _fix_lines(accounts or default_store()):
+        for line in [] if register else _fix_lines(accounts or default_store()):
             handle.write(line + "\n")
             carried += 1
         if not written and not carried:
-            console.print("Nothing to push: this laptop has written no rows.")
+            where = f" in {register}" if register else ""
+            console.print(f"Nothing to push: this laptop has written no rows{where}.")
             return
         # Named only when there are fixes, so a push with none still lands on a box that
         # has not been deployed since the ledger began.
@@ -5515,7 +5525,8 @@ def tables_snapshot(
 ) -> None:
     """Write each yardstick a reader's card is measured against (targum-internal#579):
     the commonest 20,000 content lemmas of conversation, news, literature and the Bible,
-    each with its share of the list's running words.
+    each with its share of the list's running words, and Russian's and French's
+    conversation and news where their counts hold enough (targum-internal#752).
 
     Once a month: a register's list stands until the month turns, so a reader's figure
     moves only when they learn a word. A register with no list yet gets one as soon as it
@@ -5537,6 +5548,11 @@ def tables_snapshot(
             console.print(
                 f"  {one.register}: [green]wrote[/green] v{one.version}"
                 f" ({one.tokens:,} words) [dim]{one.file}[/dim]"
+            )
+        elif one.outcome == "kept":
+            console.print(
+                f"  {one.register}: v{one.version} kept, this ledger lacks a source it was"
+                " made from; push its counts, or --force"
             )
         else:
             console.print(f"  {one.register}: v{one.version} {one.outcome}")
@@ -5617,6 +5633,9 @@ def tables_count_corpus(
     tokens: Annotated[
         int | None, typer.Option("--tokens", help="Stop once this many words are counted.")
     ] = None,
+    language: Annotated[
+        str, typer.Option("--language", help="The corpus's language: he or ru.")
+    ] = "he",
     chunk: Annotated[int, typer.Option("--chunk", help="Sentences to a chunk.")] = 10_000,
     min_free_gb: Annotated[
         float, typer.Option("--min-free-gb", help="Stop before a chunk with less disk free.")
@@ -5624,18 +5643,38 @@ def tables_count_corpus(
 ) -> None:
     """Count an outside corpus into the language tables (targum-internal#580, #581).
 
-    Annotates the file a chunk at a time with the DICTA annotator a build uses, and keeps
-    lemmas and counts with the corpus's source and licence: no sentence is stored. A
-    chunk is the checkpoint, so a run started again on the same file resumes. Delete the
-    file once this is done; the counts are all that is kept.
+    Annotates the file a chunk at a time with the annotator a build of that language uses
+    (DICTA for Hebrew, the local Russian reader for Russian, never anything bought), and
+    keeps lemmas and counts with the corpus's source and licence: no sentence is stored.
+    Russian is filed under `ru:<register>` (targum-internal#752). A chunk is the
+    checkpoint, so a run started again on the same file resumes. Delete the file once this
+    is done; the counts are all that is kept.
     """
     import shutil
     from time import monotonic
 
-    from .tables.corpus import REGISTERS, count_corpus
+    from .tables.corpus import LANGUAGES, REGISTERS, count_corpus
+    from .tables.corpus import default_annotator as corpus_annotator
+    from .tables.registers import in_language
 
     if register not in REGISTERS:
         fail(TargumError(f"An outside corpus is filed under {', '.join(REGISTERS)}."))
+    language = language.split("-")[0].strip().lower()
+    if language not in LANGUAGES:
+        fail(
+            TargumError(
+                f"An outside corpus is counted in {', '.join(LANGUAGES)}, not {language}.",
+                "Every other language's words are read by the model, and a count never spends.",
+            )
+        )
+    annotator = corpus_annotator(language)
+    if annotator is None:
+        fail(
+            TargumError(
+                f"This machine has no free {language} reader.",
+                "Install the russian extra; a count never falls back to the model.",
+            )
+        )
     if not file.is_file():
         fail(TargumError(f"There is no file at {file}."))
     store = _tables_store()
@@ -5652,6 +5691,8 @@ def tables_count_corpus(
             register=register,
             source=source,
             licence=licence,
+            language=language,
+            annotator=annotator,
             size=chunk,
             tokens=tokens,
             stop=stop,
@@ -5661,7 +5702,7 @@ def tables_count_corpus(
     console.print(
         f"[green]Counted[/green] {result.tokens} words, {len(result.lemmas)} distinct lemmas,"
         f" {result.sentences} sentences: {result.counted} chunks now, {result.held} already"
-        f" counted [dim]{took:.0f} min, {register}, {store.file}[/dim]"
+        f" counted [dim]{took:.0f} min, {in_language(register, language)}, {store.file}[/dim]"
     )
     if result.stopped:
         console.print(f"Stopped early: {result.stopped}. Run it again to carry on.")

@@ -1153,13 +1153,15 @@ body.pm-sheet-open .bar-more { visibility: hidden; }
 }
 .offline-row .offline-said { flex: 1 1 14rem; color: var(--ink); }
 @media (hover: none) and (pointer: coarse) {
-  /* §8: what a thumb presses answers a tap over 44px. */
-  .offline-go,
-  .offline-stop,
-  .offline-again,
-  .offline-remove,
-  .offline-undo { min-block-size: 44px; }
-  .offline-undo { min-inline-size: 44px; }
+  /* §8: what a thumb presses answers a tap over 44px. Under `.offline-row`, as the
+     rules above are, or their 2rem wins on specificity and the row measures 32px under
+     a thumb (targum-internal#716, P2 20a). */
+  .offline-row .offline-go,
+  .offline-row .offline-stop,
+  .offline-row .offline-again,
+  .offline-row .offline-remove,
+  .offline-row .offline-undo { min-block-size: 44px; }
+  .offline-row .offline-undo { min-inline-size: 44px; }
 }
 
 /* --- Refusals: the five surfaces (design.md §12, "A refusal is drawn on one of five

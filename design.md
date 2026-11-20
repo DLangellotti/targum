@@ -387,6 +387,17 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Continue is for unfinished reading — 2026-11-20
+
+David, 2026-11-20 (targum-internal#695, #703 P2-16): **a text the reader has finished
+leaves Continue.** Continue is where to pick up, and a finished text has nowhere left to
+pick up; it said "Pick up at chapter 4" over a text finished at chapter 4 of 4. Finished
+is what the shelf's row already says Finished: every part read, or the whole marked done.
+There is no "Read again" card. The text stays on the shelf under it, and the shelf opens
+it. With everything finished Continue is not drawn and the one card says "One to try
+next", as it does for anybody with nothing in progress. "Nothing here yet" is still only
+for a reader who has opened nothing.
+
 ### The portion page says what it lacks, and is finished on three calls — 2026-11-19
 
 David, 2026-11-19, on the three questions of the portion page's finish spec
@@ -429,7 +440,13 @@ Hebrew do I understand?" gets the measured answer, not a guess. A new tool,
   told to say it as an estimate.
 - **No level.** The tool says no rung or letter, as `my_progress` does not.
 - **Hebrew only** until other languages have yardsticks of their own (targum-internal#752).
-  Another language's answer says it is not measured, never 0%.
+  Another language's answer says it is not measured, never 0%. *(Since 2026-11-19,
+  targum-internal#752: Russian and French are measured on their own conversation and news
+  lists, filed `ru:` and `fr:`, once a list of theirs is on the box; until then they are
+  still not measured. A reader learning several languages is measured in Hebrew where
+  they learn it, else in the first of theirs that has a list, and a model may name the
+  `language` it asks about, so a reader of Hebrew and Russian can be answered on
+  Russian too. 2026-11-20, qa-claude on targum#1343.)*
 - **The 25 words are a short list on purpose.** They are the next words worth learning,
   sent with every call that names a list, and with news alone when none is named, so the
   answer stays small.
@@ -3634,7 +3651,12 @@ replaces the "Words you knew" card of "Your level, v3" (2026-10-29) on Your Prog
   (the commonest 20,000 content lemmas, each with its share of the list's running words)
   to the box's tables directory, never the repository, and no page serves it. A list
   stands until the month turns (David, 2026-10-30, on the language tables' question 4),
-  and every reader's line is then recomputed against the new one.
+  and every reader's line is then recomputed against the new one. *(2026-11-20,
+  qa-claude on targum#1343 and #1345: a list is not replaced by counts that lack one of
+  the sources it was made from, so a list made from an outside corpus is not dropped by a
+  ledger that never held that corpus's counts. A changed rule, or `tables snapshot
+  --force`, writes anyway, and the lists made of what readers bring may still shrink.
+  The way a laptop-counted list reaches the box is `tables push --register`.)*
 - **A yardstick with no list is left out of the picker**, never shown as 0%. A register
   gets its first list once it holds 50,000 counted words, so no list is frozen for a
   month on a handful of texts. Where news has none yet, the picker opens on the next of
@@ -3656,7 +3678,14 @@ replaces the "Words you knew" card of "Your level, v3" (2026-10-29) on Your Prog
   closes, each option 44px under a thumb. The choice, and Week or Month, are remembered
   in this browser only.
 - **Only Hebrew has yardsticks.** A language without one keeps "Words you knew" as it
-  was, and so does a Hebrew reader who knows no word on any list yet.
+  was, and so does a Hebrew reader who knows no word on any list yet. *(2026-11-19,
+  targum-internal#752: Russian and French get conversation and news lists of their own,
+  counted with the reader each language's builds use and never with anything bought, and
+  filed `ru:conversation`, `fr:news` and so on, so no list is read off another language's
+  words. The card shows for them once a list lands, titled "How much Russian you
+  understand" or "How much French you understand". Russian conversation is a sample of
+  OPUS OpenSubtitles v2024, counted on the laptop; Russian news is the box's own nightly
+  count. French waits: its words are read by the model, and a count never spends.)*
 - **The Russian strings are drafts** (ling-ru, shipped for David's later read).
 
 What it keeps: every figure is a real count over a stated list (§6), nothing on it

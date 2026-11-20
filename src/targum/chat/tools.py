@@ -1176,7 +1176,7 @@ def _ranked(stick: Any) -> list[str]:
     return held[1]
 
 
-def _held_gloss(lemma: str, target: str) -> str | None:
+def _held_gloss(lemma: str, target: str, language: str = "he") -> str | None:
     """The meaning already held for a yardstick's lemma, or None. Never spends.
 
     Meanings are filed under `Token.glossed_as` (`models.filed_under`): the bare lemma for
@@ -1190,13 +1190,17 @@ def _held_gloss(lemma: str, target: str) -> str | None:
         provider = AnthropicGlosses(GLOSS_MODEL).name
         marks = dict.fromkeys(models.SPLIT_BY_POS.get(lemma, {}).values())
         keys = [lemma, *(lemma + mark for mark in marks)]
-        held = [cached_gloss(key, "he", target, provider) for key in keys]
-        verb = cached_gloss(lemma + models.VERB_MARK, "he", target, provider)
+        held = [cached_gloss(key, language, target, provider) for key in keys]
+        verb = cached_gloss(lemma + models.VERB_MARK, language, target, provider)
     except Exception:  # noqa: BLE001 - a gloss is a courtesy; the figures stand without it
         return None
     said = list(dict.fromkeys(one.gloss for one in held if one is not None and one.gloss))
-    if verb is not None and verb.gloss and verb.gloss not in said:
-        said.append(f"as a verb, {verb.gloss}" if said else verb.gloss)
+    senses = {sense.strip() for gloss in said for sense in gloss.split(";")}
+    if verb is not None and verb.gloss:
+        # A verb whose senses are all said already adds nothing: נשא's noun key and
+        # verb key both held "to lift; to carry", once in each order (2026-11-19).
+        if not {sense.strip() for sense in verb.gloss.split(";")} <= senses:
+            said.append(f"as a verb, {verb.gloss}" if said else verb.gloss)
     return "; ".join(said) if said else None
 
 
@@ -1234,10 +1238,13 @@ def _one_register(
     now_ms: int,
     full: bool,
     target: str = "en",
+    language: str = "he",
 ) -> dict[str, Any] | None:
-    """One yardstick's figures. `full` adds its weeks and its next words."""
+    """One yardstick's figures. `full` adds its weeks and its next words. `register` is
+    as the tables file it (`ru:news`); the answer names it bare (`news`)."""
     from .. import level as level_module
     from ..tables import yardstick
+    from ..tables.registers import bare_register
 
     stick = yardstick.load(register)
     got = level_module.coverage_days(register, dated, began=began)
@@ -1253,7 +1260,7 @@ def _one_register(
         more = math.fsum(stick.weights[lemma] for _, lemma in unknown[:step])
         curve.append({"next": step, "percent": level_module.known_percent(min(1.0, share + more))})
     out: dict[str, Any] = {
-        "register": register,
+        "register": bare_register(register),
         "version": stick.version,
         "percent": level_module.known_percent(share),
         "unknown_in_top": {
@@ -1264,57 +1271,76 @@ def _one_register(
     if full:
         out["history"] = _weekly(got, began, now_ms) if dated else []
         out["next_words"] = [
-            {"lemma": lemma, "gloss": _held_gloss(lemma, target), "rank": rank}
+            {"lemma": lemma, "gloss": _held_gloss(lemma, target, language), "rank": rank}
             for rank, lemma in unknown[:UNDERSTAND_WORDS]
         ]
     return out
 
 
-def _learns_hebrew(ctx: Ctx) -> str:
-    """The language this reader is measured in: "he" where they learn Hebrew, else the
-    one they learn. The connector builds every reader's ledger for Hebrew, so the
-    reader's own learning languages decide, where any are known."""
+def _measured_language(ctx: Ctx, asked: str = "") -> str:
+    """The language this reader is measured in: the one asked for where a model names
+    one; else Hebrew where they learn it; else the first language they learn that has a
+    list (targum-internal#752), so a reader of French and Russian is measured in Russian
+    while French has none; else the first they learn. The connector builds every
+    reader's ledger for Hebrew, so the reader's own learning languages decide, where any
+    are known."""
+    from ..tables import yardstick
+    from ..tables.registers import picker
+
+    named = asked.split("-")[0].strip().lower()
+    if named:
+        return named
     language = str(ctx.level.state()["language"]).split("-")[0]
-    learning = {code.split("-")[0] for code in ctx.learning}
-    if language == "he" and learning and "he" not in learning:
-        return sorted(learning)[0]
-    return language
+    learning = sorted({code.split("-")[0] for code in ctx.learning})
+    if language != "he" or not learning or "he" in learning:
+        return language
+    for code in learning:
+        if any(yardstick.load(register) is not None for register in picker(code)):
+            return code
+    return learning[0]
 
 
 def how_much_i_understand(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
-    """How much Hebrew the reader understands, measured on the fixed yardsticks
-    (targum-internal#750, design.md §12, "The yardstick figures reach the reader's own
-    model", 2026-11-18). Facts only: the percentage Your Progress shows, by week, the
-    commonest words not known yet, and what knowing the next ones would make it. Nothing
-    here forecasts; a model may estimate from `pace`, and is told to say so."""
+    """How much of the language they learn the reader understands, measured on the fixed
+    yardsticks (targum-internal#750, design.md §12, "The yardstick figures reach the
+    reader's own model", 2026-11-18). Facts only: the percentage Your Progress shows, by
+    week, the commonest words not known yet, and what knowing the next ones would make it.
+    Nothing here forecasts; a model may estimate from `pace`, and is told to say so.
+
+    Hebrew, and Russian and French on their own lists (targum-internal#752). A language
+    with no list yet is not measured, never 0%."""
     from datetime import timedelta
 
     from ..tables import yardstick
-    from ..tables.registers import PICKER
+    from ..tables.registers import bare_register, in_language, picker
 
-    language = _learns_hebrew(ctx)
-    if language != "he":
+    language = _measured_language(ctx, str(args.get("language") or ""))
+    lists = picker(language)
+    if language != "he" and not any(yardstick.load(one) is not None for one in lists):
         return {"language": language, "measured": False}
     store, person = ctx.store, ctx.person
-    dated = store.known_dated(person.id, "he") if store is not None and person else []
+    dated = store.known_dated(person.id, language) if store is not None and person else []
     began = store.began() if store is not None else 0
     now_ms = int(time.time() * 1000)
     target = ctx.language if ctx.language in ("en", "ru") else "en"
     named = str(args.get("register") or "").strip()
-    if named and yardstick.load(named) is None:
+    filed = in_language(bare_register(named), language) if named else ""
+    if named and (filed not in lists or yardstick.load(filed) is None):
         return {
             "error": "no such list",
-            "registers": [one for one in PICKER if yardstick.load(one) is not None],
+            "registers": [bare_register(one) for one in lists if yardstick.load(one) is not None],
         }
+    default = in_language(UNDERSTAND_DEFAULT, language)
     registers = []
-    for register in [named] if named else list(PICKER):
+    for register in [filed] if filed else list(lists):
         one = _one_register(
             register,
             dated,
             began,
             now_ms,
-            full=bool(named) or register == UNDERSTAND_DEFAULT,
+            full=bool(filed) or register == default,
             target=target,
+            language=language,
         )
         if one is not None:
             registers.append(one)
@@ -1322,9 +1348,9 @@ def how_much_i_understand(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     today = datetime.fromtimestamp(now_ms / 1000, tz=UTC).date()
     start = today - timedelta(days=29)
     since = int(datetime(start.year, start.month, start.day, tzinfo=UTC).timestamp() * 1000)
-    readings = store.readings(person.id, "he") if store is not None and person else []
+    readings = store.readings(person.id, language) if store is not None and person else []
     return {
-        "language": "he",
+        "language": language,
         "measured": True,
         "pace": {
             "known_last_30_days": sum(1 for _, at in dated if at is not None and at >= since),
@@ -4738,14 +4764,16 @@ REGISTRY: tuple[Tool, ...] = (
     ),
     Tool(
         "how_much_i_understand",
-        "How much Hebrew the reader understands, measured on fixed word lists of everyday "
-        "conversation, news, literature, video and the Bible: the percentage now on each, "
+        "How much of the language they learn the reader understands, measured on fixed word "
+        "lists of everyday conversation, news, literature, video and the Bible, where a "
+        "list exists for that language: the percentage now on each, "
         "and what knowing the next commonest words would make it. Name a `register` for one "
         "list with its last 26 weeks and the 25 commonest words they don't know yet; with "
-        "none, every list's figure, and the weeks and words for news. Say these as "
+        "none, every list's figure, and the weeks and words for news. Name a `language` "
+        "(he, ru) for a reader learning more than one. Say these as "
         "measured. Any forecast is your own; say it as an estimate. Never say a level or a "
         "rung. Read only.",
-        _schema({"register": {"type": "string"}}),
+        _schema({"register": {"type": "string"}, "language": {"type": "string"}}),
         how_much_i_understand,
         scope="record",
         title="How much I understand",
