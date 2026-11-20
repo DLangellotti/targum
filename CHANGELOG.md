@@ -1017,6 +1017,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   second before the next. And the Readers table's 5,000-account timing gives Follow-up
   due a bar of its own (2.5 s): it reads all readers through `_growth`, and took 1.01 s
   on CI's 3.12 runner against a 1 s bar.
+- Save for offline's row answers a thumb over 44px again (targum-internal#716, P2 20a).
+  On a phone its Save, Stop, Again, Remove from this device and Undo measured 32px: the
+  row's own `.offline-row .offline-*` rules set 2rem and beat the coarse-pointer 44px,
+  which named the buttons bare. The 44px now names them under `.offline-row` too, and
+  `test_every_thumbed_control_reaches_44px` holds the row's selectors. The desk is as it
+  was.
 - The Russian and French yardsticks, after qa-claude's read of targum#1343
   (targum-internal#752). A list is never replaced by one counted from fewer words, so a
   list made on the laptop from OPUS is not dropped at the month's turn by a box whose

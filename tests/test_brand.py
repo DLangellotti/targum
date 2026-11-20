@@ -281,6 +281,14 @@ THUMBED = (
     ".offline-again",
     ".offline-remove",
     ".offline-undo",
+    # And as the row itself draws them, on a playlist's page and a text's contents: the
+    # bare selectors above lost to the row's own 2rem and measured 32px under a thumb
+    # (targum-internal#716, P2 20a).
+    ".offline-row .offline-go",
+    ".offline-row .offline-stop",
+    ".offline-row .offline-again",
+    ".offline-row .offline-remove",
+    ".offline-row .offline-undo",
     # Beside, the line between the picture and the transcript (design.md §12, 2026-10-08).
     ".film-split",
     # The next part under the picture, and its Try again (design.md §12, 2026-10-07).
