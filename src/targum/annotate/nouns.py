@@ -145,20 +145,34 @@ def _forms() -> dict[str, dict[str, str]]:
     }
 
 
+#: The adjectives in ה the table gives a plural in יים (פוריים, בוכיים): the only two
+#: headwords with such a plural that are adjectives and not places.
+ADJECTIVES_IN_HE = frozenset({"פורה", "בוכה"})
+
+#: Spellings on the page that are a form of their headword though they spell a letter it
+#: lacks, read one by one over the laptop's library (targum-internal#755): the reverse of
+#: `KEPT`. A rule that let in an extra ו or י would let unpointed שמונה back under שמן.
+SPELLED = {
+    "הבטלונים": "בטלן",
+    "לעיזים": "עז",
+    "הסלולאריים": "סלולרי",
+}
+
+
 @lru_cache(maxsize=1)
 def nouns_of_nisbas() -> frozenset[str]:
     """The headwords the adjective table files a nisba under that is not theirs: a
     headword with no final י whose forms include a masculine plural in יים, the plural of
     an adjective in י. אירופה, for אירופאיים, אירופאיות; צרפת, for צרפתיים, צרפתית. A
     loan adjective's own plural is in ים (אגואיסט, אגואיסטים), so it stays, and so does
-    an adjective in ה with its plural in ות beside one in יים (פורה: פורות, פוריים)."""
+    the two adjectives in ה whose plural in יים stands beside one in ות
+    (`ADJECTIVES_IN_HE`). A country in יה has both too (רוסיות, רוסיים), so the rule
+    cannot be the spelling's (qa-claude on targum#1346)."""
     table = _forms().get("ADJ", {})
     return frozenset(
         head
         for form, head in table.items()
-        if form.endswith("יים")
-        and not head.endswith("י")
-        and not (head.endswith("ה") and table.get(head[:-1] + "ות") == head)
+        if form.endswith("יים") and not head.endswith("י") and head not in ADJECTIVES_IN_HE
     )
 
 
@@ -186,6 +200,8 @@ def _inflected(rest: str, head: str, pos: str | None) -> bool:
     return any(tail in tails for one in stems for tail in _skeleton_tails(word, one))
 
 
+#: Patah, qamats and segol: the vowels a prefix takes before the dagesh of the article.
+ARTICLE_VOWELS = frozenset({"\u05b7", "\u05b8", "\u05b6"})
 HOLAM = "\u05b9"
 QUBUTS = "\u05bb"
 DAGESH = "\u05bc"
@@ -210,7 +226,22 @@ def plene(surface: str) -> str:
         following = clusters[at + 1][0] if at + 1 < len(clusters) else ""
         inside = 0 < at < len(clusters) - 1
         before = clusters[at - 1][0] if at else ""
-        if letter == "י" and DAGESH in marks and inside and "ו" not in (before, following):
+        # A י doubled by the article or a prefix's dagesh (הַיְּלָדִים, שֶׁיְּלָדָיו) is
+        # one י in plene spelling: only a doubling inside the word is written יי.
+        # The prefix that doubles it carries the article's vowel (הַ, לַ, בַּ, שֶׁ); a
+        # כִ or a מִ before a doubled י is the word's own (וְכִיְּרוֹ, "and plastered it").
+        after_prefixes = (
+            0 < at <= MOST_PREFIXES
+            and all(one in PREFIXES for one, _ in clusters[:at])
+            and bool(clusters[at - 1][1] & ARTICLE_VOWELS)
+        )
+        if (
+            letter == "י"
+            and DAGESH in marks
+            and inside
+            and "ו" not in (before, following)
+            and not after_prefixes
+        ):
             out.append("יי")
         elif letter == "ו" and marks & VOWELS and inside and following != "ו":
             out.append("וו")
@@ -226,6 +257,8 @@ def spelled_as(surface: str, head: str, pos: str | None = None) -> bool:
     table files under it, or `head` with an ending: הדיינים is no form of דין, nor שמונה
     of שמן (targum-internal#755)."""
     letters = plene(surface)
+    if SPELLED.get(letters) == head:
+        return True
     tables = _forms().values()
     for cut in range(min(MOST_PREFIXES, len(letters) - 1) + 1):
         if cut and letters[cut - 1] not in PREFIXES:
@@ -263,4 +296,13 @@ def headword(lemma: str, pos: str | None, surface: str | None = None) -> str | N
     return found
 
 
-__all__ = ["KEPT", "PARTS", "TABLE", "headword", "nouns_of_nisbas", "spelled_as"]
+__all__ = [
+    "ADJECTIVES_IN_HE",
+    "KEPT",
+    "PARTS",
+    "SPELLED",
+    "TABLE",
+    "headword",
+    "nouns_of_nisbas",
+    "spelled_as",
+]

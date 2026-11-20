@@ -932,3 +932,47 @@ def test_a_pointed_token_is_checked_in_plene_spelling() -> None:
     assert plene("בֵינוֹנִיּוֹת") == "בינוניות"
     token = Token(start=0, end=9, surface="שְׁמֹנָה", lemma="שמנה", band=2, pos="ADJ")
     assert mend_token(token).lemma == "שמנה"
+
+
+@pytest.mark.parametrize(("lemma", "place"), [("רוסיים", "רוסיה"), ("טורקית", "טורקיה")])
+def test_a_country_in_yod_he_is_no_adjective_s_headword(lemma: str, place: str) -> None:
+    """A country in יה has a plural in ות beside its plural in יים, as פורה does, so
+    only the adjectives named are spared (qa-claude on #1346)."""
+    from targum.annotate.nouns import ADJECTIVES_IN_HE, headword, nouns_of_nisbas
+
+    assert headword(lemma, "ADJ", lemma) is None
+    assert place in nouns_of_nisbas()
+    assert ADJECTIVES_IN_HE == {"פורה", "בוכה"}
+
+
+@pytest.mark.parametrize(
+    ("surface", "head", "pos"),
+    [
+        ("הַיְּלָדִים", "ילד", "NOUN"),
+        ("הַיָּפוֹת", "יפה", "ADJ"),
+        ("הַיְּרֻקִּים", "ירוק", "ADJ"),
+        ("לַיְּתוֹמִים", "יתום", "NOUN"),
+        ("בַּיְּשִׁיבוֹת", "ישיבה", "NOUN"),
+        ("שֶׁיְּלָדָיו", "ילד", "NOUN"),
+    ],
+)
+def test_a_yod_doubled_by_a_prefix_is_one_yod(surface: str, head: str, pos: str) -> None:
+    from targum.annotate.nouns import spelled_as
+
+    assert spelled_as(surface, head, pos)
+
+
+@pytest.mark.parametrize(
+    ("surface", "lemma", "pos", "head"),
+    [
+        ("הבטלונים", "בטלנים", "NOUN", "בטלן"),
+        ("לעיזים", "עזים", "NOUN", "עז"),
+        ("הסלולאריים", "סלולריים", "ADJ", "סלולרי"),
+    ],
+)
+def test_a_spelling_read_one_by_one_is_filed_under_its_headword(
+    surface: str, lemma: str, pos: str, head: str
+) -> None:
+    assert mend_row({"surface": surface, "lemma": lemma, "pos": pos})["lemma"] == head
+    # And no rule lets an extra letter in: unpointed שמונה is still no form of שמן.
+    assert mend_row({"surface": "שמונה", "lemma": "שמנה", "pos": "ADJ"})["lemma"] == "שמנה"
