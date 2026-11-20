@@ -58,7 +58,13 @@ def said(items: list[dict[str, Any]], language: str) -> list[str]:
     process.stdout.write(JSON.stringify(items.map(keptWord)));
     """
     done = subprocess.run(
-        ["node", "-e", script], capture_output=True, text=True, timeout=30, check=False
+        # On stdin: the strings are too long for an argument list (CI, Errno 7).
+        ["node", "-"],
+        input=script,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
     )
     assert done.returncode == 0, done.stderr
     return json.loads(done.stdout)
