@@ -218,6 +218,7 @@
     if (word && word.status === IGNORED) updateWord(word, { status: was }, true);
     said();
     // Back on its row, which takes the keyboard Undo had.
+    flushRows();
     var rows = rowsBody && rowsBody.querySelectorAll ? rowsBody.querySelectorAll("tr") : [];
     for (var n = 0; n < rows.length; n++) {
       if (rows[n].getAttribute("data-word") === lemma && rows[n].focus) rows[n].focus();
@@ -1209,6 +1210,44 @@
     return t("vocab.step." + status, ["", "New to you", "Still learning", "Almost known"][status] || "");
   }
 
+  /* The first screenful first (targum-internal#725, P2 8). On a phone the rows stand
+     one under another, each its own grid, so a row drawn a frame later moves nothing
+     above it: the first FIRST_ROWS are drawn and painted, and the rest of the page of
+     rows is added after that frame. 2,000 words took 1.96 s to a first row on a phone,
+     most of it laying out two hundred rows of five stages, a Copy and a Hear each that
+     nobody can see yet. At a desk the rows are a table's, whose columns are as wide as
+     their widest cell, so there every row is drawn at once, as before. */
+  var FIRST_ROWS = 20;
+  var pending = null;
+
+  function laterRows(rest, drawRow) {
+    // Asked of the window, never of the rows: their style hangs on the list's own width
+    // (`yours.css`, the container query at 48rem), and asking it lays out every row
+    // drawn so far. A window that narrow holds a list that narrow; a wider window whose
+    // list is folded anyway draws every row at once, as before.
+    var folded =
+      typeof window.requestAnimationFrame === "function" &&
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(max-width: 48rem)").matches;
+    if (!folded) {
+      rest.forEach(drawRow);
+      return;
+    }
+    var mine = (pending = { rest: rest, draw: drawRow });
+    window.requestAnimationFrame(function () {
+      setTimeout(function () {
+        if (pending === mine) flushRows();
+      }, 0);
+    });
+  }
+
+  // The rows still to come, drawn now: before anything looks a row up.
+  function flushRows() {
+    var was = pending;
+    pending = null;
+    if (was) was.rest.forEach(was.draw);
+  }
+
   function renderWords() {
     if (!rowsBody) return;
     var rows = visibleWords();
@@ -1227,6 +1266,8 @@
     if (!metFocus && focused && focused.classList && focused.classList.contains("met-open")) {
       metFocus = focused.getAttribute("data-word") || "";
     }
+    // A redraw drops the rows a draw before it was still to add (`laterRows`).
+    pending = null;
     rowsBody.textContent = "";
     var table = at("word-table");
     if (table) {
@@ -1244,7 +1285,7 @@
       // the list (Your Words QA, 2026-10-20).
       table.hidden = !entry.words.length;
     }
-    drawing.forEach(function (word) {
+    function drawRow(word) {
       if (word === held) {
         var holding = heldRow(word);
         rowsBody.appendChild(holding.row);
@@ -1344,7 +1385,12 @@
       opens(tr, wordCard(word));
       rowsBody.appendChild(tr);
       if (met && metOpen === word.lemma) rowsBody.appendChild(metRow(word));
-    });
+    }
+    // Nothing here is waiting for a row to take the keyboard, so the rows past the first
+    // screenful may come a frame later (`laterRows`).
+    var settled = !held && !metFocus && !metOpen;
+    drawing.slice(0, settled ? FIRST_ROWS : drawing.length).forEach(drawRow);
+    if (settled && drawing.length > FIRST_ROWS) laterRows(drawing.slice(FIRST_ROWS), drawRow);
     if (metFocus) {
       var lemma = metFocus;
       metFocus = "";

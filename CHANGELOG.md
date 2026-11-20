@@ -1017,6 +1017,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   second before the next. And the Readers table's 5,000-account timing gives Follow-up
   due a bar of its own (2.5 s): it reads all readers through `_growth`, and took 1.01 s
   on CI's 3.12 runner against a 1 s bar.
+- Your Words reaches its first row in time on a phone (targum-internal#725, P2 8). With
+  2,000 words on the account a fresh browser on the phone profile took 1.98 s to its
+  first row; it now takes 1.47 s (first row painted: 1.63 s, now 1.30 s). On a phone the
+  first 20 rows are drawn and painted first and the rest of the page of rows a frame
+  later; at a desk, where the rows are a table's and a later row could widen a column,
+  every row is drawn at once as before. And on a page sent whole the faces wait for the
+  first rows, as the Library's wait for its shelf (`TARGUM_FACES_AFTER`), so their 67 kB
+  no longer share the line with the account's words.
 - The Russian and French yardsticks, after qa-claude's read of targum#1343
   (targum-internal#752). A list is never replaced by one counted from fewer words, so a
   list made on the laptop from OPUS is not dropped at the month's turn by a box whose

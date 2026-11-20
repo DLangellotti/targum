@@ -19,6 +19,7 @@ routes. Skips itself without Playwright and its Chromium, as the other browser t
 from __future__ import annotations
 
 import json
+import os
 from typing import Any
 
 import pytest
@@ -629,5 +630,145 @@ def test_words_you_may_know_is_offered_once_try_again_works(browser) -> None:
     stale.wait_for(state="hidden")
     page.locator("#claim-panel").wait_for(state="visible")
     assert page.locator("#claim-panel .claim-rows .claim-check").count() == 1
+    assert not thrown
+    context.close()
+
+
+# -- Speed (design.md §14.5; targum-internal#725, P2 8) ------------------------------
+#
+# On the phone profile (4x CPU, 150 ms, 1.6 Mbps) a fresh browser with 2,000 words on the
+# account reached its first row in 1.96 s. Measured on a served page, the account's
+# words landed at 1.34 s, sharing the line with the faces, and laying out two hundred rows
+# took another 0.27 s before anything was painted. Now the faces wait for the first rows
+# (`TARGUM_FACES_AFTER`) and the first screenful is drawn first, so the words land at
+# 1.17 s and the first row is painted 0.14 s later.
+#
+# A route answers at once, so the network is played by holding the account's words until
+# the moment they land on that profile; the CPU is slowed as the profile slows it.
+
+#: When the account's 2,000 words land on the phone profile once the faces wait, measured
+#: on a served page (median of seven, 2026-11-20).
+WORDS_LAND_MS = 1170
+
+#: When a first row has been drawn, and painted: the frame after it is in the page.
+FIRST_ROW = """
+new MutationObserver(function (changes, watching) {
+  var row = document.querySelector('#word-rows tr[data-word]');
+  if (!row) return;
+  watching.disconnect();
+  window.__row = performance.now();
+  window.__rowsAtFirst = document.querySelectorAll('#word-rows tr[data-word]').length;
+  requestAnimationFrame(function () {
+    window.__rowsPainted = document.querySelectorAll('#word-rows tr[data-word]').length;
+    setTimeout(function () { window.__painted = performance.now(); }, 0);
+  });
+}).observe(document, {subtree: true, childList: true});
+"""
+
+
+def pulled(count: int) -> list[dict[str, Any]]:
+    """The account's side of `words(count)`, as `/sync` brings it to a fresh browser."""
+    return [
+        {
+            "language": "he",
+            "lemma": lemma,
+            "status": row["status"],
+            "surface": lemma,
+            "meaning": f"what word {n} means",
+            "band": 1,
+            "learned": 0,
+            "at": row["at"],
+            "seen": 200,
+            "gone": 0,
+        }
+        for n, (lemma, row) in enumerate(words(count).items())
+    ]
+
+
+#: The phone profile's CPU, four times slower than the laptop it was measured on. A CI
+#: runner is about that slow already (`TARGUM_THROTTLE=6` plays CI here, in
+#: test_account_switch_browser.py), so there the page runs at the runner's own speed.
+PHONE_CPU = 1 if os.environ.get("CI") else 4
+
+
+def fresh_with_many(browser, *, phone: bool, slow: bool = False):
+    """A fresh browser opening Your Words with 2,000 words on the account; its words held
+    back until they are released by the caller."""
+    context, page, thrown, held, url = open_page(browser, "words", {"/sync": "hold"}, phone=phone)
+    page.add_init_script(FIRST_ROW)
+    if slow and PHONE_CPU > 1:
+        cdp = context.new_cdp_session(page)
+        cdp.send("Emulation.setCPUThrottlingRate", {"rate": PHONE_CPU})
+    return context, page, thrown, held, url
+
+
+def release(page, held: list, at_ms: float = 0) -> None:
+    body = json.dumps({"revision": 3, "words": pulled(2000)}, ensure_ascii=False)
+    while not held:
+        page.wait_for_timeout(20)
+    if at_ms:
+        page.wait_for_function(f"performance.now() >= {at_ms}", polling=10, timeout=10000)
+    while held:
+        held.pop(0).fulfill(status=200, content_type="application/json", body=body)
+
+
+def test_two_thousand_words_reach_their_first_row_in_time_on_a_phone(browser) -> None:
+    context, page, thrown, held, url = fresh_with_many(browser, phone=True, slow=True)
+    page.goto(url)
+    release(page, held, WORDS_LAND_MS)
+    page.wait_for_function("window.__painted", timeout=10000)
+    painted = page.evaluate("window.__painted")
+    assert painted < 1500, f"the first row was painted at {painted:.0f} ms, past §14's 1.5 s"
+    assert not thrown
+    context.close()
+
+
+def test_a_phone_draws_the_first_screenful_first_and_the_rest_a_frame_later(browser) -> None:
+    context, page, thrown, held, url = fresh_with_many(browser, phone=True)
+    page.goto(url)
+    release(page, held)
+    page.wait_for_function("window.__painted")
+    assert page.evaluate("window.__rowsPainted") == 20, "the first screenful, painted alone"
+    rows = page.locator("#word-rows tr[data-word]")
+    page.wait_for_function("document.querySelectorAll('#word-rows tr[data-word]').length == 200")
+    assert rows.count() == 200, "the rest of the page of rows, a frame later"
+    # The faces were waiting for them (`warm.js`), and are told.
+    assert page.evaluate("window.TARGUM_FACES_AFTER") == "targum:drawn"
+    assert page.evaluate("window.TARGUM_DRAWN") is True
+    assert not thrown
+    context.close()
+
+
+def test_a_desk_draws_every_row_at_once_so_no_column_moves(browser) -> None:
+    """A desk's rows are a table's, whose columns are as wide as their widest cell: a row
+    added a frame later could widen one under the reader's eyes."""
+    context, page, thrown, held, url = fresh_with_many(browser, phone=False)
+    page.goto(url)
+    release(page, held)
+    page.wait_for_function("window.__painted")
+    assert page.evaluate("window.__rowsAtFirst") == 200
+    assert not thrown
+    context.close()
+
+
+def test_a_word_put_back_on_a_phone_takes_the_keyboard_though_its_row_was_still_to_come(
+    browser,
+) -> None:
+    """Undo on a row past the first screenful: the redraw it brings draws the rows still
+    to come before it looks for the word's row."""
+    context, page, thrown, held, url = fresh_with_many(browser, phone=True)
+    page.goto(url)
+    release(page, held)
+    page.wait_for_function("document.querySelectorAll('#word-rows tr[data-word]').length == 200")
+    row = page.locator("#word-rows tr[data-word]").nth(30)
+    lemma = row.get_attribute("data-word")
+    row.locator(".vocab-editor .level-0").click()
+    undo = page.locator("#word-rows tr.held button")
+    undo.wait_for(state="visible")
+    undo.click()
+    page.wait_for_function(
+        "(lemma) => (document.activeElement || {}).getAttribute?.('data-word') === lemma",
+        arg=lemma,
+    )
     assert not thrown
     context.close()
