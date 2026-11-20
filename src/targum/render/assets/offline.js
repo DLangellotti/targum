@@ -42,6 +42,9 @@
   /* The page that lists what is saved, kept so that it opens with no connection; its
      query (`?away=`) is for the page to read, so it is one page whatever it says. */
   var SAVED = "/you/saved";
+  /* How to add targum to Claude or ChatGPT, kept beside it (design.md §12, 2026-11-20):
+     one page whatever its query says, as the Saved page is. */
+  var CONNECT = "/connect";
   var served = /^https?:$/.test(location.protocol);
   var able =
     served &&
@@ -64,7 +67,7 @@
   function keyOf(address) {
     var url = new URL(address, location.origin);
     url.hash = "";
-    if (READER.test(url.pathname) || url.pathname === SAVED) {
+    if (READER.test(url.pathname) || url.pathname === SAVED || url.pathname === CONNECT) {
       url.search = "";
     } else {
       url.searchParams.delete("k");
@@ -237,6 +240,8 @@
           name: told.name || "",
           pages: told.pages || 0,
           part: !!told.part,
+          // How many pages the whole has, where only a part is asked for.
+          whole: told.whole || 0,
           files: files,
           film: (told.files || []).some(function (file) {
             return file.film;
@@ -431,6 +436,7 @@
                   name: planned.name || was.name || "",
                   pages: pages,
                   part: planned.part,
+                  whole: planned.part ? planned.whole || was.whole || 0 : pages,
                   open: was.open || keyOf(options.open || page),
                   // Once a reader has saved it themselves, opening it again never makes
                   // it one of the texts that are kept on their own and let go.
@@ -459,6 +465,11 @@
       })
       .catch(function (error) {
         var reason = stopped ? "stopped" : isFull(error) ? "full" : (error && error.reason) || "failed";
+        /* A text saved before keeps everything, what this save fetched too: another save
+           of the same text may be running and hold those files before its index names
+           them, so nothing it could use is deleted (qa-claude on #1352). What is left
+           over is not counted (`partsOf` and `hasPage` read the index), and the next save
+           of the text finds it in the cache and takes it in without fetching it. */
         var undo = wasSaved ? Promise.resolve() : forgetFiles(put);
         return undo.then(function () {
           throw reasoned(reason);
@@ -759,12 +770,28 @@
     });
   }
 
-  /* Kept until removed: a text or a playlist saved on its own becomes one the reader saved. */
+  /* Kept until removed: a text or a playlist saved on its own becomes one the reader saved.
+     It changes hands and fetches nothing (design.md §12): a text kept in parts stays in
+     its parts, and says so on the Saved page; the rest is saved from the reader. */
   function keepIt(id) {
     return change(function (index) {
       if (index.items[id]) index.items[id].how = "you";
       return index;
     });
+  }
+
+  /* How much of a text kept in parts is here, counted in parts: the contents page is not
+     one of them. `{kept, total}`, with `total` 0 where a copy saved before the server
+     told the count does not know it, and `null` for a text kept whole. The Saved page
+     says it with this, and the reader marks its chapters from the same `files`
+     (`hasPage`), so the two agree. */
+  function partsOf(item) {
+    if (!item || !item.part) return null;
+    var kept = (item.files || []).filter(function (one) {
+      return /\.html$/i.test(one) && !/\/index\.html$/i.test(one);
+    }).length;
+    var total = Math.max(0, Number(item.whole || 0) - 1);
+    return { kept: kept, total: total >= kept ? total : 0 };
   }
 
   /* Let go of the texts kept on their own beyond the reader's number, oldest opened first,
@@ -833,7 +860,8 @@
             headers: headers({ "X-Targum-Save": "1" }),
             credentials: "same-origin",
           }).then(function (answer) {
-            if (!answer.ok) return false;
+            // A page that sent the browser elsewhere (signed out, a switch off) is not it.
+            if (!answer.ok || answer.redirected) return false;
             return cache.put(at, keep(answer, function () {}));
           });
         });
@@ -857,11 +885,76 @@
      worker can only open what is in the cache — so a reader who had never opened it
      online met the browser's own error instead. Asked once a page at most, and a page
      that cannot be had never fails the save that asked for it. */
-  var keptSaved = null;
+  var keptPages = {};
+  function keepOnce(address) {
+    if (known && known.items["page:" + address]) return Promise.resolve();
+    if (!keptPages[address]) keptPages[address] = keepPage(address);
+    return keptPages[address];
+  }
   function keepSaved() {
-    if (known && known.items["page:" + SAVED]) return Promise.resolve();
-    if (!keptSaved) keptSaved = keepPage(SAVED);
-    return keptSaved;
+    return keepOnce(SAVED);
+  }
+
+  /* Before any save, too (David, 2026-11-20; design.md §12; targum-internal#720 P2 5,
+     #721 P2 8): a page opened online keeps the Saved page and /connect, quietly, so both
+     open with no connection, where they were the browser's own error until the first
+     save. Two pages of targum's own and nothing of any text; asked once a page at most,
+     and not at all once kept (the worker keeps them current as they are opened).
+
+     Only for a reader the account says is signed in, or a machine with no accounts:
+     signed out, or with the account's answer missing or failed, nothing is kept, since
+     the Saved page is the account's. A page that could not be kept (/connect while the
+     connector is shut, a Saved page that sent the browser to sign in) is not asked
+     again this session. A fetch that fails with no real network behind `onLine` is
+     swallowed, and /connect is still tried. */
+  var TRIED = "targum:offline-tried:";
+  function triedLately(address) {
+    try {
+      return !!sessionStorage.getItem(TRIED + address);
+    } catch (e) {
+      return false;
+    }
+  }
+  function earlyKeep(address) {
+    if (triedLately(address)) return Promise.resolve();
+    return keepOnce(address)
+      .then(function () {
+        return readIndex();
+      })
+      .then(function (index) {
+        if (index && index.items["page:" + address]) return;
+        try {
+          sessionStorage.setItem(TRIED + address, String(Date.now()));
+        } catch (e) {}
+      })
+      .catch(function () {});
+  }
+  function signedIn() {
+    var sync = window.TargumSync;
+    if (!sync || typeof sync.settled !== "function") return Promise.resolve(false);
+    return Promise.resolve()
+      .then(function () {
+        return sync.settled();
+      })
+      .then(
+        function () {
+          return !sync.signedOut;
+        },
+        function () {
+          return false;
+        }
+      );
+  }
+  function keepPagesEarly() {
+    whenSettled(function () {
+      if (navigator.onLine === false) return;
+      signedIn().then(function (may) {
+        if (!may) return null;
+        return earlyKeep(SAVED).then(function () {
+          return earlyKeep(CONNECT);
+        });
+      });
+    });
   }
 
   // Everything off this device: the files and the index both.
@@ -871,7 +964,7 @@
       .delete(STORE)
       .then(function () {
         known = empty();
-        keptSaved = null;
+        keptPages = {};
         tellWorker();
         announce();
       })
@@ -1975,6 +2068,7 @@
     }
     navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {});
     sweep();
+    keepPagesEarly();
   }
 
   /* The worker fetched this page again because it was a newer build than the copy kept
@@ -2022,6 +2116,7 @@
     // What runs as every page opens, here for a test to run and wait on.
     sweep: sweep,
     keep: keepIt,
+    parts: partsOf,
     keepPage: keepPage,
     trim: trim,
     choices: choices,

@@ -11,6 +11,7 @@ saved does not open. The server writes down every request it is asked, which is 
 
 from __future__ import annotations
 
+import json
 import threading
 from collections.abc import Iterator
 from http.server import ThreadingHTTPServer
@@ -633,6 +634,57 @@ def test_a_save_can_be_stopped_and_a_failure_tried_again(browser, served: Served
         context.close()
 
 
+def test_a_failed_save_of_a_book_kept_in_parts_deletes_nothing_and_counts_its_own(
+    browser,  # noqa: F811
+    served: Served,
+) -> None:
+    """qa-claude on #1352. A save of a text saved before that fails deletes no file: another
+    save of the same text may hold them before its index names them. The copy stays as
+    it was counted, and a later save takes the files left over in without fetching them."""
+    book(served.out / "local" / "book-he")
+    base = "/reader/book-he/reader/"
+    context = browser.new_context(service_workers="allow")
+    context.add_init_script(NONE_ON_ITS_OWN)
+    context.add_init_script(HANG)
+    page = context.new_page()
+
+    def cached() -> list[str]:
+        return sorted(
+            {
+                u.split("?")[0].rsplit("/", 1)[1]
+                for u in page.evaluate(KEYS)
+                if base in u and u.split("?")[0].endswith(".html")
+            }
+        )
+
+    try:
+        page.goto(served.url(f"{base}index.html"))
+        page.wait_for_function("() => navigator.serviceWorker.controller !== null")
+        page.evaluate("(p) => window.TargumOffline.save(p, { part: true }).done", page.url)
+        assert page.evaluate(PARTS, base)["files"] == [f"{base}index.html"]
+
+        page.evaluate("() => { window.FAIL_ON = 'sec-0003'; }")
+        failed = page.evaluate(
+            "(p) => window.TargumOffline.save(p, { how: 'you' }).done"
+            ".then(() => 'saved', (e) => e.reason)",
+            page.url,
+        )
+        assert failed == "failed"
+        still = page.evaluate(PARTS, base)
+        assert still["part"] and still["files"] == [f"{base}index.html"], "counted as it was"
+        assert cached() == ["index.html", "sec-0001.html", "sec-0002.html"], "nothing deleted"
+
+        page.evaluate("() => { window.FAIL_ON = ''; }")
+        before = len(served.asked)
+        page.evaluate("(p) => window.TargumOffline.save(p, { how: 'you' }).done", page.url)
+        fetched = [p.split("?")[0] for p in served.asked[before:] if p.startswith(base)]
+        assert fetched == [f"{base}sec-0003.html"], "only what was not there"
+        whole = page.evaluate(PARTS, base)
+        assert not whole["part"] and len([f for f in whole["files"] if f.endswith(".html")]) == 4
+    finally:
+        context.close()
+
+
 FULL = """
 (() => {
   const put = Cache.prototype.put;
@@ -878,6 +930,52 @@ def test_the_saved_page_lists_both_groups_and_moves_one_with_keep(
         context.close()
 
 
+def test_a_book_kept_in_parts_says_how_much_and_keep_only_changes_hands(
+    browser,  # noqa: F811
+    saved_served: Served,
+) -> None:
+    """targum-internal#720, P2 8: a book whose contents page alone was kept read "text"
+    with Keep, as if it were saved, while every chapter was not on the device. The row
+    says how much of it is here. Keep still only changes hands and fetches nothing
+    (design.md §12, 2026-11-20): the rest is saved from the reader."""
+    served = saved_served
+    book(served.out / "local" / "parts-he")
+    base = "/reader/parts-he/reader/"
+    context = browser.new_context(service_workers="allow")
+    page = context.new_page()
+
+    def row_says(group: str) -> str:
+        page.goto(served.url("/you/saved"))
+        page.wait_for_selector(f"#saved-{group}:not([hidden]) .saved-row")
+        return page.locator(f"#saved-{group} .saved-row .saved-kept").text_content() or ""
+
+    try:
+        page.goto(served.url(f"{base}index.html"))
+        kept(page, base)
+        page.wait_for_function(
+            "(id) => (window.TargumOffline.saved(id) || {}).part === true", arg=base
+        )
+        assert row_says("auto") == "Contents only"
+
+        page.goto(served.url(f"{base}sec-0002.html"))
+        page.wait_for_function(
+            "(id) => (window.TargumOffline.saved(id) || {}).pages === 2", arg=base, timeout=15000
+        )
+        assert row_says("auto") == "1 of 3 parts"
+
+        before = len(served.asked)
+        page.locator("#saved-auto .saved-keep-it").click()
+        page.wait_for_selector("#saved-mine:not([hidden]) .saved-row", timeout=15000)
+        assert page.locator("#saved-auto").is_hidden()
+        assert page.locator("#saved-mine .saved-kept").text_content() == "1 of 3 parts"
+        still = page.evaluate(PARTS, base)
+        assert still["part"] and still["how"] == "you"
+        fetched = [p for p in served.asked[before:] if p.startswith(("/reader/", "/offline.json"))]
+        assert fetched == [], "Keep fetches nothing"
+    finally:
+        context.close()
+
+
 def test_the_saved_page_s_choices_are_this_device_s(browser, saved_served: Served) -> None:  # noqa: F811
     served = saved_served
     context = browser.new_context(service_workers="allow")
@@ -1049,6 +1147,169 @@ def test_the_first_save_keeps_the_saved_page_outside_the_texts(
         page.wait_for_selector("#saved-auto:not([hidden]) .saved-row")
         assert page.locator("#saved-mine .saved-row").count() == 1
         assert page.locator("#saved-auto .saved-row").count() == 3
+    finally:
+        context.close()
+
+
+def test_a_page_opened_online_keeps_saved_and_connect_before_any_save(
+    browser,  # noqa: F811
+    saved_served: Served,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """David, 2026-11-20 (targum-internal#720 P2 5, #721 P2 8): offline, the Saved page
+    and /connect were the browser's own error until the first save. A page opened online
+    keeps both, quietly: two pages of targum's own, nothing of any text, not one of the
+    texts, and asked once."""
+    monkeypatch.setenv("TARGUM_CONNECTOR", "1")
+    served = saved_served
+    book(served.out / "local" / "here-he", chapters=1)
+    book(served.out / "local" / "away-he", chapters=1)
+    context = browser.new_context(service_workers="allow")
+    context.add_init_script(NONE_ON_ITS_OWN)
+    page = context.new_page()
+    try:
+        page.goto(served.url("/reader/here-he/reader/index.html"))
+        page.wait_for_function("() => navigator.serviceWorker.controller !== null")
+        kept(page, "page:/you/saved")
+        kept(page, "page:/connect")
+        assert page.evaluate(LIST) == [], "no text saved, and the pages are not texts"
+        stored = [url.split("?")[0] for url in page.evaluate(KEYS)]
+        assert not any("/reader/" in url for url in stored), "nothing of any text"
+        assert len([p for p in served.asked if p.startswith("/connect")]) == 1
+
+        # Opened again, nothing is asked: they are kept.
+        before = len(served.asked)
+        page.goto(served.url("/reader/here-he/reader/index.html"))
+        page.wait_for_timeout(2500)
+        again = [p.split("?")[0] for p in served.asked[before:]]
+        assert "/you/saved" not in again and "/connect" not in again
+
+        # Opened online with a query, it is the same one copy, refreshed in place.
+        page.goto(served.url("/connect") + "&app=claude")
+        page.wait_for_timeout(500)
+        connects = [u for u in page.evaluate(KEYS) if "/connect" in u]
+        assert len(connects) == 1 and "?" not in connects[0], connects
+
+        served.gone()
+        context.set_offline(True)
+        page.goto(served.url("/connect") + "&app=claude")
+        assert page.url.split("?")[0].endswith("/connect")
+        assert page.locator("h1").count() == 1, "the page itself, not the browser's error"
+        page.goto(served.url("/reader/away-he/reader/index.html"))
+        page.wait_for_selector("#saved-away:not([hidden])")
+        assert page.url.split("?")[0].endswith("/you/saved")
+    finally:
+        context.close()
+
+
+def early(browser, served: Served, *scripts: str, me: dict | None = None):  # noqa: F811
+    """A reader page opened with nothing saved, given time to keep what it would keep."""
+    context = browser.new_context(service_workers="allow")
+    context.add_init_script(NONE_ON_ITS_OWN)
+    for script in scripts:
+        context.add_init_script(script)
+    if me is not None:
+        context.route(
+            "**/account/me*",
+            lambda route: route.fulfill(
+                status=200, content_type="application/json", body=json.dumps(me)
+            ),
+        )
+    page = context.new_page()
+    page.goto(served.url("/reader/here-he/reader/index.html"))
+    page.wait_for_function("() => navigator.serviceWorker.controller !== null")
+    page.wait_for_timeout(3000)
+    return context, page
+
+
+def early_asks(served: Served, since: int = 0) -> list[str]:
+    return [
+        p.split("?")[0] for p in served.asked[since:] if p.startswith(("/you/saved", "/connect"))
+    ]
+
+
+def test_signed_out_nothing_is_kept_early(
+    browser,  # noqa: F811
+    saved_served: Served,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """qa-claude on #1355: the Saved page is the account's, so signed out nothing is kept,
+    and nothing is asked."""
+    monkeypatch.setenv("TARGUM_CONNECTOR", "1")
+    book(saved_served.out / "local" / "here-he", chapters=1)
+    context, page = early(browser, saved_served, me={"signedIn": False, "signedOut": True})
+    try:
+        assert early_asks(saved_served) == []
+        assert not [u for u in page.evaluate(KEYS) if "/you/saved" in u or "/connect" in u]
+    finally:
+        context.close()
+
+
+def test_without_the_account_s_answer_nothing_is_kept_early(
+    browser,  # noqa: F811
+    saved_served: Served,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Fail safe: with no `TargumSync`, the reader is taken as signed out."""
+    monkeypatch.setenv("TARGUM_CONNECTOR", "1")
+    book(saved_served.out / "local" / "here-he", chapters=1)
+    gone = """Object.defineProperty(window, 'TargumSync', {
+      configurable: true, get() { return undefined; }, set() {} });"""
+    context, _ = early(browser, saved_served, gone)
+    try:
+        assert early_asks(saved_served) == []
+    finally:
+        context.close()
+
+
+def test_offline_at_load_nothing_is_asked(
+    browser,  # noqa: F811
+    saved_served: Served,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TARGUM_CONNECTOR", "1")
+    book(saved_served.out / "local" / "here-he", chapters=1)
+    away = "Object.defineProperty(Navigator.prototype, 'onLine', { get: () => false });"
+    context, _ = early(browser, saved_served, away)
+    try:
+        assert early_asks(saved_served) == []
+    finally:
+        context.close()
+
+
+def test_a_page_that_sends_elsewhere_is_not_kept_nor_asked_again(
+    browser,  # noqa: F811
+    saved_served: Served,
+) -> None:
+    """A Saved page that sends the browser to sign in is not kept as the Saved page, and
+    /connect with the connector shut (404) is not kept either; neither is asked again on
+    the next page this session."""
+    served = saved_served
+    book(served.out / "local" / "here-he", chapters=1)
+    context = browser.new_context(service_workers="allow")
+    context.add_init_script(NONE_ON_ITS_OWN)
+    context.route(
+        "**/you/saved*",
+        lambda route: route.fulfill(status=302, headers={"Location": "/about"}),
+    )
+    page = context.new_page()
+    try:
+        page.goto(served.url("/reader/here-he/reader/index.html"))
+        page.wait_for_function("() => navigator.serviceWorker.controller !== null")
+        page.wait_for_function(
+            "() => { try { return !!sessionStorage.getItem('targum:offline-tried:/connect'); }"
+            " catch (e) { return false; } }",
+            timeout=15000,
+        )
+        assert page.evaluate("() => window.TargumOffline.saved('page:/you/saved')") is False
+        assert page.evaluate("() => window.TargumOffline.saved('page:/connect')") is False
+        assert not [u for u in page.evaluate(KEYS) if "/you/saved" in u or "/connect" in u]
+        assert early_asks(served) == ["/connect"], "the 302 was answered before the server"
+
+        before = len(served.asked)
+        page.goto(served.url("/reader/here-he/reader/index.html"))
+        page.wait_for_timeout(3000)
+        assert early_asks(served, before) == [], "not asked again this session"
     finally:
         context.close()
 
@@ -1891,5 +2152,107 @@ def test_a_book_that_gained_a_part_refreshes_its_copy(browser, served: Served) -
             ".match('/reader/book-he/reader/sec-0003.html'))"
         )
         assert has
+    finally:
+        context.close()
+
+
+# -- Every press on the row answers a thumb (targum-internal#716, P2 20a) -----------------
+
+#: A phone, as `test_reader_reach_rest_browser.py` makes one: a coarse pointer, no hover.
+PHONE = {"width": 390, "height": 844}
+
+#: How tall the first `sel` under `row` is drawn, or nothing when there is none.
+TALL = """([row, sel]) => {
+  const press = document.querySelector(row + ' ' + sel);
+  return press ? press.getBoundingClientRect().height : null;
+}"""
+
+#: A playlist of two built texts, as `/playlists/7.json` answers it.
+PLAYLIST_7 = """
+(() => {
+  const real = window.fetch;
+  const one = (n, at) => ({ position: at, reader: n, job: null, title: n, failed: false,
+    open: '/reader/' + n + '/reader/index.html',
+    facts: { name: n, entry: '', language: 'he', kind: 'story', video: false,
+             seconds: 0, minutes: 5 } });
+  window.fetch = (url, options) => {
+    if (/\\/playlists\\/7\\.json/.test(String(url))) {
+      return Promise.resolve(new Response(JSON.stringify({
+        id: 7, name: 'Mornings', made_by: 'reader', made: 1, at: null, covers: [],
+        seconds: 600, ready: 2, waiting: 0, failed: 0, unconfirmed: 0, credits: 0,
+        language: 'he', items: [one('one-he', 0), one('two-he', 1)],
+      }), { headers: { 'Content-Type': 'application/json' } }));
+    }
+    return real(url, options);
+  };
+})();
+"""
+
+
+def _every_press_is_44px(page, row: str) -> None:
+    """Save, then Stop while it saves, then Save again, Remove and Undo: each measured as
+    it stands on the row."""
+
+    def tall(sel: str) -> float:
+        height = page.evaluate(TALL, [row, sel])
+        assert height is not None, f"{row} draws no {sel}"
+        return height
+
+    page.wait_for_selector(f"{row}.offline-idle", state="attached")
+    assert tall(".offline-go") >= 44, f"{row}: Save is {tall('.offline-go')}px"
+    page.evaluate("() => { window.HANG_ON = '/reader/'; }")
+    page.locator(f"{row} .offline-go").click()
+    page.wait_for_selector(f"{row}.offline-saving", state="attached")
+    assert tall(".offline-stop") >= 44, f"{row}: Stop is {tall('.offline-stop')}px"
+    page.locator(f"{row} .offline-stop").click()
+    page.wait_for_selector(f"{row}.offline-idle", state="attached")
+    page.evaluate("() => { window.HANG_ON = ''; }")
+    page.locator(f"{row} .offline-go").click()
+    page.wait_for_selector(f"{row}.offline-saved", state="attached")
+    assert tall(".offline-remove") >= 44, f"{row}: Remove is {tall('.offline-remove')}px"
+    page.locator(f"{row} .offline-remove").click()
+    page.wait_for_selector(f"{row}.offline-held", state="attached")
+    assert tall(".offline-undo") >= 44, f"{row}: Undo is {tall('.offline-undo')}px"
+
+
+@pytest.mark.parametrize("where", ["menu", "contents", "playlist"])
+def test_every_press_on_the_offline_row_answers_a_thumb(
+    browser,  # noqa: F811
+    served: Served,
+    where: str,
+) -> None:
+    """§8: on a phone the row's Save, Stop, Remove from this device and Undo measured 32px
+    on a text's contents and a playlist's page, and Stop 36px in the reader's ⋯: the
+    row's own rules outweighed the coarse-pointer 44px (targum-internal#716, P2 20a).
+    `test_brand.py` can only see that a selector is named, not that it wins."""
+    from targum.render.builder import playlists_page
+
+    book(served.out / "local" / "one-he", chapters=1)
+    book(served.out / "local" / "two-he", chapters=2)
+    served.server.RequestHandlerClass.playlists = playlists_page(TOKEN)
+    context = browser.new_context(
+        service_workers="allow", viewport=PHONE, has_touch=True, is_mobile=True
+    )
+    context.add_init_script(NONE_ON_ITS_OWN)
+    context.add_init_script(HANG)
+    if where == "playlist":
+        context.add_init_script(PLAYLIST_7)
+    page = context.new_page()
+    try:
+        assert page.evaluate("() => matchMedia('(hover: none) and (pointer: coarse)').matches")
+        if where == "menu":
+            page.goto(served.url("/reader/two-he/reader/sec-0001.html"))
+            page.wait_for_function("() => navigator.serviceWorker.controller !== null")
+            page.click(".bar-tools [data-more]")
+            _every_press_is_44px(page, ".m-menu #offline-row")
+        elif where == "contents":
+            page.goto(served.url("/reader/two-he/reader/index.html"))
+            page.wait_for_function("() => navigator.serviceWorker.controller !== null")
+            _every_press_is_44px(page, ".parts-offline")
+        else:
+            page.goto(served.url("/reader/one-he/reader/index.html"))
+            page.wait_for_function("() => navigator.serviceWorker.controller !== null")
+            page.goto(served.url("/playlists/7"))
+            _every_press_is_44px(page, ".pl-presses .pl-offline")
     finally:
         context.close()

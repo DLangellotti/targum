@@ -281,6 +281,14 @@ THUMBED = (
     ".offline-again",
     ".offline-remove",
     ".offline-undo",
+    # And as the row itself draws them, on a playlist's page and a text's contents: the
+    # bare selectors above lost to the row's own 2rem and measured 32px under a thumb
+    # (targum-internal#716, P2 20a).
+    ".offline-row .offline-go",
+    ".offline-row .offline-stop",
+    ".offline-row .offline-again",
+    ".offline-row .offline-remove",
+    ".offline-row .offline-undo",
     # Beside, the line between the picture and the transcript (design.md §12, 2026-10-08).
     ".film-split",
     # The next part under the picture, and its Try again (design.md §12, 2026-10-07).
@@ -493,6 +501,9 @@ THUMBED = (
     ".m-menu .offline-go",
     ".m-menu .offline-stop",
     ".m-menu .offline-remove",
+    # ⋯'s own Stop is drawn at 36px by a three-class rule, which only the same three
+    # classes outweigh (targum-internal#716, P2 20a).
+    ".m-menu .m-offline .offline-stop",
     ".sheet-grab",
     # The build card's door, in somebody else's chat (design.md §12, 2026-10-06).
     ".card-door",

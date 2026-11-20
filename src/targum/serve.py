@@ -21224,6 +21224,9 @@ class Handler(BaseHTTPRequestHandler):
                         "part": True,
                         "files": narrowed,
                         "pages": sum(1 for f in narrowed if str(f["url"]).endswith(".html")),
+                        # How many pages the whole has, so a copy kept in parts can say
+                        # "2 of 14 parts" (targum-internal#720, P2 8): a count, not a list.
+                        "whole": self._offline_pages(bases),
                         "bytes": sum(int(f["bytes"]) for f in narrowed),
                     }
                 )
@@ -21259,6 +21262,21 @@ class Handler(BaseHTTPRequestHandler):
                 "bytes": sum(int(file["bytes"]) for file in files),
             }
         )
+
+    @staticmethod
+    def _offline_pages(bases: list[tuple[str, Path, bool]]) -> int:
+        """How many pages the whole text has, counted the way `_offline_files` lists them
+        but without a file's size or stamp: only the count is told."""
+        count = 0
+        for _under, base, deep in bases:
+            try:
+                listed = base.rglob("*.html") if deep else base.glob("*.html")
+                count += sum(
+                    1 for target in listed if target.is_file() and base in target.resolve().parents
+                )
+            except OSError:
+                continue
+        return count
 
     def _offline_part(
         self, page: str, prefix: str, bases: list[tuple[str, Path, bool]]
