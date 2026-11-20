@@ -271,6 +271,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ### Added
 - `scripts/voice_scenes.py` gives the director 4,096 tokens of answer: 1,024 ran out near 80
   turns, and French's A2 scenes run to 72. Only what is written is billed.
+- A Hebrew word card says one line for the hard spot the word stands for, under its facts
+  and filled with the word's own letters (targum-internal#438, Hebrew's seven; held for
+  David's read of the copy). The root and binyan of a verb, a spelling the Bible's vowels
+  tell apart, the present tense's lack of person, the preposition a verb takes here (and
+  את), a noun whose ending says the other gender, a number's written gender against
+  speech (three to ten and the teens, modern text only), the construct state, and stress
+  before the last syllable where the text's marks placed it. Said only where the build
+  already worked the fact out, one line a card, the rarer spot first. Keys are
+  `reader.card.spot.he.*`, by the practice's short name. The 13 Russian strings are a
+  first draft for ling-ru.
 - `how_much_i_understand`, a connector and chat tool under the `record` scope
   (targum-internal#750, David 2026-11-18; design.md §12). A reader's own model gets what
   Your Progress measures: the percentage on each yardstick, the commonest words not known

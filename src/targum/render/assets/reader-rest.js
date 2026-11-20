@@ -2119,6 +2119,163 @@ window.targumReaderRest = function (R) {
     return Object.prototype.hasOwnProperty.call(said, binyan) ? said[binyan] : "";
   }
 
+  /* --- the line for a hard spot, said for this word (targum-internal#438) ---------------
+     One or two sentences under the facts, written for the word tapped rather than for
+     its paradigm: its own root, its own preposition, its own ending. Hebrew's seven hard
+     spots (`stages.HARD_SPOTS`), each keyed `reader.card.spot.he.<spot>` by the practice's
+     short name (`practices.KEYS`), so a practice or the chat can quote the same line. A
+     line is said only where the build already worked the fact out, and where the research
+     says the fact is shaky (a number's gender in speech) the line says so. One line a
+     card at most, the rarer spot first, so a verb's binyan line gives way to its
+     preposition or its present tense. */
+  // Two pronouns that differ in person and share a present-tense form (אני כותב, הוא
+  // כותב), by its gender and number.
+  var PRESENT_WHO = {
+    MascSing: ["אני", "הוא"],
+    FemSing: ["אני", "היא"],
+    MascPlur: ["אנחנו", "הם"],
+    FemPlur: ["אנחנו", "הן"],
+  };
+  // The numbers whose gender speech drifts on, as DICTA files them: three to ten in both
+  // forms and the older spellings, and the ten of a teen (שלושה עשר, שלוש עשרה).
+  var SPOKEN_DRIFT = [
+    "שלושה", "שלוש", "שלשה", "שלש", "ארבעה", "ארבע", "חמישה", "חמשה", "חמש", "שישה",
+    "ששה", "שש", "שבעה", "שבע", "תשעה", "תשע", "עשרה", "עשר",
+  ];
+  // The letters a feminine noun usually ends in.
+  var FEMININE_ENDS = ["ה", "ת"];
+  function endsIn(text, ending) {
+    return !!ending && text.length >= ending.length && text.slice(-ending.length) === ending;
+  }
+  function spotLine(word) {
+    var line = word.line;
+    var pos = feat(line, "UPOS");
+    var gender = feat(line, "Gender");
+    var plural = feat(line, "Number") === "Plur";
+    // Governed prepositions and את, on the verb that takes them in this line (design.md
+    // §12, "Governed prepositions on the card"): "here", since the treebank cannot tell
+    // a governed preposition from an adjunct.
+    var takes = feat(line, "Takes");
+    if (takes) {
+      var taken = takes.split(",");
+      if (taken.indexOf("את") >= 0) {
+        return t(
+          "reader.card.spot.he.governed-et",
+          "{verb} takes its object with {et} here. {et} comes before a definite object and has no English word.",
+          { verb: word.lemma, et: "את" }
+        );
+      }
+      return t(
+        "reader.card.spot.he.governed",
+        "{verb} takes {preposition} here. A Hebrew verb's preposition often differs from the English one.",
+        { verb: word.lemma, preposition: taken.map(word.preposition).join(" · ") }
+      );
+    }
+    // The participle as the present tense: gender and number, no person. Modern text
+    // only: a Biblical participle is as often a past going on.
+    var who = PRESENT_WHO[gender + (plural ? "Plur" : "Sing")];
+    if (pos === "VERB" && feat(line, "Tense") === "Pres" && word.register !== "biblical" && who) {
+      return t(
+        "reader.card.spot.he.tense",
+        "The present tense shows gender and number but not person, so {one} and {other} both use this form.",
+        { one: who[0], other: who[1] }
+      );
+    }
+    // A number's gender, as writing asks for it, and what speech mostly does instead
+    // (Meir 2013). DICTA tags a number by the noun it goes with (שלושה is Masc, and so is
+    // שלוש before a masculine noun), and files both forms under either lemma, so the
+    // list holds both. Three to ten and the teens' halves only, where speech drifts;
+    // not אחד, שניים, מאה or אלף, and not שמונה, whose two forms are one. Modern text
+    // only, and never the bound form (שלושת), which speech keeps.
+    var counted =
+      SPOKEN_DRIFT.indexOf(word.lemma) >= 0 &&
+      word.register !== "biblical" &&
+      feat(line, "Definite") !== "Cons";
+    if (pos === "NUM" && counted && gender === "Masc") {
+      return t(
+        "reader.card.spot.he.agreement-number-m",
+        "This is the form of the number for masculine nouns, as written Hebrew has it. In speech many people use the feminine form instead."
+      );
+    }
+    if (pos === "NUM" && counted && gender === "Fem") {
+      return t(
+        "reader.card.spot.he.agreement-number-f",
+        "This is the form of the number for feminine nouns. In speech many people use it with masculine nouns too."
+      );
+    }
+    // A noun whose ending says the other gender. In the singular only where the word as
+    // written ends in its dictionary form, so the ending named is the one on the page.
+    var last = word.lemma.slice(-1);
+    var marked = FEMININE_ENDS.indexOf(last) >= 0;
+    if (pos === "NOUN" && !plural && word.lemma.length > 1 && endsIn(word.surface, word.lemma)) {
+      if (gender === "Fem" && !marked) {
+        return t(
+          "reader.card.spot.he.agreement-fem",
+          "{word} is feminine, though it does not end in {he} or {tav}. An adjective with it is feminine too, as in {word} {adjective}.",
+          { word: word.lemma, he: "ה", tav: "ת", adjective: "גדולה" }
+        );
+      }
+      if (gender === "Masc" && marked) {
+        return t(
+          "reader.card.spot.he.agreement-masc",
+          "{word} is masculine, though it ends in {letter}. An adjective with it is masculine too, as in {word} {adjective}.",
+          { word: word.lemma, letter: last, adjective: "גדול" }
+        );
+      }
+    }
+    if (pos === "NOUN" && plural && gender === "Fem" && endsIn(word.surface, "ים")) {
+      return t(
+        "reader.card.spot.he.agreement-fem-plural",
+        "This noun is feminine, though its plural ends in {ending}. Adjectives with it still take feminine forms.",
+        { ending: "ים" }
+      );
+    }
+    if (pos === "NOUN" && plural && gender === "Masc" && endsIn(word.surface, "ות")) {
+      return t(
+        "reader.card.spot.he.agreement-masc-plural",
+        "This noun is masculine, though its plural ends in {ending}. Adjectives with it still take masculine forms.",
+        { ending: "ות" }
+      );
+    }
+    // The construct state: one noun with the next word, and the article goes there.
+    if (pos === "NOUN" && feat(line, "Definite") === "Cons") {
+      return t(
+        "reader.card.spot.he.construct",
+        "This is the bound form of {word}, read with the next word as one noun. To make the pair definite, {he} goes on that next word.",
+        { word: word.lemma, he: "ה" }
+      );
+    }
+    // A spelling two words share, where the text's own pointing says which: Biblical
+    // text, where Open Scriptures files the pointed headword (`annotate/scripture.py`).
+    // Not where the points are shared too (אֵת and אֵת), which carry a number.
+    var head = word.head;
+    if (head && /[ְ-ׇ]/.test(head) && !/\d/.test(head)) {
+      return t(
+        "reader.card.spot.he.homograph",
+        "Without vowels, {bare} spells more than one word. The vowels here, {pointed}, say which one this is.",
+        { bare: word.lemma, pointed: head }
+      );
+    }
+    // Stress before the last syllable, the minority, and only where it was not guessed.
+    if (word.reading) {
+      return t(
+        "reader.card.spot.he.stress",
+        "Say it {reading}, with the stress before the last syllable. Most Hebrew words stress the last one.",
+        { reading: word.reading }
+      );
+    }
+    // Root and binyan, on a verb that has both. The binyan's own row says what it often
+    // does; this one says what the root does.
+    if (word.root && word.binyan) {
+      return t(
+        "reader.card.spot.he.binyan",
+        "Words built on the root {root} usually share a meaning, and {binyan} makes this verb from it.",
+        { root: word.root, binyan: word.binyan }
+      );
+    }
+    return "";
+  }
+
   /* --- a noun's root and mishkal, a Russian word's root (design.md §12, 2026-11-02) --- */
   var drawnRoot = R.drawnRoot, rootLink = R.rootLink, tn = R.tn, uiLanguage = R.uiLanguage;
   function piece(tag, name, text, lang) {
@@ -2233,6 +2390,7 @@ window.targumReaderRest = function (R) {
     exportCsv: exportCsv,
     hideChip: hideChip,
     binyanMeaning: binyanMeaning,
+    spotLine: spotLine,
     lexiconRows: lexiconRows,
     mishkalMeaning: mishkalMeaning,
     rootValue: rootValue,
