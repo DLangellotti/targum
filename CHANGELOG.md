@@ -1021,7 +1021,8 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   2,000 words on the account a fresh browser on the phone profile took 1.98 s to its
   first row; it now takes 1.47 s (first row painted: 1.63 s, now 1.30 s). On a phone the
   first 20 rows are drawn and painted first and the rest of the page of rows a frame
-  later; at a desk, where the rows are a table's and a later row could widen a column,
+  later, on the page's first draw only (a later redraw draws every row at once, so a
+  level pressed far down the list moves nothing); at a desk, where the rows are a table's and a later row could widen a column,
   every row is drawn at once as before. And on a page sent whole the faces wait for the
   first rows, as the Library's wait for its shelf (`TARGUM_FACES_AFTER`), so their 67 kB
   no longer share the line with the account's words.

@@ -1213,12 +1213,13 @@
   /* The first screenful first (targum-internal#725, P2 8). On a phone the rows stand
      one under another, each its own grid, so a row drawn a frame later moves nothing
      above it: the first FIRST_ROWS are drawn and painted, and the rest of the page of
-     rows is added after that frame. 2,000 words took 1.96 s to a first row on a phone,
-     most of it laying out two hundred rows of five stages, a Copy and a Hear each that
+     rows is added after that frame, on the page's first draw only. 2,000 words took
+     1.96 s to a first row on a phone, most of it laying out two hundred rows of five stages, a Copy and a Hear each that
      nobody can see yet. At a desk the rows are a table's, whose columns are as wide as
      their widest cell, so there every row is drawn at once, as before. */
   var FIRST_ROWS = 20;
   var pending = null;
+  var firstDraw = true;
 
   function laterRows(rest, drawRow) {
     // Asked of the window, never of the rows: their style hangs on the list's own width
@@ -1388,7 +1389,11 @@
     }
     // Nothing here is waiting for a row to take the keyboard, so the rows past the first
     // screenful may come a frame later (`laterRows`).
-    var settled = !held && !metFocus && !metOpen;
+    // Only on the page's first draw of its rows (qa-claude on #1353): a later redraw, a
+    // level pressed on row 150, drew 20 rows for a frame and the page jumped under the
+    // reader's thumb. Every redraw after the first draws every row at once.
+    var settled = firstDraw && !held && !metFocus && !metOpen;
+    if (drawing.length) firstDraw = false;
     drawing.slice(0, settled ? FIRST_ROWS : drawing.length).forEach(drawRow);
     if (settled && drawing.length > FIRST_ROWS) laterRows(drawing.slice(FIRST_ROWS), drawRow);
     if (metFocus) {

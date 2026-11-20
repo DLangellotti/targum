@@ -713,14 +713,22 @@ def release(page, held: list, at_ms: float = 0) -> None:
 
 
 def test_two_thousand_words_reach_their_first_row_in_time_on_a_phone(browser) -> None:
-    context, page, thrown, held, url = fresh_with_many(browser, phone=True, slow=True)
-    page.goto(url)
-    release(page, held, WORDS_LAND_MS)
-    page.wait_for_function("window.__painted", timeout=10000)
-    painted = page.evaluate("window.__painted")
+    """The first row painted before 1.5 s, the first screenful alone. The best of two
+    runs, as the back office's 5,000 readers take (39f3381d): one run measures the
+    runner as much as the page. And on a frame of its own: two hundred rows laid out
+    before the first was painted is what took the time, so a page that draws them all
+    at once fails here whatever the runner's speed."""
+    painted = float("inf")
+    for _ in range(2):
+        context, page, thrown, held, url = fresh_with_many(browser, phone=True, slow=True)
+        page.goto(url)
+        release(page, held, WORDS_LAND_MS)
+        page.wait_for_function("window.__painted", timeout=10000)
+        painted = min(painted, page.evaluate("window.__painted"))
+        assert page.evaluate("window.__rowsPainted") == 20, "the first screenful, alone"
+        assert not thrown
+        context.close()
     assert painted < 1500, f"the first row was painted at {painted:.0f} ms, past §14's 1.5 s"
-    assert not thrown
-    context.close()
 
 
 def test_a_phone_draws_the_first_screenful_first_and_the_rest_a_frame_later(browser) -> None:
@@ -770,5 +778,37 @@ def test_a_word_put_back_on_a_phone_takes_the_keyboard_though_its_row_was_still_
         "(lemma) => (document.activeElement || {}).getAttribute?.('data-word') === lemma",
         arg=lemma,
     )
+    assert not thrown
+    context.close()
+
+
+def test_a_level_pressed_far_down_a_phone_s_list_moves_nothing(browser) -> None:
+    """qa-claude on #1353: a redraw split the rows too, so a level pressed on row 150
+    drew 20 rows for a frame and the page jumped. Only the first draw is split."""
+    context, page, thrown, held, url = fresh_with_many(browser, phone=True)
+    page.goto(url)
+    release(page, held)
+    page.wait_for_function("document.querySelectorAll('#word-rows tr[data-word]').length == 200")
+    row = page.locator("#word-rows tr[data-word]").nth(150)
+    row.scroll_into_view_if_needed()
+    page.evaluate(
+        """() => {
+          window.__least = window.__most = scrollY;
+          window.__rows = 200;
+          const watch = () => {
+            window.__least = Math.min(window.__least, scrollY);
+            window.__most = Math.max(window.__most, scrollY);
+            window.__rows = Math.min(window.__rows,
+              document.querySelectorAll('#word-rows tr[data-word]').length);
+            requestAnimationFrame(watch);
+          };
+          requestAnimationFrame(watch);
+        }"""
+    )
+    before = page.evaluate("scrollY")
+    row.locator(".vocab-editor .level-2").click()
+    page.wait_for_timeout(300)
+    assert page.evaluate("window.__rows") >= 199, "every row drawn at once on a redraw"
+    assert page.evaluate("[window.__least, window.__most]") == [before, before]
     assert not thrown
     context.close()
