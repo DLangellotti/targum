@@ -4490,6 +4490,10 @@ unchanged.
   3 s after `load`.
 - **Measured** with `scripts/measure_pages.py`: every desk page's first paint went from
   about 0.7 s to 0.4 s on the phone profile.
+- **Your Words and Your Phrases wait too** (David, 2026-11-20; targum-internal#725 P2 8):
+  their faces wait for the first rows, as the Library's wait for its shelf
+  (`TARGUM_FACES_AFTER`, `targum:drawn`), since their 67 kB shared the line with the
+  account's words. 2,000 words on the phone profile: first row 1.95 s without, 1.47 s with.
 
 ### The connector hands a host the text's own lines — 2026-10-23
 
