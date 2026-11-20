@@ -875,16 +875,59 @@
      #721 P2 8): a page opened online keeps the Saved page and /connect, quietly, so both
      open with no connection, where they were the browser's own error until the first
      save. Two pages of targum's own and nothing of any text; asked once a page at most,
-     and not at all once kept (the worker keeps them current as they are opened). Signed
-     out there is no account to keep them for, and the Saved page is the account's. */
+     and not at all once kept (the worker keeps them current as they are opened).
+
+     Only for a reader the account says is signed in, or a machine with no accounts:
+     signed out, or with the account's answer missing or failed, nothing is kept, since
+     the Saved page is the account's. A page that could not be kept (/connect while the
+     connector is shut, a Saved page that sent the browser to sign in) is not asked
+     again this session. A fetch that fails with no real network behind `onLine` is
+     swallowed, and /connect is still tried. */
+  var TRIED = "targum:offline-tried:";
+  function triedLately(address) {
+    try {
+      return !!sessionStorage.getItem(TRIED + address);
+    } catch (e) {
+      return false;
+    }
+  }
+  function earlyKeep(address) {
+    if (triedLately(address)) return Promise.resolve();
+    return keepOnce(address)
+      .then(function () {
+        return readIndex();
+      })
+      .then(function (index) {
+        if (index && index.items["page:" + address]) return;
+        try {
+          sessionStorage.setItem(TRIED + address, String(Date.now()));
+        } catch (e) {}
+      })
+      .catch(function () {});
+  }
+  function signedIn() {
+    var sync = window.TargumSync;
+    if (!sync || typeof sync.settled !== "function") return Promise.resolve(false);
+    return Promise.resolve()
+      .then(function () {
+        return sync.settled();
+      })
+      .then(
+        function () {
+          return !sync.signedOut;
+        },
+        function () {
+          return false;
+        }
+      );
+  }
   function keepPagesEarly() {
     whenSettled(function () {
       if (navigator.onLine === false) return;
-      var sync = window.TargumSync;
-      (sync && sync.mayAsk ? sync.mayAsk() : Promise.resolve(true)).then(function (may) {
-        if (!may) return;
-        keepOnce(SAVED).then(function () {
-          return keepOnce(CONNECT);
+      signedIn().then(function (may) {
+        if (!may) return null;
+        return earlyKeep(SAVED).then(function () {
+          return earlyKeep(CONNECT);
         });
       });
     });

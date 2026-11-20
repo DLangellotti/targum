@@ -209,7 +209,8 @@ function opening(event) {
       // page asked for again, whole, as a save asks for it (design.md §12, "An offline
       // copy follows its text when opened online", 2026-11-14). The same build opened
       // again fetches nothing more.
-      if (answer && answer.ok && answer.type === "basic" && saved && saved[key]) {
+      // A page that sent the browser elsewhere is not the page asked for (#1355).
+      if (answer && answer.ok && answer.type === "basic" && !answer.redirected && saved && saved[key]) {
         var linked = answer.headers.get("x-targum-linked");
         var version = answer.headers.get("x-targum-version");
         var client = event.resultingClientId || event.clientId;
