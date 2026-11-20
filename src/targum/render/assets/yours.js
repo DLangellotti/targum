@@ -1067,6 +1067,18 @@
   // corrected lines a moment later.
   drawing.then(drawRewrote).catch(function () {});
 
+  /* Drawn, or said why not: on Your Words and Your Phrases a page sent whole puts its
+     faces on now, not before, so their bytes never stand beside the account's words
+     (`TARGUM_FACES_AFTER`, `warm.js`; targum-internal#725). Said before the event too,
+     since `warm.js` at the foot may start listening only after this. */
+  function drawn() {
+    window.TARGUM_DRAWN = true;
+    try {
+      window.dispatchEvent(new CustomEvent("targum:drawn"));
+    } catch (e) {}
+  }
+  drawing.then(drawn, drawn);
+
   drawing.catch(function (why) {
     // Signed out, or the server went away. The nav is still there to leave by.
     clearTimeout(slowly);

@@ -21,6 +21,13 @@
     they held an empty key for the life of the page and the bell, the followed series and
     the chat list were refused. The hosted box has no key and was never affected. -#}
 <script>window.TARGUM_KEY = "{{ token }}";</script>
+{%- if which in ('words', 'phrases') %}
+{#- On a page sent whole, the faces wait until the first rows are drawn, as the
+    Library's wait for its shelf (`TARGUM_FACES_AFTER`, `warm.js`; targum-internal#725):
+    on a first visit their 67 kB came down beside the account's words and held up the
+    list. -#}
+<script>window.TARGUM_FACES_AFTER = "targum:drawn";</script>
+{%- endif %}
 {%- if which == 'texts' %}
 {#- Home's first asks, from here rather than the foot, so they arrive with the page
     (targum-internal#555). After the key, which they carry. -#}
