@@ -21211,6 +21211,25 @@ class Handler(BaseHTTPRequestHandler):
         if found is None:
             return self._json({"error": "not found"}, 404)
         prefix, bases, about = found
+        # Saved on its own, a text with a contents page keeps only the part that was
+        # opened (David, 2026-10-10; design.md §12): `?part=1` narrows the list to that
+        # one page and the sidecars it names. The whole is the reader's press.
+        if asked.get("part", [""])[0] == "1":
+            narrowed = self._offline_part(page, prefix, bases)
+            if narrowed is not None:
+                return self._json(
+                    {
+                        **about,
+                        "base": prefix,
+                        "part": True,
+                        "files": narrowed,
+                        "pages": sum(1 for f in narrowed if str(f["url"]).endswith(".html")),
+                        # How many pages the whole has, so a copy kept in parts can say
+                        # "2 of 14 parts" (targum-internal#720, P2 8): a count, not a list.
+                        "whole": self._offline_pages(bases),
+                        "bytes": sum(int(f["bytes"]) for f in narrowed),
+                    }
+                )
         files: list[dict[str, Any]] = []
         for under, base, deep in bases:
             try:
@@ -21232,26 +21251,6 @@ class Handler(BaseHTTPRequestHandler):
                         "film": suffix in FILM_KINDS,
                     }
                 )
-        pages = sum(1 for file in files if str(file["url"]).endswith(".html"))
-        # Saved on its own, a text with a contents page keeps only the part that was
-        # opened (David, 2026-10-10; design.md §12): `?part=1` narrows the list to that
-        # one page and the sidecars it names. The whole is the reader's press. `whole`
-        # is how many pages the whole has, so the Saved page can say "2 of 14 parts"
-        # rather than calling a contents page the book (targum-internal#720, P2 8).
-        if asked.get("part", [""])[0] == "1":
-            narrowed = self._offline_part(page, prefix, bases)
-            if narrowed is not None:
-                return self._json(
-                    {
-                        **about,
-                        "base": prefix,
-                        "part": True,
-                        "files": narrowed,
-                        "pages": sum(1 for f in narrowed if str(f["url"]).endswith(".html")),
-                        "whole": pages,
-                        "bytes": sum(int(f["bytes"]) for f in narrowed),
-                    }
-                )
         if not files:
             return self._json({"error": "not found"}, 404)
         return self._json(
@@ -21259,10 +21258,25 @@ class Handler(BaseHTTPRequestHandler):
                 **about,
                 "base": prefix,
                 "files": files,
-                "pages": pages,
+                "pages": sum(1 for file in files if str(file["url"]).endswith(".html")),
                 "bytes": sum(int(file["bytes"]) for file in files),
             }
         )
+
+    @staticmethod
+    def _offline_pages(bases: list[tuple[str, Path, bool]]) -> int:
+        """How many pages the whole text has, counted the way `_offline_files` lists them
+        but without a file's size or stamp: only the count is told."""
+        count = 0
+        for _under, base, deep in bases:
+            try:
+                listed = base.rglob("*.html") if deep else base.glob("*.html")
+                count += sum(
+                    1 for target in listed if target.is_file() and base in target.resolve().parents
+                )
+            except OSError:
+                continue
+        return count
 
     def _offline_part(
         self, page: str, prefix: str, bases: list[tuple[str, Path, bool]]

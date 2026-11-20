@@ -878,23 +878,24 @@ def test_the_saved_page_lists_both_groups_and_moves_one_with_keep(
         context.close()
 
 
-def test_a_book_kept_in_parts_says_how_much_and_keep_saves_the_rest(
+def test_a_book_kept_in_parts_says_how_much_and_keep_only_changes_hands(
     browser,  # noqa: F811
     saved_served: Served,
 ) -> None:
     """targum-internal#720, P2 8: a book whose contents page alone was kept read "text"
     with Keep, as if it were saved, while every chapter was not on the device. The row
-    says how much of it is here, and Keep saves the rest, since that is what it promises."""
+    says how much of it is here. Keep still only changes hands and fetches nothing
+    (design.md §12, 2026-11-20): the rest is saved from the reader."""
     served = saved_served
     book(served.out / "local" / "parts-he")
     base = "/reader/parts-he/reader/"
     context = browser.new_context(service_workers="allow")
     page = context.new_page()
 
-    def row_says() -> str:
+    def row_says(group: str) -> str:
         page.goto(served.url("/you/saved"))
-        page.wait_for_selector("#saved-auto:not([hidden]) .saved-row")
-        return page.locator("#saved-auto .saved-row .saved-kept").text_content() or ""
+        page.wait_for_selector(f"#saved-{group}:not([hidden]) .saved-row")
+        return page.locator(f"#saved-{group} .saved-row .saved-kept").text_content() or ""
 
     try:
         page.goto(served.url(f"{base}index.html"))
@@ -902,23 +903,23 @@ def test_a_book_kept_in_parts_says_how_much_and_keep_saves_the_rest(
         page.wait_for_function(
             "(id) => (window.TargumOffline.saved(id) || {}).part === true", arg=base
         )
-        assert row_says() == "Contents only"
+        assert row_says("auto") == "Contents only"
 
         page.goto(served.url(f"{base}sec-0002.html"))
         page.wait_for_function(
             "(id) => (window.TargumOffline.saved(id) || {}).pages === 2", arg=base, timeout=15000
         )
-        assert row_says() == "1 of 3 parts"
+        assert row_says("auto") == "1 of 3 parts"
 
+        before = len(served.asked)
         page.locator("#saved-auto .saved-keep-it").click()
         page.wait_for_selector("#saved-mine:not([hidden]) .saved-row", timeout=15000)
         assert page.locator("#saved-auto").is_hidden()
-        assert (page.locator("#saved-mine .saved-kept").text_content() or "").startswith("3 parts")
-        whole = page.evaluate(PARTS, base)
-        assert not whole["part"] and whole["how"] == "you"
-        assert len([f for f in whole["files"] if f.endswith(".html")]) == 4
-        cached = {u.split("?")[0] for u in page.evaluate(KEYS) if base in u}
-        assert all(any(f"sec-000{n}" in u for u in cached) for n in (1, 2, 3)), "every chapter"
+        assert page.locator("#saved-mine .saved-kept").text_content() == "1 of 3 parts"
+        still = page.evaluate(PARTS, base)
+        assert still["part"] and still["how"] == "you"
+        fetched = [p for p in served.asked[before:] if p.startswith(("/reader/", "/offline.json"))]
+        assert fetched == [], "Keep fetches nothing"
     finally:
         context.close()
 

@@ -301,7 +301,7 @@
        { done: Promise<item>, stop(), id }
      and calls `options.progress({done, total})` as bytes land. A failure rejects with
      `reason` "full" (the device has no room), "stopped" or "failed"; whatever this save
-     had already put away is taken back out, unless the text was saved before it began.
+     had already put away is taken back out, unless a saved text already names it.
 
      A file already in the cache is not fetched again: a save the reader left halfway —
      they turned the page, and the page is what was saving — picks up where it stopped. */
@@ -319,13 +319,11 @@
       if (stopping) stopping.abort();
     };
     var put = [];
-    var wasSaved = false;
     var earlier = {};
     // The cut of each file this save leaves in the cache, where it is known.
     var stamps = {};
     handle.done = readIndex()
       .then(function (index) {
-        wasSaved = !!index.items[handle.id];
         earlier = index.items;
         return plan(page, options);
       })
@@ -462,7 +460,13 @@
       })
       .catch(function (error) {
         var reason = stopped ? "stopped" : isFull(error) ? "full" : (error && error.reason) || "failed";
-        var undo = wasSaved ? Promise.resolve() : forgetFiles(put);
+        // A text saved before keeps the files it named, and loses what this save fetched,
+        // so what is cached is what is counted (`partsOf`, `hasPage`; qa-claude on #1352).
+        var undo = readIndex()
+          .then(function (index) {
+            return forgetFiles(put, index);
+          })
+          .catch(function () {});
         return undo.then(function () {
           throw reasoned(reason);
         });
@@ -763,19 +767,12 @@
   }
 
   /* Kept until removed: a text or a playlist saved on its own becomes one the reader saved.
-     A text kept only in the parts that were opened is saved whole, since that is what
-     Keep promises (targum-internal#720, P2 8): the rest is fetched, and what was kept
-     already is not fetched again. */
+     It changes hands and fetches nothing (design.md §12): a text kept in parts stays in
+     its parts, and says so on the Saved page; the rest is saved from the reader. */
   function keepIt(id) {
-    return readIndex().then(function (index) {
-      var item = index.items[id];
-      if (item && item.part) {
-        return save(item.open || id, { how: "you", title: item.title, kind: item.kind }).done;
-      }
-      return change(function (fresh) {
-        if (fresh.items[id]) fresh.items[id].how = "you";
-        return fresh;
-      });
+    return change(function (index) {
+      if (index.items[id]) index.items[id].how = "you";
+      return index;
     });
   }
 

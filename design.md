@@ -6853,6 +6853,11 @@ connection banner's Saved texts leads to it.
   text and your record stay in your account." Removing a copy loses nothing that was not
   a copy. *(Amended 2026-11-14: offline a copy can be the only one, so Remove and
   Remove all say "Removed · Undo" for a few seconds. Still no confirm.)*
+- **A copy kept in parts names what it holds** (David, 2026-11-20; targum-internal#720,
+  P2 8). A book of which only the contents page was opened says "Contents only", and one
+  with some chapters says "{kept} of {n} parts", counted from the same files the reader
+  marks its chapters by. Keep still only changes hands and fetches nothing. The rest of
+  the book is saved from the reader's ⋯, where its size, progress and Stop already are.
 - **It is the one desk page that keeps itself.** It is fetched once into the cache the
   first time it is opened, or the first time a text is saved (2026-10-11), and the worker
   keeps it current after that. Its query does not
