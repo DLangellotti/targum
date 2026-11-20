@@ -1024,7 +1024,8 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   files the reader marks its chapters from (`TargumOffline.parts`). `/offline.json?part=1`
   tells the whole's page count as `whole`, a count rather than a listing; a copy kept
   before that says "{n} parts saved". Keep still only changes hands. A save that fails
-  on a text saved before now drops what it fetched, so the cache holds what is counted.
+  on a text saved before deletes nothing, since another save of it may be using those
+  files; what is left over is not counted, and the next save takes it in unfetched.
   `saved.contents-only`, `saved.parts-of` and `saved.parts-saved` are new, their Russian
   a first pass for ling-ru.
 - The Russian and French yardsticks, after qa-claude's read of targum#1343

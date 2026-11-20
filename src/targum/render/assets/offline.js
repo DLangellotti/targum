@@ -301,7 +301,7 @@
        { done: Promise<item>, stop(), id }
      and calls `options.progress({done, total})` as bytes land. A failure rejects with
      `reason` "full" (the device has no room), "stopped" or "failed"; whatever this save
-     had already put away is taken back out, unless a saved text already names it.
+     had already put away is taken back out, unless the text was saved before it began.
 
      A file already in the cache is not fetched again: a save the reader left halfway —
      they turned the page, and the page is what was saving — picks up where it stopped. */
@@ -319,11 +319,13 @@
       if (stopping) stopping.abort();
     };
     var put = [];
+    var wasSaved = false;
     var earlier = {};
     // The cut of each file this save leaves in the cache, where it is known.
     var stamps = {};
     handle.done = readIndex()
       .then(function (index) {
+        wasSaved = !!index.items[handle.id];
         earlier = index.items;
         return plan(page, options);
       })
@@ -460,13 +462,12 @@
       })
       .catch(function (error) {
         var reason = stopped ? "stopped" : isFull(error) ? "full" : (error && error.reason) || "failed";
-        // A text saved before keeps the files it named, and loses what this save fetched,
-        // so what is cached is what is counted (`partsOf`, `hasPage`; qa-claude on #1352).
-        var undo = readIndex()
-          .then(function (index) {
-            return forgetFiles(put, index);
-          })
-          .catch(function () {});
+        /* A text saved before keeps everything, what this save fetched too: another save
+           of the same text may be running and hold those files before its index names
+           them, so nothing it could use is deleted (qa-claude on #1352). What is left
+           over is not counted (`partsOf` and `hasPage` read the index), and the next save
+           of the text finds it in the cache and takes it in without fetching it. */
+        var undo = wasSaved ? Promise.resolve() : forgetFiles(put);
         return undo.then(function () {
           throw reasoned(reason);
         });

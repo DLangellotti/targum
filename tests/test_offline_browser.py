@@ -633,6 +633,57 @@ def test_a_save_can_be_stopped_and_a_failure_tried_again(browser, served: Served
         context.close()
 
 
+def test_a_failed_save_of_a_book_kept_in_parts_deletes_nothing_and_counts_its_own(
+    browser,  # noqa: F811
+    served: Served,
+) -> None:
+    """qa-claude on #1352. A save of a text saved before that fails deletes no file: another
+    save of the same text may hold them before its index names them. The copy stays as
+    it was counted, and a later save takes the files left over in without fetching them."""
+    book(served.out / "local" / "book-he")
+    base = "/reader/book-he/reader/"
+    context = browser.new_context(service_workers="allow")
+    context.add_init_script(NONE_ON_ITS_OWN)
+    context.add_init_script(HANG)
+    page = context.new_page()
+
+    def cached() -> list[str]:
+        return sorted(
+            {
+                u.split("?")[0].rsplit("/", 1)[1]
+                for u in page.evaluate(KEYS)
+                if base in u and u.split("?")[0].endswith(".html")
+            }
+        )
+
+    try:
+        page.goto(served.url(f"{base}index.html"))
+        page.wait_for_function("() => navigator.serviceWorker.controller !== null")
+        page.evaluate("(p) => window.TargumOffline.save(p, { part: true }).done", page.url)
+        assert page.evaluate(PARTS, base)["files"] == [f"{base}index.html"]
+
+        page.evaluate("() => { window.FAIL_ON = 'sec-0003'; }")
+        failed = page.evaluate(
+            "(p) => window.TargumOffline.save(p, { how: 'you' }).done"
+            ".then(() => 'saved', (e) => e.reason)",
+            page.url,
+        )
+        assert failed == "failed"
+        still = page.evaluate(PARTS, base)
+        assert still["part"] and still["files"] == [f"{base}index.html"], "counted as it was"
+        assert cached() == ["index.html", "sec-0001.html", "sec-0002.html"], "nothing deleted"
+
+        page.evaluate("() => { window.FAIL_ON = ''; }")
+        before = len(served.asked)
+        page.evaluate("(p) => window.TargumOffline.save(p, { how: 'you' }).done", page.url)
+        fetched = [p.split("?")[0] for p in served.asked[before:] if p.startswith(base)]
+        assert fetched == [f"{base}sec-0003.html"], "only what was not there"
+        whole = page.evaluate(PARTS, base)
+        assert not whole["part"] and len([f for f in whole["files"] if f.endswith(".html")]) == 4
+    finally:
+        context.close()
+
+
 FULL = """
 (() => {
   const put = Cache.prototype.put;
