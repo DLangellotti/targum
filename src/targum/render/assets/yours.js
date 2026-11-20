@@ -103,12 +103,16 @@
      up the phrases — the record appears a moment later, and a reader with none still
      sees nothing at all. */
   function drawRewrote() {
-    if (!lists || !lists.rewrote || which !== "phrases") return;
-    ask("/slips")
-      .then(function (data) {
-        lists.rewrote((data && data.slips) || []);
-      })
-      .catch(function () {});
+    if (!lists || !lists.rewrote || (which !== "phrases" && which !== "words")) return;
+    if (which === "phrases") {
+      ask("/slips")
+        .then(function (data) {
+          lists.rewrote((data && data.slips) || []);
+        })
+        .catch(function () {});
+    }
+    // The record on both pages: on Your Words it is only the Phrases tab's count
+    // (targum-internal#716), which says how many lines the phrases list holds.
     ask("/slips?all=1")
       .then(function (data) {
         lists.record((data && data.slips) || []);

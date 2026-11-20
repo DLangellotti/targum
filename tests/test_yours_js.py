@@ -192,9 +192,11 @@ def test_the_words_you_may_already_know_stand_on_this_page_and_feed_the_list() -
     # §12, 2026-10-09). Asserted as the whole list rather than as a membership, so a page
     # that starts asking for something new has to say so here.
     # The common words after the account has had its say (#725 P2 3), so after the facts.
+    # The record of corrected lines for the Phrases tab's count (#716 P2 20).
     assert drawn["asked"] == [
         "/account/words?language=he&into=en",
         "/words/common?offset=0&limit=50",
+        "/slips?all=1",
     ]
     marked = draw(
         vocabulary(word("ספר", "book", status=2)),
@@ -1128,3 +1130,21 @@ def test_the_csv_has_a_known_by_ear_column() -> None:
     by_word = {row[0]: row for row in rows[1:]}
     assert by_word["ספר"][-1] == "yes" and by_word["דרך"][-1] == ""
     assert by_word["שמע"][-1] == "yes"
+
+
+def test_the_phrases_tab_counts_the_corrected_lines_it_shows() -> None:
+    """targum-internal#716, P2 20: the tab said 0 over a list of three corrections. It
+    counts what the phrases list shows, saved phrases and this language's corrections,
+    on both pages."""
+    other = {**SLIP, "id": 8, "language": "ru"}
+    for which in ("phrases", "words"):
+        drawn = draw(
+            vocabulary(word("ספר", "book", status=2, at=100)),
+            slips=[SLIP, {**SLIP, "id": 9}, other],
+            which=which,
+        )
+        assert drawn["counts"]["phrases"] == "2", which
+    kept = with_phrase(vocabulary(word("ספר", "book", status=2, at=100)), "בית ספר")
+    drawn = draw(kept, slips=[SLIP], which="phrases")
+    assert drawn["counts"]["phrases"] == "2"
+    assert draw(kept, which="phrases")["counts"]["phrases"] == "1"

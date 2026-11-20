@@ -1017,6 +1017,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   second before the next. And the Readers table's 5,000-account timing gives Follow-up
   due a bar of its own (2.5 s): it reads all readers through `_growth`, and took 1.01 s
   on CI's 3.12 runner against a 1 s bar.
+- The Phrases tab counts the corrected lines it shows (targum-internal#716, P2 20). It
+  read only the saved phrases, so a reader with three corrections and none saved saw
+  "Phrases 0" over a list of three. The count is the saved phrases plus this language's
+  corrections, as the record lists them, on Your Words and Your Phrases alike; Your
+  Words now asks for the record once, after its rows, for that count alone.
 - The Russian and French yardsticks, after qa-claude's read of targum#1343
   (targum-internal#752). A list is never replaced by one counted from fewer words, so a
   list made on the laptop from OPUS is not dropped at the month's turn by a box whose
