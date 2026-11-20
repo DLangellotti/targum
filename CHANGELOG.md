@@ -14,6 +14,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   "learned on targum" is gone; the label stays. `progress.ear.start` and
   `progress.count.learned.note` are retired; `lists.ear.tip` is new, its Russian a draft
   for ling-ru.
+- Home's Continue drops a text the reader has finished (David, 2026-11-20;
+  targum-internal#695, #703 P2-16; design.md §12, "Continue is for unfinished reading").
+  Finished is what the shelf's row already says Finished: every part recorded in
+  `targum:docs`, or the whole marked done. A finished text no longer sits there saying
+  "Pick up at chapter 4" over its last chapter, and there is no "Read again" card. With
+  everything finished Continue is not drawn and the suggestion stands, labelled "One to
+  try next"; "Nothing here yet" stays for a reader who has opened nothing. No new strings.
 - The noun table (#697e) files a Hebrew word under its headword only where two checks
   pass (targum-internal#755, from ling-he's read of targum#1323). `lemma_check` 8, a free
   recount: no rename, no `SCHEMA_VERSION`.
@@ -1026,6 +1033,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   those selectors, and `test_every_press_on_the_offline_row_answers_a_thumb` measures
   Save, Stop, Remove and Undo at a phone's coarse pointer in all three places the row is
   drawn: the reader's ⋯, a text's contents and a playlist's page. The desk is as it was.
+- The Phrases tab counts the corrected lines it shows (targum-internal#716, P2 20). It
+  read only the saved phrases, so a reader with three corrections and none saved saw
+  "Phrases 0" over a list of three. The count is the saved phrases plus this language's
+  corrections, as the record lists them, on Your Words and Your Phrases alike; Your
+  Words now asks for the record once, after its rows, for that count alone.
 - The Russian and French yardsticks, after qa-claude's read of targum#1343
   (targum-internal#752). A list is never replaced by one counted from fewer words, so a
   list made on the laptop from OPUS is not dropped at the month's turn by a box whose

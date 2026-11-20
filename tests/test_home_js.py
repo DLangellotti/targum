@@ -150,11 +150,12 @@ def portion_place(at: int, **fields: Any) -> dict[str, Any]:
     }
 
 
-def test_a_finished_portion_heads_continue() -> None:
-    """QA, 2026-10-12: Noach finished from the Library, home said "Finished נֹחַ", and no
-    card carried it. A portion is not on the shelf, so its card is named by its place,
-    and this browser's place carries no title: the reader writes the part, not the name.
-    The name comes from this browser's own record of the text, or the account's row."""
+def test_a_portion_read_here_heads_continue() -> None:
+    """QA, 2026-10-12: Noach read from the Library, and no card carried it. A portion is
+    not on the shelf, so its card is named by its place, and this browser's place carries
+    no title: the reader writes the part, not the name. The name comes from this
+    browser's own record of the text, or the account's row. (Once the record says the
+    portion is done, it leaves Continue: the test after the next.)"""
     stored = {
         "targum:places": json.dumps({"noach": portion_place(5000)}),
         "targum:docs": json.dumps({"noach": {"title": "נֹחַ", "language": "he"}}),
@@ -171,3 +172,41 @@ def test_a_finished_portion_heads_continue() -> None:
     account = [{"hash": "noach", **portion_place(400), "title": "נֹחַ", "language": "he"}]
     cards = gather(readers=[], stored=named, account=account)
     assert [card["place"]["title"] for card in cards] == ["נֹחַ"]
+
+
+def test_continue_holds_only_what_is_not_finished() -> None:
+    """David, 2026-11-20 (targum-internal#695, #703 P2-16): a finished text leaves
+    Continue. It said "Pick up at chapter 4" over a text finished at chapter 4 of 4.
+    Finished is what the shelf's row says Finished: every part in `targum:docs`, or the
+    whole marked done."""
+    done = {"name": "ruth-he", "document": "ruth", "title": "רות", "language": "he", "sections": 4}
+    reading = {**article(), "built": 0}
+    docs = {
+        "ruth": {"sections": {"1": 1, "2": 2, "3": 3, "4": 4}},
+        "hapoel": {"sections": {"1": 1}},
+    }
+    one = {"targum:docs": json.dumps(docs)}
+    places = [
+        {**place("ruth", 300, 4), "path": "/reader/ruth-he/reader/sec-0004.html"},
+        {**place("hapoel", 200, 1), "path": "/reader/hapoel-he/reader/sec-0001.html"},
+    ]
+    cards = gather(readers=[done, reading], places=places, stored=one)
+    assert [card["reader"] for card in cards] == ["hapoel"]
+    # Opened with no place, and finished: no card either.
+    cards = gather(readers=[done, reading], opened={"ruth": 500, "hapoel": 100}, stored=one)
+    assert [card["reader"] for card in cards] == ["hapoel"]
+    # Everything finished: Continue is empty, and the suggestion stands alone.
+    docs["hapoel"] = {"sections": {"1": 1}, "done": 9}
+    every = {"targum:docs": json.dumps(docs)}
+    assert gather(readers=[done, reading], places=places, stored=every) == []
+
+
+def test_a_finished_portion_leaves_continue() -> None:
+    """A portion is not on the shelf, so its own record says it is finished, as the
+    shelf's row for it does."""
+    stored = {
+        "targum:places": json.dumps({"noach": portion_place(5000)}),
+        "targum:docs": json.dumps({"noach": {"title": "נֹחַ", "language": "he", "done": 6000}}),
+    }
+    cards = gather(readers=[video("now")], opened={"now": 100}, stored=stored, account=[])
+    assert [card["reader"] for card in cards] == ["now"]
