@@ -1035,6 +1035,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   files; what is left over is not counted, and the next save takes it in unfetched.
   `saved.contents-only`, `saved.parts-of` and `saved.parts-saved` are new, their Russian
   a first pass for ling-ru.
+- The Saved page and /connect open with no connection before the first save
+  (targum-internal#720 P2 5, #721 P2 8; David, 2026-11-20; design.md §12). A page opened
+  online by a signed-in reader keeps both quietly, once each, where offline they were the
+  browser's own error until something was saved. Nothing of any text is fetched, and
+  neither page is counted among the texts. A page that answered by sending the browser
+  elsewhere is no longer kept as the page asked for.
 - Save for offline's row answers a thumb over 44px again (targum-internal#716, P2 20a).
   On a phone its Save, Stop, Again, Remove from this device and Undo measured 32px: the
   row's own `.offline-row .offline-*` rules set 2rem and beat the coarse-pointer 44px,

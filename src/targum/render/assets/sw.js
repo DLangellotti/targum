@@ -52,6 +52,8 @@ var READER = /^\/(?:reader\/[^/]+\/reader|parasha\/read\/[^/]+\/reader|[^/]+\/re
 /* The page that lists what is saved, kept so that it opens with no connection; its
    query (`?away=`) is for the page to read, so it is one page whatever it says. */
 var SAVED = "/you/saved";
+/* How to add targum to Claude or ChatGPT, kept beside it the same way (2026-11-20). */
+var CONNECT = "/connect";
 var MEDIA = /\.(?:mp4|m4v|webm|mp3)$/i;
 
 /* What is saved, held in memory once it has been read, so that a film that was not saved
@@ -63,7 +65,7 @@ var saved = null;
 function keyOf(address) {
   var url = new URL(address, self.location.origin);
   url.hash = "";
-  if (READER.test(url.pathname) || url.pathname === SAVED) {
+  if (READER.test(url.pathname) || url.pathname === SAVED || url.pathname === CONNECT) {
     url.search = "";
   } else {
     url.searchParams.delete("k");
@@ -207,7 +209,8 @@ function opening(event) {
       // page asked for again, whole, as a save asks for it (design.md §12, "An offline
       // copy follows its text when opened online", 2026-11-14). The same build opened
       // again fetches nothing more.
-      if (answer && answer.ok && answer.type === "basic" && saved && saved[key]) {
+      // A page that sent the browser elsewhere is not the page asked for (#1355).
+      if (answer && answer.ok && answer.type === "basic" && !answer.redirected && saved && saved[key]) {
         var linked = answer.headers.get("x-targum-linked");
         var version = answer.headers.get("x-targum-version");
         var client = event.resultingClientId || event.clientId;
