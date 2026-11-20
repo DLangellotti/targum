@@ -6871,6 +6871,13 @@ connection banner's Saved texts leads to it.
   "That isn't on this device, so it opens when you're back online." The reader can then
   open what they do have. A full device's line in a reader's ⋯ points here, because this
   is where room is made.
+- **Kept before the first save, with /connect beside it** (David, 2026-11-20;
+  targum-internal#720 P2 5, #721 P2 8). Offline, a reader who had not saved anything yet
+  met the browser's own error on this page and on /connect. Now any page opened online by
+  a signed-in reader quietly keeps both, once each, so both open with no connection. They
+  are targum's own pages, never a text: no reader content, nothing from another site,
+  outside the count of texts and never let go by it. /connect is one page whatever its
+  query says, as this one is.
 
 ### A text is kept for offline by a press, or by being opened — 2026-10-09
 

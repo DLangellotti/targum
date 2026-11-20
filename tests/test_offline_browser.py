@@ -11,6 +11,7 @@ saved does not open. The server writes down every request it is asked, which is 
 
 from __future__ import annotations
 
+import json
 import threading
 from collections.abc import Iterator
 from http.server import ThreadingHTTPServer
@@ -1049,6 +1050,169 @@ def test_the_first_save_keeps_the_saved_page_outside_the_texts(
         page.wait_for_selector("#saved-auto:not([hidden]) .saved-row")
         assert page.locator("#saved-mine .saved-row").count() == 1
         assert page.locator("#saved-auto .saved-row").count() == 3
+    finally:
+        context.close()
+
+
+def test_a_page_opened_online_keeps_saved_and_connect_before_any_save(
+    browser,  # noqa: F811
+    saved_served: Served,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """David, 2026-11-20 (targum-internal#720 P2 5, #721 P2 8): offline, the Saved page
+    and /connect were the browser's own error until the first save. A page opened online
+    keeps both, quietly: two pages of targum's own, nothing of any text, not one of the
+    texts, and asked once."""
+    monkeypatch.setenv("TARGUM_CONNECTOR", "1")
+    served = saved_served
+    book(served.out / "local" / "here-he", chapters=1)
+    book(served.out / "local" / "away-he", chapters=1)
+    context = browser.new_context(service_workers="allow")
+    context.add_init_script(NONE_ON_ITS_OWN)
+    page = context.new_page()
+    try:
+        page.goto(served.url("/reader/here-he/reader/index.html"))
+        page.wait_for_function("() => navigator.serviceWorker.controller !== null")
+        kept(page, "page:/you/saved")
+        kept(page, "page:/connect")
+        assert page.evaluate(LIST) == [], "no text saved, and the pages are not texts"
+        stored = [url.split("?")[0] for url in page.evaluate(KEYS)]
+        assert not any("/reader/" in url for url in stored), "nothing of any text"
+        assert len([p for p in served.asked if p.startswith("/connect")]) == 1
+
+        # Opened again, nothing is asked: they are kept.
+        before = len(served.asked)
+        page.goto(served.url("/reader/here-he/reader/index.html"))
+        page.wait_for_timeout(2500)
+        again = [p.split("?")[0] for p in served.asked[before:]]
+        assert "/you/saved" not in again and "/connect" not in again
+
+        # Opened online with a query, it is the same one copy, refreshed in place.
+        page.goto(served.url("/connect") + "&app=claude")
+        page.wait_for_timeout(500)
+        connects = [u for u in page.evaluate(KEYS) if "/connect" in u]
+        assert len(connects) == 1 and "?" not in connects[0], connects
+
+        served.gone()
+        context.set_offline(True)
+        page.goto(served.url("/connect") + "&app=claude")
+        assert page.url.split("?")[0].endswith("/connect")
+        assert page.locator("h1").count() == 1, "the page itself, not the browser's error"
+        page.goto(served.url("/reader/away-he/reader/index.html"))
+        page.wait_for_selector("#saved-away:not([hidden])")
+        assert page.url.split("?")[0].endswith("/you/saved")
+    finally:
+        context.close()
+
+
+def early(browser, served: Served, *scripts: str, me: dict | None = None):  # noqa: F811
+    """A reader page opened with nothing saved, given time to keep what it would keep."""
+    context = browser.new_context(service_workers="allow")
+    context.add_init_script(NONE_ON_ITS_OWN)
+    for script in scripts:
+        context.add_init_script(script)
+    if me is not None:
+        context.route(
+            "**/account/me*",
+            lambda route: route.fulfill(
+                status=200, content_type="application/json", body=json.dumps(me)
+            ),
+        )
+    page = context.new_page()
+    page.goto(served.url("/reader/here-he/reader/index.html"))
+    page.wait_for_function("() => navigator.serviceWorker.controller !== null")
+    page.wait_for_timeout(3000)
+    return context, page
+
+
+def early_asks(served: Served, since: int = 0) -> list[str]:
+    return [
+        p.split("?")[0] for p in served.asked[since:] if p.startswith(("/you/saved", "/connect"))
+    ]
+
+
+def test_signed_out_nothing_is_kept_early(
+    browser,  # noqa: F811
+    saved_served: Served,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """qa-claude on #1355: the Saved page is the account's, so signed out nothing is kept,
+    and nothing is asked."""
+    monkeypatch.setenv("TARGUM_CONNECTOR", "1")
+    book(saved_served.out / "local" / "here-he", chapters=1)
+    context, page = early(browser, saved_served, me={"signedIn": False, "signedOut": True})
+    try:
+        assert early_asks(saved_served) == []
+        assert not [u for u in page.evaluate(KEYS) if "/you/saved" in u or "/connect" in u]
+    finally:
+        context.close()
+
+
+def test_without_the_account_s_answer_nothing_is_kept_early(
+    browser,  # noqa: F811
+    saved_served: Served,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Fail safe: with no `TargumSync`, the reader is taken as signed out."""
+    monkeypatch.setenv("TARGUM_CONNECTOR", "1")
+    book(saved_served.out / "local" / "here-he", chapters=1)
+    gone = """Object.defineProperty(window, 'TargumSync', {
+      configurable: true, get() { return undefined; }, set() {} });"""
+    context, _ = early(browser, saved_served, gone)
+    try:
+        assert early_asks(saved_served) == []
+    finally:
+        context.close()
+
+
+def test_offline_at_load_nothing_is_asked(
+    browser,  # noqa: F811
+    saved_served: Served,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TARGUM_CONNECTOR", "1")
+    book(saved_served.out / "local" / "here-he", chapters=1)
+    away = "Object.defineProperty(Navigator.prototype, 'onLine', { get: () => false });"
+    context, _ = early(browser, saved_served, away)
+    try:
+        assert early_asks(saved_served) == []
+    finally:
+        context.close()
+
+
+def test_a_page_that_sends_elsewhere_is_not_kept_nor_asked_again(
+    browser,  # noqa: F811
+    saved_served: Served,
+) -> None:
+    """A Saved page that sends the browser to sign in is not kept as the Saved page, and
+    /connect with the connector shut (404) is not kept either; neither is asked again on
+    the next page this session."""
+    served = saved_served
+    book(served.out / "local" / "here-he", chapters=1)
+    context = browser.new_context(service_workers="allow")
+    context.add_init_script(NONE_ON_ITS_OWN)
+    context.route(
+        "**/you/saved*",
+        lambda route: route.fulfill(status=302, headers={"Location": "/about"}),
+    )
+    page = context.new_page()
+    try:
+        page.goto(served.url("/reader/here-he/reader/index.html"))
+        page.wait_for_function("() => navigator.serviceWorker.controller !== null")
+        page.wait_for_function(
+            "() => { try { return !!sessionStorage.getItem('targum:offline-tried:/connect'); }"
+            " catch (e) { return false; } }",
+            timeout=15000,
+        )
+        assert page.evaluate("() => window.TargumOffline.saved('page:/you/saved')") is False
+        assert page.evaluate("() => window.TargumOffline.saved('page:/connect')") is False
+        assert not [u for u in page.evaluate(KEYS) if "/you/saved" in u or "/connect" in u]
+        assert early_asks(served) == ["/connect"], "the 302 was answered before the server"
+
+        before = len(served.asked)
+        page.goto(served.url("/reader/here-he/reader/index.html"))
+        page.wait_for_timeout(3000)
+        assert early_asks(served, before) == [], "not asked again this session"
     finally:
         context.close()
 
