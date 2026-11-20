@@ -839,3 +839,140 @@ def test_the_page_s_token_takes_the_headword_and_keeps_its_root() -> None:
     out = mend_token(token)
     assert out.lemma == "עץ" and out.root == "עצה"
     assert out.headword is None, "the pointed headword was the plural's"
+
+
+# --- the table's two checks (targum-internal#755) ----------------------------------------
+#
+# Every case below is a token from ling-he's read of #1323's changes over the laptop's
+# library (2026-11-20), or from the re-measure that followed it.
+
+
+@pytest.mark.parametrize(
+    ("surface", "lemma", "pos"),
+    [
+        # DICTA's lemma was already another word, and the table carried it to a third.
+        ("הַדַּיָּנִים", "דינים", "NOUN"),  # judges, not laws: not דין
+        ("לַדַּיָּנִים", "דינים", "NOUN"),
+        ("שְׁמֹנָה", "שמנה", "ADJ"),  # eight, not fat: not שמן
+        ("וּשְׁמֹנָה", "שמנה", "ADJ"),
+        ("הַמִּשְׁקֹלֶת", "משקלים", "NOUN"),  # a plumb line, not a weight
+        ("הַנְּחֹשֶׁת", "נחשים", "NOUN"),  # copper, not snakes
+        ("וברודים", "אדומים", "ADJ"),
+        ("הקוֹנטוֹרה", "אייקונים", "NOUN"),
+        ("וְגָרְשֵׁנִי", "אגורות", "NOUN"),
+        ("מרפתים", "מרים", "ADJ"),
+        ("מרתית", "מרים", "ADJ"),
+        ("בְּדִינָר", "נרות", "NOUN"),
+        ("כִּמְדוּרַת", "משואות", "NOUN"),
+        ("שפיפון", "שפנים", "NOUN"),
+        ("בגזית", "גזים", "NOUN"),
+        ("קַצְרִית", "קצרה", "ADJ"),
+        ("הוונצולנית", "לוויינית", "ADJ"),
+        ("פורתא", "פורת", "ADJ"),
+        ("שֶׁפְּרָצוּם", "פרצות", "NOUN"),
+        ("והעריות", "ערה", "ADJ"),
+        # Found by the re-measure: ketubot are no articles, the crooked no coins, a
+        # libation no miracle, and "plastered it" no stove.
+        ("כְתֻבּוֹת", "כתבות", "NOUN"),
+        ("מְעֻוָּת", "מעות", "NOUN"),
+        ("נְסָכֶיהָ", "נסים", "NOUN"),
+        ("וְכִיְּרוֹ", "כיריים", "NOUN"),
+    ],
+)
+def test_a_spelling_that_is_no_form_of_the_headword_keeps_dicta_s_lemma(
+    surface: str, lemma: str, pos: str
+) -> None:
+    row = {"surface": surface, "lemma": lemma, "pos": pos}
+    assert mend_row(row)["lemma"] == lemma
+
+
+@pytest.mark.parametrize(
+    ("surface", "lemma", "pos", "headword"),
+    [
+        # The page's word is the form, a construct, or carries a possessive.
+        ("בְּדִינֵי", "דינים", "NOUN", "דין"),
+        ("הדינים", "דינים", "NOUN", "דין"),
+        ("בשולי", "שוליים", "NOUN", "שול"),
+        ("אסונותיו", "אסונות", "NOUN", "אסון"),
+        ("גבירותי", "גבירות", "NOUN", "גברת"),
+        ("דליותיהן", "דליות", "NOUN", "דלית"),
+        ("בְּמוּמִין", "מומים", "NOUN", "מום"),
+        ("מלאת", "מלאה", "ADJ", "מלא"),
+        # Spelled without the headword's ו or י, or pointed where the table is plene.
+        ("באזניו", "אוזניים", "NOUN", "אוזן"),
+        ("החפשית", "חופשית", "ADJ", "חופשי"),
+        ("בֵינוֹנִיּוֹת", "בינונית", "ADJ", "בינוני"),
+        ("קִטְנִיּוֹת", "קטניות", "NOUN", "קטנית"),
+        # An adjective in ה whose plural is in יים is still an adjective.
+        ("פוריים", "פוריים", "ADJ", "פורה"),
+    ],
+)
+def test_a_spelling_that_is_a_form_of_the_headword_is_filed_under_it(
+    surface: str, lemma: str, pos: str, headword: str
+) -> None:
+    row = {"surface": surface, "lemma": lemma, "pos": pos}
+    assert mend_row(row)["lemma"] == headword
+
+
+@pytest.mark.parametrize("lemma", ["צרפתיות", "איטלקיים", "ונצואלית", "אירופאיות"])
+def test_an_adjective_is_never_filed_under_a_place(lemma: str) -> None:
+    from targum.annotate.nouns import headword, nouns_of_nisbas
+
+    assert headword(lemma, "ADJ", lemma) is None
+    assert {"אירופה", "צרפת", "איטליה"} <= nouns_of_nisbas()
+    assert not {"ארוך", "מלא", "חופשי", "פורה", "אגואיסט"} & nouns_of_nisbas()
+
+
+def test_a_pointed_token_is_checked_in_plene_spelling() -> None:
+    from targum.annotate.lemma_check import mend_token
+    from targum.annotate.nouns import plene
+
+    assert plene("הַדַּיָּנִים") == "הדיינים"
+    assert plene("שְׁמֹנָה") == "שמונה"
+    assert plene("בֵינוֹנִיּוֹת") == "בינוניות"
+    token = Token(start=0, end=9, surface="שְׁמֹנָה", lemma="שמנה", band=2, pos="ADJ")
+    assert mend_token(token).lemma == "שמנה"
+
+
+@pytest.mark.parametrize(("lemma", "place"), [("רוסיים", "רוסיה"), ("טורקית", "טורקיה")])
+def test_a_country_in_yod_he_is_no_adjective_s_headword(lemma: str, place: str) -> None:
+    """A country in יה has a plural in ות beside its plural in יים, as פורה does, so
+    only the adjectives named are spared (qa-claude on #1346)."""
+    from targum.annotate.nouns import ADJECTIVES_IN_HE, headword, nouns_of_nisbas
+
+    assert headword(lemma, "ADJ", lemma) is None
+    assert place in nouns_of_nisbas()
+    assert ADJECTIVES_IN_HE == {"פורה", "בוכה"}
+
+
+@pytest.mark.parametrize(
+    ("surface", "head", "pos"),
+    [
+        ("הַיְּלָדִים", "ילד", "NOUN"),
+        ("הַיָּפוֹת", "יפה", "ADJ"),
+        ("הַיְּרֻקִּים", "ירוק", "ADJ"),
+        ("לַיְּתוֹמִים", "יתום", "NOUN"),
+        ("בַּיְּשִׁיבוֹת", "ישיבה", "NOUN"),
+        ("שֶׁיְּלָדָיו", "ילד", "NOUN"),
+    ],
+)
+def test_a_yod_doubled_by_a_prefix_is_one_yod(surface: str, head: str, pos: str) -> None:
+    from targum.annotate.nouns import spelled_as
+
+    assert spelled_as(surface, head, pos)
+
+
+@pytest.mark.parametrize(
+    ("surface", "lemma", "pos", "head"),
+    [
+        ("הבטלונים", "בטלנים", "NOUN", "בטלן"),
+        ("לעיזים", "עזים", "NOUN", "עז"),
+        ("הסלולאריים", "סלולריים", "ADJ", "סלולרי"),
+    ],
+)
+def test_a_spelling_read_one_by_one_is_filed_under_its_headword(
+    surface: str, lemma: str, pos: str, head: str
+) -> None:
+    assert mend_row({"surface": surface, "lemma": lemma, "pos": pos})["lemma"] == head
+    # And no rule lets an extra letter in: unpointed שמונה is still no form of שמן.
+    assert mend_row({"surface": "שמונה", "lemma": "שמנה", "pos": "ADJ"})["lemma"] == "שמנה"
