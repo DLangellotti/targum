@@ -674,7 +674,15 @@ def cached_gloss(
     provider: str,
     cache: Cache | None = None,
 ) -> Sense | None:
-    """The sense already held for a word, or None. Never spends."""
+    """The sense already held for a word, or None. Never spends.
+
+    A function word written by hand is held already, ahead of the cache
+    (targum-internal#712), so every reader of a held meaning — Your Progress, the
+    commonest words, the words to learn first, a conversation's lines — says what the
+    reader's glossary says, never the one sentence a meaning was grounded on."""
+    written = closed.function_gloss(source_language, lemma, target_language)
+    if written:
+        return Sense(written, "", grounded=True)
     cache = cache or Cache()
     stored = cache.get("gloss", gloss_key(cache, lemma, source_language, target_language, provider))
     if isinstance(stored, dict) and stored.get("gloss"):
@@ -967,6 +975,13 @@ def build_glossary(
 
     missing: list[str] = []
     for lemma in wanted:
+        # A function word written by hand, ahead of anything bought: its senses are the
+        # constructions it builds, and the one sentence its meaning was bought or grounded
+        # on decided it for every text (targum-internal#712: every как "however").
+        written = closed.function_gloss(annotation.language, lemma, target_language)
+        if written:
+            keep(lemma, Sense(gloss=written, part=""))
+            continue
         key = gloss_key(cache, lemma, annotation.language, target_language, provider.name)
         stored = cache.get("gloss", key)
         if isinstance(stored, dict) and stored.get("gloss"):
