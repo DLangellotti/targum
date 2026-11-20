@@ -14,6 +14,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   "learned on targum" is gone; the label stays. `progress.ear.start` and
   `progress.count.learned.note` are retired; `lists.ear.tip` is new, its Russian a draft
   for ling-ru.
+- Home's Continue drops a text the reader has finished (David, 2026-11-20;
+  targum-internal#695, #703 P2-16; design.md §12, "Continue is for unfinished reading").
+  Finished is what the shelf's row already says Finished: every part recorded in
+  `targum:docs`, or the whole marked done. A finished text no longer sits there saying
+  "Pick up at chapter 4" over its last chapter, and there is no "Read again" card. With
+  everything finished Continue is not drawn and the suggestion stands, labelled "One to
+  try next"; "Nothing here yet" stays for a reader who has opened nothing. No new strings.
 - The noun table (#697e) files a Hebrew word under its headword only where two checks
   pass (targum-internal#755, from ling-he's read of targum#1323). `lemma_check` 8, a free
   recount: no rename, no `SCHEMA_VERSION`.
