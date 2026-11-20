@@ -1990,3 +1990,105 @@ def test_a_book_that_gained_a_part_refreshes_its_copy(browser, served: Served) -
         assert has
     finally:
         context.close()
+
+
+# -- Every press on the row answers a thumb (targum-internal#716, P2 20a) -----------------
+
+#: A phone, as `test_reader_reach_rest_browser.py` makes one: a coarse pointer, no hover.
+PHONE = {"width": 390, "height": 844}
+
+#: How tall the first `sel` under `row` is drawn, or nothing when there is none.
+TALL = """([row, sel]) => {
+  const press = document.querySelector(row + ' ' + sel);
+  return press ? press.getBoundingClientRect().height : null;
+}"""
+
+#: A playlist of two built texts, as `/playlists/7.json` answers it.
+PLAYLIST_7 = """
+(() => {
+  const real = window.fetch;
+  const one = (n, at) => ({ position: at, reader: n, job: null, title: n, failed: false,
+    open: '/reader/' + n + '/reader/index.html',
+    facts: { name: n, entry: '', language: 'he', kind: 'story', video: false,
+             seconds: 0, minutes: 5 } });
+  window.fetch = (url, options) => {
+    if (/\\/playlists\\/7\\.json/.test(String(url))) {
+      return Promise.resolve(new Response(JSON.stringify({
+        id: 7, name: 'Mornings', made_by: 'reader', made: 1, at: null, covers: [],
+        seconds: 600, ready: 2, waiting: 0, failed: 0, unconfirmed: 0, credits: 0,
+        language: 'he', items: [one('one-he', 0), one('two-he', 1)],
+      }), { headers: { 'Content-Type': 'application/json' } }));
+    }
+    return real(url, options);
+  };
+})();
+"""
+
+
+def _every_press_is_44px(page, row: str) -> None:
+    """Save, then Stop while it saves, then Save again, Remove and Undo: each measured as
+    it stands on the row."""
+
+    def tall(sel: str) -> float:
+        height = page.evaluate(TALL, [row, sel])
+        assert height is not None, f"{row} draws no {sel}"
+        return height
+
+    page.wait_for_selector(f"{row}.offline-idle", state="attached")
+    assert tall(".offline-go") >= 44, f"{row}: Save is {tall('.offline-go')}px"
+    page.evaluate("() => { window.HANG_ON = '/reader/'; }")
+    page.locator(f"{row} .offline-go").click()
+    page.wait_for_selector(f"{row}.offline-saving", state="attached")
+    assert tall(".offline-stop") >= 44, f"{row}: Stop is {tall('.offline-stop')}px"
+    page.locator(f"{row} .offline-stop").click()
+    page.wait_for_selector(f"{row}.offline-idle", state="attached")
+    page.evaluate("() => { window.HANG_ON = ''; }")
+    page.locator(f"{row} .offline-go").click()
+    page.wait_for_selector(f"{row}.offline-saved", state="attached")
+    assert tall(".offline-remove") >= 44, f"{row}: Remove is {tall('.offline-remove')}px"
+    page.locator(f"{row} .offline-remove").click()
+    page.wait_for_selector(f"{row}.offline-held", state="attached")
+    assert tall(".offline-undo") >= 44, f"{row}: Undo is {tall('.offline-undo')}px"
+
+
+@pytest.mark.parametrize("where", ["menu", "contents", "playlist"])
+def test_every_press_on_the_offline_row_answers_a_thumb(
+    browser,  # noqa: F811
+    served: Served,
+    where: str,
+) -> None:
+    """§8: on a phone the row's Save, Stop, Remove from this device and Undo measured 32px
+    on a text's contents and a playlist's page, and Stop 36px in the reader's ⋯: the
+    row's own rules outweighed the coarse-pointer 44px (targum-internal#716, P2 20a).
+    `test_brand.py` can only see that a selector is named, not that it wins."""
+    from targum.render.builder import playlists_page
+
+    book(served.out / "local" / "one-he", chapters=1)
+    book(served.out / "local" / "two-he", chapters=2)
+    served.server.RequestHandlerClass.playlists = playlists_page(TOKEN)
+    context = browser.new_context(
+        service_workers="allow", viewport=PHONE, has_touch=True, is_mobile=True
+    )
+    context.add_init_script(NONE_ON_ITS_OWN)
+    context.add_init_script(HANG)
+    if where == "playlist":
+        context.add_init_script(PLAYLIST_7)
+    page = context.new_page()
+    try:
+        assert page.evaluate("() => matchMedia('(hover: none) and (pointer: coarse)').matches")
+        if where == "menu":
+            page.goto(served.url("/reader/two-he/reader/sec-0001.html"))
+            page.wait_for_function("() => navigator.serviceWorker.controller !== null")
+            page.click(".bar-tools [data-more]")
+            _every_press_is_44px(page, ".m-menu #offline-row")
+        elif where == "contents":
+            page.goto(served.url("/reader/two-he/reader/index.html"))
+            page.wait_for_function("() => navigator.serviceWorker.controller !== null")
+            _every_press_is_44px(page, ".parts-offline")
+        else:
+            page.goto(served.url("/reader/one-he/reader/index.html"))
+            page.wait_for_function("() => navigator.serviceWorker.controller !== null")
+            page.goto(served.url("/playlists/7"))
+            _every_press_is_44px(page, ".pl-presses .pl-offline")
+    finally:
+        context.close()

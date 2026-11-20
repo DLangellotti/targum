@@ -5213,6 +5213,7 @@ body.practice-section .beside-add { display: none; }
   .bar .m-menu .seg > *,
   .m-menu .offline-go,
   .m-menu .offline-stop,
+  .m-menu .m-offline .offline-stop,
   .m-menu .offline-remove,
   .m-menu .m-select,
   .sheet-grab,

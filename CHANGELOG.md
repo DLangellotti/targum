@@ -1035,6 +1035,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   files; what is left over is not counted, and the next save takes it in unfetched.
   `saved.contents-only`, `saved.parts-of` and `saved.parts-saved` are new, their Russian
   a first pass for ling-ru.
+- Save for offline's row answers a thumb over 44px again (targum-internal#716, P2 20a).
+  On a phone its Save, Stop, Again, Remove from this device and Undo measured 32px: the
+  row's own `.offline-row .offline-*` rules set 2rem and beat the coarse-pointer 44px,
+  which named the buttons bare; in the reader's ⋯ Stop stayed 36px under a three-class
+  rule. The 44px now names them under `.offline-row`, and ⋯'s Stop as
+  `.m-menu .m-offline .offline-stop`. `test_every_thumbed_control_reaches_44px` holds
+  those selectors, and `test_every_press_on_the_offline_row_answers_a_thumb` measures
+  Save, Stop, Remove and Undo at a phone's coarse pointer in all three places the row is
+  drawn: the reader's ⋯, a text's contents and a playlist's page. The desk is as it was.
 - The Phrases tab counts the corrected lines it shows (targum-internal#716, P2 20). It
   read only the saved phrases, so a reader with three corrections and none saved saw
   "Phrases 0" over a list of three. The count is the saved phrases plus this language's
