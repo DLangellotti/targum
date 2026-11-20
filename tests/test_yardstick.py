@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import pytest
 from typer.testing import CliRunner
@@ -377,21 +378,86 @@ def test_a_hebrew_list_past_its_first_version_still_loads(tmp_path: Path) -> Non
     assert yardstick.load("ru:news", where) is None
 
 
-def test_a_list_is_never_replaced_by_one_counted_from_less(tmp_path: Path) -> None:
-    """qa-claude on targum#1343: a list made on the laptop from an outside corpus, copied
-    to a box whose ledger lacks the corpus, is kept at the month's turn, not dropped."""
+def _sourced(tmp_path: Path, register: str, source: str, scale: int = 1000) -> Store:
+    """A ledger holding one register's counts from one named source."""
+    store = Store(tmp_path / "corpus.db")
+    store.write(
+        Contribution(
+            table="words",
+            register=register,
+            unit=f"unit-{source}-{scale}",
+            source=source,
+            licence="CC0",
+            tool="test/1",
+            rule="words/1",
+        ),
+        _counts(400, scale=scale),
+    )
+    return store
+
+
+TURNED = datetime(2026, 12, 1, 2, 30, tzinfo=UTC)
+
+
+def test_a_list_is_kept_where_this_ledger_lacks_one_of_its_sources(tmp_path: Path) -> None:
+    """qa-claude on targum#1343 and #1345: a list made on the laptop from an outside
+    corpus, copied to a box whose ledger never held the corpus, is kept at the month's
+    turn rather than rebuilt without it."""
     where = tmp_path / "tables"
-    laptop = _store(tmp_path / "laptop", register="ru:conversation", scale=2000)
-    first = yardstick.write(laptop, "ru:conversation", where, now=NOW)
-    assert first.outcome == "written"
-    box = _store(tmp_path / "box", register="ru:conversation", scale=1000)
-    turned = datetime(2026, 12, 1, 2, 30, tzinfo=UTC)
-    kept = yardstick.write(box, "ru:conversation", where, now=turned)
+    laptop = _sourced(tmp_path / "laptop", "ru:conversation", "opus-ru")
+    assert yardstick.write(laptop, "ru:conversation", where, now=NOW).outcome == "written"
+    box = _sourced(tmp_path / "box", "ru:conversation", "box-own", scale=3000)
+    kept = yardstick.write(box, "ru:conversation", where, now=TURNED)
     assert kept.outcome == "kept" and kept.version == 1
+    assert yardstick.missing_sources(box, "ru:conversation", _last(where)) == ["opus-ru"]
     assert [v for v, _ in yardstick.versions("ru:conversation", where)] == [1]
-    # More counts than the list: a new version, as ever.
-    grown = _store(tmp_path / "grown", register="ru:conversation", scale=3000)
-    assert yardstick.write(grown, "ru:conversation", where, now=turned).outcome == "written"
+
+
+def _last(where: Path) -> dict[str, Any]:
+    return json.loads(yardstick.versions("ru:conversation", where)[-1][1].read_text("utf-8"))
+
+
+def test_force_writes_over_a_missing_source(tmp_path: Path) -> None:
+    where = tmp_path / "tables"
+    yardstick.write(
+        _sourced(tmp_path / "a", "ru:conversation", "opus-ru"), "ru:conversation", where, now=NOW
+    )
+    box = _sourced(tmp_path / "b", "ru:conversation", "box-own", scale=1500)
+    assert yardstick.write(box, "ru:conversation", where, now=TURNED).outcome == "kept"
+    done = yardstick.write(box, "ru:conversation", where, force=True, now=TURNED)
+    assert done.outcome == "written" and done.version == 2
+
+
+def test_a_changed_rule_writes_over_a_missing_source(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    where = tmp_path / "tables"
+    yardstick.write(
+        _sourced(tmp_path / "a", "ru:conversation", "opus-ru"), "ru:conversation", where, now=NOW
+    )
+    monkeypatch.setattr(yardstick, "RULE", "yardstick/2")
+    box = _sourced(tmp_path / "b", "ru:conversation", "box-own")
+    assert yardstick.write(box, "ru:conversation", where, now=TURNED).outcome == "written"
+
+
+def test_a_fixed_corpus_that_shrinks_after_a_rule_change_gets_the_new_list(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Hebrew's Bible, literature and conversation are fixed corpora: a rule or annotator
+    change that lowers their counted words still gives them the new list, since every
+    source is still here."""
+    where = tmp_path / "tables"
+    store = _sourced(tmp_path, "bible", "oshb", scale=2000)
+    first = yardstick.write(store, "bible", where, now=NOW)
+    assert first.outcome == "written"
+    smaller = _sourced(tmp_path / "re", "bible", "oshb", scale=1000)
+    done = yardstick.write(smaller, "bible", where, now=TURNED)
+    assert done.outcome == "written" and done.tokens < first.tokens
+    monkeypatch.setattr(yardstick, "RULE", "yardstick/2")
+    again = yardstick.write(
+        _sourced(tmp_path / "re2", "bible", "oshb", scale=500), "bible", where, now=TURNED
+    )
+    assert again.outcome == "written"
 
 
 def test_a_list_made_of_what_readers_bring_may_shrink(tmp_path: Path) -> None:
