@@ -1053,6 +1053,51 @@ def test_the_first_save_keeps_the_saved_page_outside_the_texts(
         context.close()
 
 
+def test_a_page_opened_online_keeps_saved_and_connect_before_any_save(
+    browser,  # noqa: F811
+    saved_served: Served,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """David, 2026-11-20 (targum-internal#720 P2 5, #721 P2 8): offline, the Saved page
+    and /connect were the browser's own error until the first save. A page opened online
+    keeps both, quietly: two pages of targum's own, nothing of any text, not one of the
+    texts, and asked once."""
+    monkeypatch.setenv("TARGUM_CONNECTOR", "1")
+    served = saved_served
+    book(served.out / "local" / "here-he", chapters=1)
+    book(served.out / "local" / "away-he", chapters=1)
+    context = browser.new_context(service_workers="allow")
+    context.add_init_script(NONE_ON_ITS_OWN)
+    page = context.new_page()
+    try:
+        page.goto(served.url("/reader/here-he/reader/index.html"))
+        page.wait_for_function("() => navigator.serviceWorker.controller !== null")
+        kept(page, "page:/you/saved")
+        kept(page, "page:/connect")
+        assert page.evaluate(LIST) == [], "no text saved, and the pages are not texts"
+        stored = [url.split("?")[0] for url in page.evaluate(KEYS)]
+        assert not any("/reader/" in url for url in stored), "nothing of any text"
+        assert len([p for p in served.asked if p.startswith("/connect")]) == 1
+
+        # Opened again, nothing is asked: they are kept.
+        before = len(served.asked)
+        page.goto(served.url("/reader/here-he/reader/index.html"))
+        page.wait_for_timeout(2500)
+        again = [p.split("?")[0] for p in served.asked[before:]]
+        assert "/you/saved" not in again and "/connect" not in again
+
+        served.gone()
+        context.set_offline(True)
+        page.goto(served.url("/connect") + "&app=claude")
+        assert page.url.split("?")[0].endswith("/connect")
+        assert page.locator("h1").count() == 1, "the page itself, not the browser's error"
+        page.goto(served.url("/reader/away-he/reader/index.html"))
+        page.wait_for_selector("#saved-away:not([hidden])")
+        assert page.url.split("?")[0].endswith("/you/saved")
+    finally:
+        context.close()
+
+
 # -- with no connection (design.md §12, 2026-10-09) --------------------------------------
 
 

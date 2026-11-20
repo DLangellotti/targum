@@ -1017,6 +1017,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   second before the next. And the Readers table's 5,000-account timing gives Follow-up
   due a bar of its own (2.5 s): it reads all readers through `_growth`, and took 1.01 s
   on CI's 3.12 runner against a 1 s bar.
+- The Saved page and /connect open with no connection before the first save
+  (targum-internal#720 P2 5, #721 P2 8; David, 2026-11-20; design.md §12). A page opened
+  online by a signed-in reader keeps both quietly, once each, where offline they were the
+  browser's own error until something was saved. Nothing of any text is fetched, and
+  neither page is counted among the texts. A page that answered by sending the browser
+  elsewhere is no longer kept as the page asked for.
 - The Russian and French yardsticks, after qa-claude's read of targum#1343
   (targum-internal#752). A list is never replaced by one counted from fewer words, so a
   list made on the laptop from OPUS is not dropped at the month's turn by a box whose

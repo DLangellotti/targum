@@ -42,6 +42,9 @@
   /* The page that lists what is saved, kept so that it opens with no connection; its
      query (`?away=`) is for the page to read, so it is one page whatever it says. */
   var SAVED = "/you/saved";
+  /* How to add targum to Claude or ChatGPT, kept beside it (design.md §12, 2026-11-20):
+     one page whatever its query says, as the Saved page is. */
+  var CONNECT = "/connect";
   var served = /^https?:$/.test(location.protocol);
   var able =
     served &&
@@ -64,7 +67,7 @@
   function keyOf(address) {
     var url = new URL(address, location.origin);
     url.hash = "";
-    if (READER.test(url.pathname) || url.pathname === SAVED) {
+    if (READER.test(url.pathname) || url.pathname === SAVED || url.pathname === CONNECT) {
       url.search = "";
     } else {
       url.searchParams.delete("k");
@@ -833,7 +836,8 @@
             headers: headers({ "X-Targum-Save": "1" }),
             credentials: "same-origin",
           }).then(function (answer) {
-            if (!answer.ok) return false;
+            // A page that sent the browser elsewhere (signed out, a switch off) is not it.
+            if (!answer.ok || answer.redirected) return false;
             return cache.put(at, keep(answer, function () {}));
           });
         });
@@ -857,11 +861,33 @@
      worker can only open what is in the cache — so a reader who had never opened it
      online met the browser's own error instead. Asked once a page at most, and a page
      that cannot be had never fails the save that asked for it. */
-  var keptSaved = null;
+  var keptPages = {};
+  function keepOnce(address) {
+    if (known && known.items["page:" + address]) return Promise.resolve();
+    if (!keptPages[address]) keptPages[address] = keepPage(address);
+    return keptPages[address];
+  }
   function keepSaved() {
-    if (known && known.items["page:" + SAVED]) return Promise.resolve();
-    if (!keptSaved) keptSaved = keepPage(SAVED);
-    return keptSaved;
+    return keepOnce(SAVED);
+  }
+
+  /* Before any save, too (David, 2026-11-20; design.md §12; targum-internal#720 P2 5,
+     #721 P2 8): a page opened online keeps the Saved page and /connect, quietly, so both
+     open with no connection, where they were the browser's own error until the first
+     save. Two pages of targum's own and nothing of any text; asked once a page at most,
+     and not at all once kept (the worker keeps them current as they are opened). Signed
+     out there is no account to keep them for, and the Saved page is the account's. */
+  function keepPagesEarly() {
+    whenSettled(function () {
+      if (navigator.onLine === false) return;
+      var sync = window.TargumSync;
+      (sync && sync.mayAsk ? sync.mayAsk() : Promise.resolve(true)).then(function (may) {
+        if (!may) return;
+        keepOnce(SAVED).then(function () {
+          return keepOnce(CONNECT);
+        });
+      });
+    });
   }
 
   // Everything off this device: the files and the index both.
@@ -871,7 +897,7 @@
       .delete(STORE)
       .then(function () {
         known = empty();
-        keptSaved = null;
+        keptPages = {};
         tellWorker();
         announce();
       })
@@ -1975,6 +2001,7 @@
     }
     navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {});
     sweep();
+    keepPagesEarly();
   }
 
   /* The worker fetched this page again because it was a newer build than the copy kept

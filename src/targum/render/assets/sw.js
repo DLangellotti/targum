@@ -52,6 +52,8 @@ var READER = /^\/(?:reader\/[^/]+\/reader|parasha\/read\/[^/]+\/reader|[^/]+\/re
 /* The page that lists what is saved, kept so that it opens with no connection; its
    query (`?away=`) is for the page to read, so it is one page whatever it says. */
 var SAVED = "/you/saved";
+/* How to add targum to Claude or ChatGPT, kept beside it the same way (2026-11-20). */
+var CONNECT = "/connect";
 var MEDIA = /\.(?:mp4|m4v|webm|mp3)$/i;
 
 /* What is saved, held in memory once it has been read, so that a film that was not saved
@@ -63,7 +65,7 @@ var saved = null;
 function keyOf(address) {
   var url = new URL(address, self.location.origin);
   url.hash = "";
-  if (READER.test(url.pathname) || url.pathname === SAVED) {
+  if (READER.test(url.pathname) || url.pathname === SAVED || url.pathname === CONNECT) {
     url.search = "";
   } else {
     url.searchParams.delete("k");
