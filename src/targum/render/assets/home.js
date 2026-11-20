@@ -5,8 +5,8 @@
  * the way to upload. The shelf under it is `yours.js`, which drew Your targums before it
  * was home and still does.
  *
- * Continue is the last few texts the reader opened or uploaded, newest first, each
- * picking up exactly where they stopped. "Where" is `Store.places` (targum-internal#430):
+ * Continue is the last few texts the reader opened or uploaded and has not finished,
+ * newest first, each picking up exactly where they stopped. "Where" is `Store.places` (targum-internal#430):
  * the part, the sentence and the second of its recording, on the account and so on every
  * device, and in this browser (`targum:places`) for somebody signed out. A text still
  * being built is a card too, and a followed series' newest instalment leads, once.
@@ -311,10 +311,22 @@
 
   /* --- Continue ------------------------------------------------------------------------ */
 
+  /* Whether the reader has finished a text, as the shelf's row says Finished
+     (`TargumShelf.status`, off `targum:docs`): every part read, or the whole marked done.
+     A portion or a daily page is not on the shelf, so its own record says. */
+  function finishedText(reader, place) {
+    if (!shelf || !shelf.status) return false;
+    var text = reader || (place && place.hash ? { document: place.hash, away: true } : null);
+    return !!text && shelf.status(text).kind === "finished";
+  }
+
   /* What Continue holds, newest first: the reader's places, then the texts this browser
      opened before there were places, then what they uploaded and have not opened, and
-     builds still running. One card a text. */
-  function gatherContinue(readers, places, building, opened, code, most) {
+     builds still running. One card a text, and none for a text the reader has finished
+     (design.md §12, "Continue is for unfinished reading", 2026-11-20): Continue is where
+     to pick up, and a finished text has nowhere left to pick up. `withFinished` keeps
+     them, for the one question of whether the reader has opened anything at all. */
+  function gatherContinue(readers, places, building, opened, code, most, withFinished) {
     var byDocument = {};
     var byFolder = {};
     readers.forEach(function (reader) {
@@ -344,6 +356,7 @@
       seen[place.hash] = true;
       if (folder) seen["/" + folder] = true;
       if (reader && reader.document) seen[reader.document] = true;
+      if (!withFinished && finishedText(reader, place)) return;
       cards.push({ at: place.at, reader: reader, place: place });
     });
     readers.forEach(function (reader) {
@@ -355,6 +368,7 @@
       var at = Math.max(when, upload ? (reader.built || 0) * 1000 : 0);
       if (!at) return;
       seen[reader.document] = true;
+      if (!withFinished && finishedText(reader, null)) return;
       cards.push({ at: at, reader: reader, place: null });
     });
     building.forEach(function (job) {
@@ -2581,7 +2595,14 @@
       }
       cards = cards.slice(0, CONTINUE_AT_MOST);
       drawContinue(cards, fresh, mine);
-      var nothing = !back && !cards.length && !fresh.length && !mine.length;
+      // "Nothing here yet" is for a reader who has opened nothing, not one who has
+      // finished all they opened: their texts are on the shelf under it.
+      var nothing =
+        !back &&
+        !cards.length &&
+        !fresh.length &&
+        !mine.length &&
+        !gatherContinue(readers, places, [], opened, code, 1, true).length;
       var empty = document.getElementById("first-home");
       if (empty) empty.hidden = !nothing;
       if (suggestedIn[code] !== nothing) {

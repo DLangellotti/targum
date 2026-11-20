@@ -14,6 +14,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   "learned on targum" is gone; the label stays. `progress.ear.start` and
   `progress.count.learned.note` are retired; `lists.ear.tip` is new, its Russian a draft
   for ling-ru.
+- Home's Continue drops a text the reader has finished (David, 2026-11-20;
+  targum-internal#695, #703 P2-16; design.md §12, "Continue is for unfinished reading").
+  Finished is what the shelf's row already says Finished: every part recorded in
+  `targum:docs`, or the whole marked done. A finished text no longer sits there saying
+  "Pick up at chapter 4" over its last chapter, and there is no "Read again" card. With
+  everything finished Continue is not drawn and the suggestion stands, labelled "One to
+  try next"; "Nothing here yet" stays for a reader who has opened nothing. No new strings.
 - The noun table (#697e) files a Hebrew word under its headword only where two checks
   pass (targum-internal#755, from ling-he's read of targum#1323). `lemma_check` 8, a free
   recount: no rename, no `SCHEMA_VERSION`.
@@ -1017,13 +1024,19 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   second before the next. And the Readers table's 5,000-account timing gives Follow-up
   due a bar of its own (2.5 s): it reads all readers through `_growth`, and took 1.01 s
   on CI's 3.12 runner against a 1 s bar.
+- The Phrases tab counts the corrected lines it shows (targum-internal#716, P2 20). It
+  read only the saved phrases, so a reader with three corrections and none saved saw
+  "Phrases 0" over a list of three. The count is the saved phrases plus this language's
+  corrections, as the record lists them, on Your Words and Your Phrases alike; Your
+  Words now asks for the record once, after its rows, for that count alone.
 - Your Words reaches its first row in time on a phone (targum-internal#725, P2 8). With
   2,000 words on the account a fresh browser on the phone profile took 1.98 s to its
   first row; it now takes 1.47 s (first row painted: 1.63 s, now 1.30 s). On a phone the
   first 20 rows are drawn and painted first and the rest of the page of rows a frame
   later, on the page's first draw only (a later redraw draws every row at once, so a
-  level pressed far down the list moves nothing); at a desk, where the rows are a table's and a later row could widen a column,
-  every row is drawn at once as before. And on a page sent whole the faces wait for the
+  level pressed far down the list moves nothing); at a desk, where the rows are a
+  table's and a later row could widen a column, every row is drawn at once as before.
+  And on a page sent whole the faces wait for the
   first rows, as the Library's wait for its shelf (`TARGUM_FACES_AFTER`), so their 67 kB
   no longer share the line with the account's words.
 - The Russian and French yardsticks, after qa-claude's read of targum#1343

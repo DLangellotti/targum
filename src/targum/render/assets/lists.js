@@ -650,15 +650,20 @@
     return !!text && !/^[a-z_ -]+$/.test(text);
   }
 
+  // The corrected lines in the language on show, as the record lists them.
+  function correctedHere() {
+    return corrected.filter(function (slip) {
+      return (slip.language || code) === code;
+    });
+  }
+
   /* The record on the phrases list: every line in this language, newest first, the ones
      still to go over with their answer on them. */
   function renderRecord() {
     var heading = at("rewrote-heading");
     var host = at("rewrote-rows");
     if (!host || !heading) return;
-    var mine = corrected.filter(function (slip) {
-      return (slip.language || code) === code;
-    });
+    var mine = correctedHere();
     heading.hidden = mine.length === 0;
     host.textContent = "";
     var queued = {};
@@ -2030,7 +2035,21 @@
     }
     // Grouped as the head groups them: "4,560 on your list" over a tab that said 4560.
     if (at("count-words")) at("count-words").textContent = grouped(sums.saved).n;
-    if (at("count-phrases")) at("count-phrases").textContent = grouped(sums.phrases).n;
+    phrasesSaved = sums.phrases;
+    drawPhraseCount();
+  }
+
+  /* The Phrases tab counts what the phrases list shows: the phrases saved and this
+     language's corrected lines (targum-internal#716, P2 20). It read only the saved
+     ones, so a reader with three corrections and no phrase saw "Phrases 0" over a list
+     of three. Drawn again when the record arrives, since it is asked for after the
+     lists. */
+  var phrasesSaved = 0;
+  function drawPhraseCount() {
+    var count = at("count-phrases");
+    if (!count) return;
+    var n = phrasesSaved + correctedHere().length;
+    count.textContent = String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   }
 
   function mount(options) {
@@ -2160,6 +2179,7 @@
     record: function (rows) {
       corrected = rows || [];
       renderRecord();
+      drawPhraseCount();
     },
     mount: mount,
     draw: draw,
