@@ -310,3 +310,32 @@ def test_push_imports_over_ssh_as_targum(
     assert remote.startswith("sudo -u targum /usr/local/bin/targum tables import"), "not root"
     assert "--ledger /var/lib/targum/corpus.db -" in remote
     assert len(seen["lines"]) == 3
+
+
+def test_push_can_carry_one_register_alone(
+    laptop: Store, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """targum-internal#752: a corpus counted for one list is pushed alone, so no other
+    register's laptop rows move another list, and no fixes go with it."""
+    from dataclasses import replace
+
+    laptop.write(
+        replace(_contribution("e" * 64), register="ru:conversation", source="opus-ru"),
+        {("дом", "NOUN"): 4},
+    )
+    seen: dict[str, Any] = {}
+
+    def run(command: list[str], *, stdin: Any, check: bool) -> subprocess.CompletedProcess[str]:
+        seen["command"] = command
+        seen["lines"] = stdin.read().splitlines()
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(subprocess, "run", run)
+    args = ["tables", "push", "--host", "h", "--register", "ru:conversation"]
+    done = CliRunner().invoke(app, args, env={"TARGUM_LEDGER": str(laptop.file)})
+    assert done.exit_code == 0, done.output
+    assert "lines" in seen, done.output
+    assert len(seen["lines"]) == 1 and "ru:conversation" in seen["lines"][0]
+    assert "--store" not in seen["command"][-1], "no fixes"
+    none = CliRunner().invoke(app, [*args[:-1], "fr:news"], env={"TARGUM_LEDGER": str(laptop.file)})
+    assert none.exit_code == 0 and "no rows in fr:news" in " ".join(none.output.split())

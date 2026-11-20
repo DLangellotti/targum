@@ -1001,6 +1001,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   and Russian is measured in Russian, where a list exists, not answered "not measured"
   for French; `how_much_i_understand` takes a `language`, and its description no longer
   promises French lists. A subtitle's dialogue dash no longer opens a lemma.
+- The yardsticks' keep rule, after qa-claude's read of targum#1345
+  (targum-internal#752). A list is kept only where this ledger lacks one of the sources
+  in its provenance (`yardstick.missing_sources`), not whenever the new count is
+  smaller, so a fixed corpus whose count falls after a rule or annotator change still
+  gets its new list. A changed `RULE` and `tables snapshot --force` always write.
+  `tables push --register ru:conversation` carries one register's rows and no fixes, so
+  a corpus counted for one list moves no other.
 - `how_much_i_understand` says a word's meaning once when its noun and verb keys hold the
   same senses in another order (נשא, seen on the live call of 2026-11-19).
 - A Sefaria range that starts mid-chapter keeps its verse numbers (targum-internal#530).

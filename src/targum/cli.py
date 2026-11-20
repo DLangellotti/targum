@@ -5297,12 +5297,21 @@ def tables_push(
         Path | None,
         typer.Option("--store", help="The account database whose fixes go. Default: the laptop's."),
     ] = None,
+    register: Annotated[
+        str | None,
+        typer.Option(
+            "--register",
+            help="Carry one register's rows alone, e.g. ru:conversation, and no fixes.",
+        ),
+    ] = None,
 ) -> None:
     """Carry the laptop's language-table rows to the box (targum-internal#587), and the
     fixes its corrections ledger holds by the author, an editor or a model (#585).
 
     Exports every row this laptop wrote and imports it there over SSH as the targum user,
-    never as root. Safe to run again: the box keeps what it already holds.
+    never as root. Safe to run again: the box keeps what it already holds. `--register`
+    carries one register's rows and nothing else, so a corpus counted for one list moves
+    no other list (targum-internal#752).
     """
     import tempfile
 
@@ -5314,15 +5323,16 @@ def tables_push(
     remote = f"sudo -u targum /usr/local/bin/targum tables import --ledger {BOX_LEDGER}"
     with tempfile.TemporaryFile("w+", encoding="utf-8") as handle:
         written = 0
-        for line in store.export("laptop"):
+        for line in store.export("laptop", register):
             handle.write(line + "\n")
             written += 1
         carried = 0
-        for line in _fix_lines(accounts or default_store()):
+        for line in [] if register else _fix_lines(accounts or default_store()):
             handle.write(line + "\n")
             carried += 1
         if not written and not carried:
-            console.print("Nothing to push: this laptop has written no rows.")
+            where = f" in {register}" if register else ""
+            console.print(f"Nothing to push: this laptop has written no rows{where}.")
             return
         # Named only when there are fixes, so a push with none still lands on a box that
         # has not been deployed since the ledger began.
@@ -5541,8 +5551,8 @@ def tables_snapshot(
             )
         elif one.outcome == "kept":
             console.print(
-                f"  {one.register}: v{one.version} kept, the counts here hold fewer words"
-                f" ({one.tokens:,}) than it does"
+                f"  {one.register}: v{one.version} kept, this ledger lacks a source it was"
+                " made from; push its counts, or --force"
             )
         else:
             console.print(f"  {one.register}: v{one.version} {one.outcome}")

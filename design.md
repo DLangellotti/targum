@@ -3641,9 +3641,11 @@ replaces the "Words you knew" card of "Your level, v3" (2026-10-29) on Your Prog
   to the box's tables directory, never the repository, and no page serves it. A list
   stands until the month turns (David, 2026-10-30, on the language tables' question 4),
   and every reader's line is then recomputed against the new one. *(2026-11-20,
-  qa-claude on targum#1343: a list is never replaced by one counted from fewer words than
-  it holds, so a list made from an outside corpus is not dropped by a ledger that lacks
-  that corpus's counts. The lists made of what readers bring may still shrink.)*
+  qa-claude on targum#1343 and #1345: a list is not replaced by counts that lack one of
+  the sources it was made from, so a list made from an outside corpus is not dropped by a
+  ledger that never held that corpus's counts. A changed rule, or `tables snapshot
+  --force`, writes anyway, and the lists made of what readers bring may still shrink.
+  The way a laptop-counted list reaches the box is `tables push --register`.)*
 - **A yardstick with no list is left out of the picker**, never shown as 0%. A register
   gets its first list once it holds 50,000 counted words, so no list is frozen for a
   month on a handful of texts. Where news has none yet, the picker opens on the next of

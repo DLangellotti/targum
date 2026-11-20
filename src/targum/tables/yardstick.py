@@ -71,7 +71,8 @@ SUMMED = (SOCIAL, VIDEO, PODCASTS, EVERYDAY)
 
 #: The lists made of what readers bring, which may shrink by design: a reader who turns
 #: counting off leaves the pool, and the list at the month's turn (design.md §12, "What
-#: learners bring is counted in the tables, never kept"). Every other list only grows.
+#: learners bring is counted in the tables, never kept"), so none is kept for a source
+#: gone from the pool.
 SHRINKS = (IMPORTS, *SUMMED)
 
 #: The version of the snapshot's own rule (what is read, and how it is weighed). A new
@@ -251,6 +252,34 @@ def provenance(store: Store, register: str) -> list[dict[str, Any]]:
     ]
 
 
+def missing_sources(store: Store, register: str, last: Mapping[str, Any]) -> list[str]:
+    """The sources a list names in its provenance that this ledger holds no current count
+    of, in the register or in the pool's share of it: what a list made elsewhere would
+    lose if it were rebuilt here."""
+    from .words import WORDS
+
+    named = {
+        str(source)
+        for entry in last.get("provenance") or []
+        for source in (entry.get("sources") or [])
+        if source
+    }
+    if not named:
+        return []
+    if not store.file.is_file():
+        return sorted(named)
+    with closing(store._connect()) as db:
+        held = {
+            str(row[0])
+            for row in db.execute(
+                "SELECT DISTINCT source FROM contribution WHERE superseded_at IS NULL"
+                " AND tbl = ? AND register IN (?, ?)",
+                (WORDS, register, pooled(register)),
+            )
+        }
+    return sorted(named - held)
+
+
 def versions(register: str, where: Path | None = None) -> list[tuple[int, Path]]:
     """Every snapshot file of one register in the tables directory, oldest first."""
     folder = where or directory()
@@ -275,7 +304,7 @@ class Written:
     register: str
     #: `written`, `unchanged` (the counts give the same list), `held` (this month's
     #: version stands until the month turns), `short` (under `FLOOR`, nothing written), or
-    #: `kept` (these counts hold fewer words than the list they would replace).
+    #: `kept` (these counts lack a source the list they would replace was made from).
     outcome: str
     version: int = 0
     file: Path | None = None
@@ -317,13 +346,16 @@ def write(
     if last is not None and last.get("digest") == made["digest"]:
         return Written(register, "unchanged", held[-1][0], held[-1][1], made["tokens"])
     if (
-        last is not None
+        not force
+        and last is not None
+        and last.get("rule") == RULE
         and register not in SHRINKS
-        and made["tokens"] < int(last.get("tokens") or 0)
+        and missing_sources(store, register, last)
     ):
-        # A list is never replaced by one counted from less: the box holding fewer counts
-        # than the list it already has (a list made on a laptop from an outside corpus,
-        # before its counts were pushed) keeps the list rather than dropping the corpus.
+        # A list is never replaced by counts that lack one of its sources: a list made on
+        # a laptop from an outside corpus, copied to a box whose ledger never had that
+        # corpus's counts, keeps the corpus rather than dropping it at the month's turn.
+        # A changed rule or `force` writes anyway: the operator, or the rule, decided.
         return Written(register, "kept", held[-1][0], held[-1][1], made["tokens"])
     version = (held[-1][0] if held else 0) + 1
     made = {"version": version, "made_at": stamp, **made}
