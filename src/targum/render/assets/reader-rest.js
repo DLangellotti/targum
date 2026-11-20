@@ -2167,7 +2167,7 @@ window.targumReaderRest = function (R) {
       }
       return t(
         "reader.card.spot.he.governed",
-        "{verb} takes {preposition} here. A Hebrew verb's preposition often differs from the English one, so learn the two together.",
+        "{verb} takes {preposition} here. A Hebrew verb's preposition often differs from the English one.",
         { verb: word.lemma, preposition: taken.map(word.preposition).join(" · ") }
       );
     }

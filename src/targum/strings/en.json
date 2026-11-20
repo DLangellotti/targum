@@ -181,7 +181,7 @@
   "reader.card.spot.he.binyan": "Words built on the root {root} usually share a meaning, and {binyan} makes this verb from it.",
   "reader.card.spot.he.homograph": "Without vowels, {bare} spells more than one word. The vowels here, {pointed}, say which one this is.",
   "reader.card.spot.he.tense": "The present tense shows gender and number but not person, so {one} and {other} both use this form.",
-  "reader.card.spot.he.governed": "{verb} takes {preposition} here. A Hebrew verb's preposition often differs from the English one, so learn the two together.",
+  "reader.card.spot.he.governed": "{verb} takes {preposition} here. A Hebrew verb's preposition often differs from the English one.",
   "reader.card.spot.he.governed-et": "{verb} takes its object with {et} here. {et} comes before a definite object and has no English word.",
   "reader.card.spot.he.agreement-fem": "{word} is feminine, though it does not end in {he} or {tav}. An adjective with it is feminine too, as in {word} {adjective}.",
   "reader.card.spot.he.agreement-masc": "{word} is masculine, though it ends in {letter}. An adjective with it is masculine too, as in {word} {adjective}.",
