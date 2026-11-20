@@ -387,6 +387,17 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Continue is for unfinished reading — 2026-11-20
+
+David, 2026-11-20 (targum-internal#695, #703 P2-16): **a text the reader has finished
+leaves Continue.** Continue is where to pick up, and a finished text has nowhere left to
+pick up; it said "Pick up at chapter 4" over a text finished at chapter 4 of 4. Finished
+is what the shelf's row already says Finished: every part read, or the whole marked done.
+There is no "Read again" card. The text stays on the shelf under it, and the shelf opens
+it. With everything finished Continue is not drawn and the one card says "One to try
+next", as it does for anybody with nothing in progress. "Nothing here yet" is still only
+for a reader who has opened nothing.
+
 ### The portion page says what it lacks, and is finished on three calls — 2026-11-19
 
 David, 2026-11-19, on the three questions of the portion page's finish spec
