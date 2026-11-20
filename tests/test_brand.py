@@ -501,6 +501,9 @@ THUMBED = (
     ".m-menu .offline-go",
     ".m-menu .offline-stop",
     ".m-menu .offline-remove",
+    # ⋯'s own Stop is drawn at 36px by a three-class rule, which only the same three
+    # classes outweigh (targum-internal#716, P2 20a).
+    ".m-menu .m-offline .offline-stop",
     ".sheet-grab",
     # The build card's door, in somebody else's chat (design.md §12, 2026-10-06).
     ".card-door",

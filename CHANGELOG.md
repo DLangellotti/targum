@@ -1020,9 +1020,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 - Save for offline's row answers a thumb over 44px again (targum-internal#716, P2 20a).
   On a phone its Save, Stop, Again, Remove from this device and Undo measured 32px: the
   row's own `.offline-row .offline-*` rules set 2rem and beat the coarse-pointer 44px,
-  which named the buttons bare. The 44px now names them under `.offline-row` too, and
-  `test_every_thumbed_control_reaches_44px` holds the row's selectors. The desk is as it
-  was.
+  which named the buttons bare; in the reader's ⋯ Stop stayed 36px under a three-class
+  rule. The 44px now names them under `.offline-row`, and ⋯'s Stop as
+  `.m-menu .m-offline .offline-stop`. `test_every_thumbed_control_reaches_44px` holds
+  those selectors, and `test_every_press_on_the_offline_row_answers_a_thumb` measures
+  Save, Stop, Remove and Undo at a phone's coarse pointer in all three places the row is
+  drawn: the reader's ⋯, a text's contents and a playlist's page. The desk is as it was.
 - The Russian and French yardsticks, after qa-claude's read of targum#1343
   (targum-internal#752). A list is never replaced by one counted from fewer words, so a
   list made on the laptop from OPUS is not dropped at the month's turn by a box whose
