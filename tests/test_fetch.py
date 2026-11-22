@@ -522,3 +522,23 @@ def test_a_single_page_loses_the_wikis_sister_project_box() -> None:
     assert [text for _, _, text in _read(html)] == [
         "Говорили, что на набережной появилось новое лицо: дама с собачкой."
     ]
+
+
+def test_a_poem_set_in_a_layout_table_is_read() -> None:
+    """ru.wikisource sets a poem in `table.poetry` around a `div.poem`, and tables are
+    dropped as page furniture, so Зимнее утро read as "no readable text" (2026-11-22).
+    Each stanza is a paragraph, as on he.wikisource."""
+    from targum.ingest.fetch.wikisource import _read
+
+    html = (
+        '<table class="poetry"><tbody><tr><td><h4>ЗИМНЕЕ УТРО</h4>'
+        '<div class="poem"><p>Мороз и солнце; день чудесный!<br />'
+        "Еще ты дремлешь, друг прелестный —<br /></p>"
+        "<p>Вечор, ты помнишь, вьюга злилась,<br />"
+        "На мутном небе мгла носилась;<br /></p></div></td></tr></tbody></table>"
+    )
+    assert [text for _, _, text in _read(html)] == [
+        "ЗИМНЕЕ УТРО",
+        "Мороз и солнце; день чудесный! Еще ты дремлешь, друг прелестный —",
+        "Вечор, ты помнишь, вьюга злилась, На мутном небе мгла носилась;",
+    ]
