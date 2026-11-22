@@ -1016,6 +1016,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     `progress.count.ear`, `sentences.open-word`); the Russian waits on ling-ru's first
     pass.
 ### Fixed
+- Recent keeps a text read while it was still being built at the top (2026-11-22). A
+  long video lands a chapter at a time and each chapter gives it a new hash, so the
+  chapters read the night before were opened under hashes the shelf no longer carries,
+  and the row fell to its build time under everything read since. `yours.js` now also
+  credits an open to the row whose reader folder the place's path names, in this
+  browser's record and the account's.
 - `test_progress_goal_browser.py` no longer fails across midnight UTC
   (targum-internal#748). Its totals were dated from `date.today()` when the module was
   imported, while the page read the browser's own clock, so a suite crossing midnight
