@@ -367,14 +367,18 @@ def test_no_money_and_no_card_is_kept(tmp_path: Path) -> None:
     me = signed_up(store, "a@example.com")
     for name in ("subscription_created", "transaction_completed_top_up"):
         billing.handle(store, fixture(name, me.id, store))
-    kept = json.dumps(
-        [
-            [dict(row) for row in store.db.execute(f"SELECT * FROM {table}")]  # noqa: S608
-            for table in ("plan", "credit_grant", "billing_event")
-        ]
-    )
-    for said in ("1600", "900", "4242", "visa", "USD", "add_01", "inv_01"):
+    kept = [
+        str(value)
+        for table in ("plan", "credit_grant", "billing_event")
+        for row in store.db.execute(f"SELECT * FROM {table}")  # noqa: S608
+        for value in tuple(row)
+    ]
+    # The amounts and the card's last four as whole values: the rows keep the clock, and
+    # a timestamp that happened to contain 900 failed master's CI on 2026-11-22.
+    for said in ("1600", "900", "4242"):
         assert said not in kept, said
+    for said in ("visa", "USD", "add_01", "inv_01"):
+        assert not any(said in value for value in kept), said
 
 
 # -- the route ------------------------------------------------------------------------
