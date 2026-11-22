@@ -379,6 +379,39 @@ def test_a_shared_text_you_also_built_is_one_row() -> None:
     assert [row["title"] for row in drawn["shelf"]] == ["סצנה ראשונה"]
 
 
+def test_a_text_read_while_it_was_built_keeps_its_place_on_recent() -> None:
+    """2026-11-22: a video landing a chapter at a time gets a new hash with each chapter,
+    so the chapters read last night were opened under hashes the shelf no longer carries,
+    and the row sank to its build time under everything read since. The folder its places
+    name is the same folder, in this browser's record and in the account's."""
+    stored = {
+        "targum:opened": json.dumps({"article-he": 2000, "video-old": 5000}),
+        "targum:places": json.dumps(
+            {"video-old": {"section": "4", "path": "/reader/video-he/reader/sec-0004.html"}}
+        ),
+    }
+    drawn = draw(
+        stored,
+        which="texts",
+        readers=[
+            reader("article-he", "כתבה"),
+            reader("video-he", "פודקאסט", document="video-new", built=1),
+        ],
+    )
+    assert [row["title"] for row in drawn["shelf"]] == ["פודקאסט", "כתבה"]
+    # Read on another device: the account's place, under the old hash, says the same.
+    elsewhere = draw(
+        {"targum:opened": json.dumps({"article-he": 2000})},
+        which="texts",
+        readers=[
+            reader("article-he", "כתבה"),
+            reader("video-he", "פודקאסט", document="video-new", built=1),
+        ],
+        places=[{"hash": "video-old", "path": "/reader/video-he/reader/sec-0002.html", "at": 6000}],
+    )
+    assert [row["title"] for row in elsewhere["shelf"]] == ["פודקאסט", "כתבה"]
+
+
 def test_a_text_the_catalogue_never_heard_of_still_gets_a_row() -> None:
     """Covers are drawn on the project's budget, for the library's own texts. Most of a
     reader's shelf is their own, has no cover and never will, and a shelf of empty frames
