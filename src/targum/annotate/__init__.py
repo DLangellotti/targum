@@ -178,8 +178,17 @@ class Annotator:
         return self.bands.method == TANAKH_METHOD
 
     def annotate(
-        self, segmented: SegmentedDocument, vocalization: Vocalization | None = None
+        self,
+        segmented: SegmentedDocument,
+        vocalization: Vocalization | None = None,
+        prior: Mapping[str, list[Token]] | None = None,
     ) -> Annotation:
+        """Every segment's words, banded.
+
+        `prior` holds the words of segments read before and unchanged since, kept as they
+        are and never handed to the lemmatizer again (`Build.annotate` decides which).
+        """
+        prior = prior or {}
         # Lemmatize the bare text, never the pointed text. The Hebrew models are trained
         # unpointed, and fed nikkud Stanza's returned lemmas that are not words:
         # נַּפְשִׁי comes back as נַּ'ְשִׁ, שׁוּבֵךְ as הוּבֵך. Every band, gloss and saved-word
@@ -189,6 +198,8 @@ class Annotator:
         plain: list[Segment] = []
         to_source: dict[str, list[int]] = {}
         for segment in segmented.segments:
+            if segment.id in prior:
+                continue
             if unread(segment, segmented.language, self.lemmatizer):
                 # Not the document's language, and this lemmatizer cannot read it, so
                 # nothing here can do it honestly. Left without tokens rather than read
@@ -324,6 +335,13 @@ class Annotator:
                 banded[segment_id] = marked
 
         banded = self._pronounce(banded, segmented, vocalization)
+        if prior:
+            # In the document's order, the kept beside the newly read.
+            banded = {
+                segment.id: banded.get(segment.id) or list(prior.get(segment.id) or [])
+                for segment in segmented.segments
+                if banded.get(segment.id) or prior.get(segment.id)
+            }
 
         # A text whose words nothing here could read comes out with no tokens at all,
         # and until now said so nowhere. Both roads to it are deliberate: `unread` leaves
@@ -348,6 +366,7 @@ class Annotator:
         # itself. Only the second is this.
         if (
             not by_segment
+            and not prior
             and segmented.segments
             and any(in_script(one.text, segmented.language) for one in segmented.segments)
         ):

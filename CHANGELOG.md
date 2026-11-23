@@ -5,6 +5,19 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 
 ## [Unreleased]
 
+### Fixed
+- A podcast or video made a part at a time no longer slows down with every part
+  (David, 2026-11-23). Each part moved the text's fingerprint, so the vowel points and
+  the dictionary forms of every part already heard were made again: part 8 of a
+  two-hour podcast took 27 minutes on the box, nineteen of them at "Adding vowel
+  points", for eleven minutes of audio, and every part after it would have taken longer. The diacritizer
+  and the lemmatizer are now asked about new sentences only, and what they said about
+  the rest is kept (`Build._pointing_kept`, `Build._words_kept`, `Annotation.fingerprints`).
+  An annotation from before carries no fingerprints and is read whole once.
+- A part's build is named by its recording and its part, "… · חלק 9", where it had no
+  name: the waiting card's "Yours, ahead of it" drew a bare Cancel on an empty line for
+  each part queued (David, 2026-11-23).
+
 ### Changed
 - A row in Your targums says how much of the text you know as a figure, "62% known"
   («Знаю 62%»), where it drew a green bar (David, 2026-11-23): a full bar read as

@@ -19562,7 +19562,7 @@ class Handler(BaseHTTPRequestHandler):
             data = json.loads((folder / "document.json").read_text(encoding="utf-8"))
             source = str(data.get("source") or "")
         except (OSError, json.JSONDecodeError):
-            source = ""
+            data, source = {}, ""
         segmented = read_artifact(SegmentedDocument, folder / "segments.json")
         if not source or segmented is None:
             return self._json({"error": "not found"}, 404)
@@ -19631,6 +19631,11 @@ class Handler(BaseHTTPRequestHandler):
             home=home,
             estimate=estimate,
         )
+        # Named, as every other build is: the waiting card lists the reader's builds
+        # ahead of theirs by title, and a part with none drew a bare Cancel beside an
+        # empty line, one per part (David, 2026-11-23).
+        job.language = str(data.get("language") or "")
+        job.title = _part_job_title(str(data.get("title") or ""), buying, job.language)
         job.stage = "ready"
         self.library.jobs[job.id] = job
         self.library.remember(job)
@@ -21854,6 +21859,17 @@ def _spelled_like(root: Path, folder: str) -> str | None:
     except OSError:
         return None
     return found[0] if len(found) == 1 else None
+
+
+def _part_job_title(title: str, numbers: list[int], language: str) -> str:
+    """A part build's name: the recording's title and which part, in its own language."""
+    from .audio.parts import WORD_FOR_PART
+
+    if not title or not numbers:
+        return title
+    word = WORD_FOR_PART.get(language.split("-")[0].lower(), "Part")
+    which = "–".join(str(n) for n in sorted({numbers[0], numbers[-1]}))
+    return f"{title} · {word} {which}"
 
 
 def _parts_on(section: Any, by_id: Mapping[str, Any]) -> set[int]:

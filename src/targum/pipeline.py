@@ -7,6 +7,7 @@ document.json and rerunning is a supported way to work, not a trick.
 
 from __future__ import annotations
 
+import hashlib
 import re
 from collections.abc import Callable, Sequence
 from concurrent.futures import Future
@@ -30,6 +31,7 @@ from .models import (
     Segment,
     SegmentedDocument,
     Style,
+    Token,
     Translation,
     Vocalization,
     glossaries_in,
@@ -202,6 +204,17 @@ def _story_english(source: Document, segmented: SegmentedDocument) -> Translatio
         kind="authored",
         segments=segments,
     )
+
+
+def reading_fingerprint(segment: Segment, vocalization: Vocalization | None) -> str:
+    """What a segment was when its words were read: its text and its pointing, hashed.
+
+    The pointing is in it because the words are read from both: a pronunciation is
+    made from the vowels, and a pointed source's marks settle some lemmas.
+    """
+    pointed = vocalization.segments.get(segment.id, "") if vocalization is not None else ""
+    said = f"{segment.language or ''}\x00{segment.text}\x00{pointed}"
+    return hashlib.sha256(said.encode("utf-8")).hexdigest()[:16]
 
 
 class Build:
@@ -1066,8 +1079,12 @@ class Build:
 
                 self.moves = moves_module.carried(path.parent) or None
                 return existing
+        prior = self._words_kept(existing, annotator, segmented, vocalization)
         try:
-            annotation = annotator.annotate(segmented, vocalization)
+            if prior:
+                annotation = annotator.annotate(segmented, vocalization, prior=prior)
+            else:
+                annotation = annotator.annotate(segmented, vocalization)
         except TargumError as error:
             # Losing word help is worth saying out loud; it is not worth losing the
             # reader over, since the translation is the greater part of the work.
@@ -1085,6 +1102,9 @@ class Build:
             from .annotate import moves as moves_module
 
             self.moves = moves_module.keep(path.parent, moves_module.between(existing, annotation))
+        annotation.fingerprints = {
+            segment.id: reading_fingerprint(segment, vocalization) for segment in segmented.segments
+        }
         annotation.write(path)
         # The corpus ledger's `tokens` stage (targum-internal#162): annotation has no cache,
         # so the file is the value and this is its second copy, keyed by the text and the
@@ -1102,6 +1122,38 @@ class Build:
                 annotation.model_dump(mode="json"),
             )
         return annotation
+
+    def _words_kept(
+        self,
+        existing: Annotation | None,
+        annotator: Any,
+        segmented: SegmentedDocument,
+        vocalization: Vocalization | None,
+    ) -> dict[str, list[Token]]:
+        """The words of every segment read before and unchanged since.
+
+        A recording grows a part at a time and its document hash moves with each, so
+        every new part had the whole text read again: on the box, DICTA over two hours
+        of podcast for each eleven-minute part (2026-11-23). Kept only from the same
+        annotator, for a segment whose text and pointing hash as they did when it was
+        read. Never for scripture, whose morphology share is a fact about the whole pass.
+        """
+        from .annotate import biblical
+
+        if self.force or existing is None or not existing.fingerprints:
+            return {}
+        if existing.annotator != getattr(annotator, "name", None):
+            return {}
+        if biblical.for_source(self.source) is not None:
+            return {}
+        kept: dict[str, list[Token]] = {}
+        for segment in segmented.segments:
+            tokens = existing.tokens.get(segment.id)
+            if tokens and existing.fingerprints.get(segment.id) == reading_fingerprint(
+                segment, vocalization
+            ):
+                kept[segment.id] = tokens
+        return kept
 
     #: Under this share of a Tanakh text read from the morphology, the build says so.
     SCRIPTURE_SHARE_FLOOR = 0.5
@@ -1254,9 +1306,14 @@ class Build:
             vocalization = Vocalization.model_validate(stored)
             self.reused.append("nikkud (cache)")
         else:
+            known, known_machine = self._pointing_kept(path, segmented, engine)
             try:
                 vocalization = vocalize_module.vocalize_document(
-                    segmented, engine, source=str(self.source)
+                    segmented,
+                    engine,
+                    source=str(self.source),
+                    known=known,
+                    known_machine=known_machine,
                 )
             except TargumError as error:
                 # Vowels are a reading aid on top of a translation someone has already
@@ -1280,6 +1337,38 @@ class Build:
             )
         vocalization.write(path)
         return vocalization
+
+    def _pointing_kept(
+        self, path: Path, segmented: SegmentedDocument, engine: Any
+    ) -> tuple[dict[str, str], set[str]]:
+        """What the last build's diacritizer said about sentences that have not changed.
+
+        A recording grows a part at a time, and its document hash moves with every part,
+        so the whole text missed the cache and was pointed again: part 8 of a two-hour
+        podcast spent nineteen minutes on the box redoing parts 1 to 7 (2026-11-23).
+
+        Kept only from the same engine and model, and only for a sentence that came bare
+        and whose pointed form, marks taken off, is that sentence letter for letter.
+        Nikkud only adds marks, so that is the whole of what the engine was asked. A
+        sentence with marks of its own is asked again: its marks may have moved.
+        """
+        if engine is None or self.force:
+            return {}, set()
+        existing = read_artifact(Vocalization, path)
+        if existing is None or existing.vocalizer != engine.name:
+            return {}, set()
+        if existing.model != getattr(engine, "model", None):
+            return {}, set()
+        from .vocalize.base import has_nikkud, strip_nikkud
+
+        kept: dict[str, str] = {}
+        for segment in segmented.segments:
+            pointed = existing.segments.get(segment.id)
+            if pointed is None or has_nikkud(segment.text):
+                continue
+            if strip_nikkud(pointed)[0] == segment.text:
+                kept[segment.id] = pointed
+        return kept, set(existing.machine) & set(kept)
 
     def stress(
         self, segmented: SegmentedDocument, annotation: Annotation | None
