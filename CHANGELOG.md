@@ -6,6 +6,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- ru.wikisource's apparatus after a work is cut off: its editors' notes, an edition's
+  commentary and the key to its abbreviations (2026-11-23). Стрекоза и Муравей came
+  with 464 words of commentary and Демьянова уха with a Soviet academic edition's notes,
+  neither of them the work nor in the public domain where the work is. The fetcher is
+  `wikisource/6`; none of the 42 wikisource texts on the box's shared shelf has such a
+  section, so none of them reads differently.
 - A pointed upload with a page read without its marks gets that page pointed (bug
   report, 2026-11-23). A photographed children's book came back with one page's five
   paragraphs bare between pages pointed throughout, and they stayed bare: a text that

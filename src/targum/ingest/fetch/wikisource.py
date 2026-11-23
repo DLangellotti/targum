@@ -60,9 +60,17 @@ _NAVIGATION = frozenset(
         "further reading",
         "sources",
         "bibliography",
-        # Russian
+        # Russian. The last five are ru.wikisource's apparatus after a work: its editors'
+        # notes, an edition's commentary and the key to its abbreviations. A commentary
+        # from a Soviet academic edition is not the work and is not in the public domain
+        # where the work is; Стрекоза и Муравей came with 464 words of it (2026-11-23).
         "см. также",
         "примечания",
+        "примечания редакторов викитеки",
+        "примечания редакции",
+        "комментарии",
+        "комментарий",
+        "расшифровка сокращений",
         "ссылки",
         "литература",
         "источники",
@@ -362,7 +370,10 @@ class WikisourceFetcher:
     # bump is here: the Italian shelf's pages are read again rather than kept.
     # 5: a poem set in ru.wikisource's `table.poetry` is read rather than dropped with
     # the tables (2026-11-22). A page with no such table reads as it did under 4.
-    name = "wikisource/5"
+    # 6: ru.wikisource's notes, commentary and abbreviation key are cut off the end of a
+    # page (2026-11-23). None of the 42 wikisource texts on the box's shared shelf has
+    # one, so none of them reads differently.
+    name = "wikisource/6"
 
     def _parse(self, language: str, title: str) -> dict[str, Any]:
         payload: Any = json.loads(
