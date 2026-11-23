@@ -6,6 +6,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- A Hebrew recording's previous and next links read each part's clock from start to
+  end (bug report, 2026-11-23). The part's name went into the pager bare, and in a
+  right-to-left line "1:35:48–1:50:45" showed as 1:50:45–1:35:48. The next-up link
+  and the print sheet's label were the same and are fixed with it.
 - Pictures of one text go up in the order their names count, numbers read as numbers,
   not in the order the file picker hands them over (bug report, 2026-11-23). Nine pages
   sent from a phone, named …104 to …112, arrived 107, 108, 104, 105, 106, 109, 112, 111,

@@ -272,3 +272,49 @@ def test_a_score_is_never_broken_across_lines(browser, tmp_path: Path, window) -
         assert counted > 0 and broken == 0
     finally:
         context.close()
+
+
+def test_the_next_part_s_clock_reads_from_its_start_to_its_end(
+    browser: Any, tmp_path: Path
+) -> None:
+    """A podcast's pager said "חלק 9 · 1:50:45–1:35:48" (2026-11-23): the part's name
+    went into the page bare, and in a Hebrew line the two clocks traded places."""
+    clocks = ["0:00–13:26", "13:26–1:13:42", "1:13:42–1:24:27"]
+    segments: list[Segment] = []
+    english: dict[str, str] = {}
+    for n, clock in enumerate(clocks):
+        head = _head(2 * n, f"חלק {n + 1} · {clock}")
+        head.level = 1
+        line = _verse(2 * n + 1, "שָׁלוֹם לְכֻלָּם וּבְרוּכִים הַבָּאִים.", "")
+        segments += [head, line]
+        english[head.id] = f"Part {n + 1} · {clock}"
+        english[line.id] = "Hello everyone and welcome."
+    first = _reader(tmp_path / "podcast", "פודקאסט", segments, english)
+    pages = sorted(first.parent.glob("sec-*.html"))
+    assert len(pages) == 3, [p.name for p in first.parent.iterdir()]
+    context = browser.new_context()
+    try:
+        page = context.new_page()
+        page.goto(address(pages[1]))
+        for link in ("nav.pager a.prev", "nav.pager a.next"):
+            start, end = page.evaluate(
+                """(link) => {
+                  const a = document.querySelector(link);
+                  const walker = document.createTreeWalker(a, NodeFilter.SHOW_TEXT);
+                  let node;
+                  while ((node = walker.nextNode()) && !node.textContent.includes('–')) {}
+                  const text = node.textContent;
+                  const dash = text.indexOf('–');
+                  const at = (from, to) => {
+                    const range = document.createRange();
+                    range.setStart(node, from);
+                    range.setEnd(node, to);
+                    return range.getBoundingClientRect().left;
+                  };
+                  return [at(0, dash), at(dash + 1, text.length)];
+                }""",
+                link,
+            )
+            assert start < end, f"{link}: the part's start is on the left, its end on the right"
+    finally:
+        context.close()

@@ -391,7 +391,7 @@
   <div class="bar-pop print-pop" id="print" role="dialog" aria-labelledby="print-head" dir="ltr">
     <p class="pop-head" id="print-head">{{ t("reader.page.print-or-save-pdf", "Print or save as PDF") }}</p>
     <div class="group to-sheet" id="to-sheet" hidden>
-      {% if not standalone %}<a class="more-sheet" id="more-sheet-aliyah" download><span class="pick-name">{{ t("reader.page.this-aliyah", "This aliyah") }}</span><span class="pick-meta" lang="{{ source_language }}" dir="{{ source_direction }}">{{ section.title }}</span></a>{% endif %}
+      {% if not standalone %}<a class="more-sheet" id="more-sheet-aliyah" download><span class="pick-name">{{ t("reader.page.this-aliyah", "This aliyah") }}</span><span class="pick-meta" lang="{{ source_language }}" dir="{{ source_direction }}">{{ section.title|isolate(source_direction) }}</span></a>{% endif %}
       <a class="more-sheet" id="more-sheet" download><span class="pick-name">{{ t("reader.page.whole-portion-and-haftarah", "Whole portion and haftarah") }}</span><span class="pick-meta" lang="{{ source_language }}" dir="{{ source_direction }}">{{ title }}</span></a>
       {#- Why a sheet could not be made, in the box's one sentence; the script fills it. -#}
       <p class="sheet-said" id="sheet-said" hidden></p>
@@ -1259,7 +1259,7 @@
 {% if following %}
 <aside class="next-up here" id="next-up" dir="ltr" hidden>
   <span class="next-up-lead">{{ t("reader.page.read-next", "Up next") }}</span>
-  <a class="next-up-link" href="{{ following.filename }}"><bdi lang="{{ source_language }}" dir="auto">{{ following.title }}</bdi></a>
+  <a class="next-up-link" href="{{ following.filename }}"><bdi lang="{{ source_language }}" dir="auto">{{ following.title|isolate(source_direction) }}</bdi></a>
   <span class="next-up-why">{{ t("reader.next.minutes", "{n} min", n=minutes[following.number]) }}</span>
   {#- How many of the next one's words the reader already knows, said once, at the foot of
       the first section they finish (targum-internal#335; design.md §12, "Three moments in
@@ -1314,12 +1314,12 @@
 <nav class="pager" data-chapter="{{ section.number }}" data-document="{{ document.content_hash }}"{% if by_part %} data-by-part{% endif %}>
   {#- A part's name is the text's, in its language and its direction, like the portions'
       beside it: bare, a Hebrew name stood in an English run (reader QA, 2026-10-19). -#}
-  {% if previous %}<a class="prev" href="{{ previous.filename }}"><bdi lang="{{ source_language }}" dir="auto">{{ previous.title }}</bdi></a>
+  {% if previous %}<a class="prev" href="{{ previous.filename }}"><bdi lang="{{ source_language }}" dir="auto">{{ previous.title|isolate(source_direction) }}</bdi></a>
   {%- elif beyond_before %}<a class="prev beyond" href="{{ beyond_before.href }}" data-page="{{ beyond_before.page }}"><bdi lang="{{ source_language }}" dir="auto">{{ beyond_before.hebrew }}</bdi></a>{% endif %}
   {#- Past the last aliyah, the next portion's first, with no `data-next`: that names a
       section of this text, to buy ahead and to turn to off the last page, and the next
       portion is another text (targum-internal#446). -#}
-  {% if following %}<a class="next" href="{{ following.filename }}" data-next="{{ following.number }}"{% if following_ready %} data-ready{% endif %}><bdi lang="{{ source_language }}" dir="auto">{{ following.title }}</bdi></a>
+  {% if following %}<a class="next" href="{{ following.filename }}" data-next="{{ following.number }}"{% if following_ready %} data-ready{% endif %}><bdi lang="{{ source_language }}" dir="auto">{{ following.title|isolate(source_direction) }}</bdi></a>
   {%- elif beyond_after %}<a class="next beyond" href="{{ beyond_after.href }}" data-page="{{ beyond_after.page }}"><bdi lang="{{ source_language }}" dir="auto">{{ beyond_after.hebrew }}</bdi></a>{% endif %}
 </nav>
 {% endif %}
