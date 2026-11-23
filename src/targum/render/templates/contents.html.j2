@@ -94,6 +94,8 @@
       {#- For somebody about to lose their connection: a book's waiting chapters, all at
           once. Never a recording's (2026-10-07). -#}
       {%- if not has_audio %}<p class="whole" hidden><button type="button" id="prepare">{{ t("contents.page.prepare-all", "Prepare all") }}</button> <span class="get-cost" id="prepare-cost" hidden></span></p>{% endif %}
+      {#- Delete, where the text is: only on the reader's own, which `contents.js` asks. -#}
+      <p class="parts-bin" id="bin-row" hidden><button type="button" id="bin" title="{{ t("shelf.delete.title", "Move to trash") }}">{{ t("shelf.delete", "Delete") }}</button></p>
     </div>
   </section>
 

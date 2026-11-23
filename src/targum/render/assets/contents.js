@@ -477,8 +477,76 @@ function partsOf(row) {
         return r.name === name;
       })[0];
       if (mine && mine.chapters && mine.chapters.length) mark(mine.chapters);
+      if (mine && !mine.shared) offerBin(mine);
     })
     .catch(function () {});
+
+  /* Delete, on the text's own page (bug report, 2026-11-23). A reader who brought a book
+   * in looked for Delete where the book is, and it was only under the shelf's ⋯, which a
+   * desk draws on hover. The same press as the shelf's: to Trash, no "are you sure", and
+   * Undo where the press was. Only on a text of the reader's own, which the row above
+   * says; a shared text has nothing to delete. */
+  function offerBin(mine) {
+    var row = document.getElementById("bin-row");
+    var press = document.getElementById("bin");
+    if (!row || !press) return;
+    row.hidden = false;
+    press.onclick = function () {
+      press.disabled = true;
+      send("/trash").then(function () {
+        binned(row, press, mine);
+      }, function () {
+        press.disabled = false;
+      });
+    };
+  }
+
+  function send(path) {
+    return fetch(keyed(path), {
+      method: "POST",
+      credentials: "same-origin",
+      headers: keyHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ name: name }),
+    }).then(function (r) {
+      if (!r.ok) throw new Error(String(r.status));
+      return r;
+    });
+  }
+
+  function binned(row, press, mine) {
+    press.hidden = true;
+    var said = document.createElement("span");
+    said.className = "binned-note";
+    said.setAttribute("role", "status");
+    var title = document.createElement("bdi");
+    title.setAttribute("lang", mine.language || "und");
+    title.textContent = mine.title || name;
+    var sentence = t("shelf.binned", "{title} is in Trash");
+    var at = Math.max(0, sentence.indexOf("{title}"));
+    said.appendChild(document.createTextNode(sentence.slice(0, at)));
+    said.appendChild(title);
+    said.appendChild(document.createTextNode(sentence.slice(at).replace("{title}", "")));
+    var undo = document.createElement("button");
+    undo.type = "button";
+    undo.className = "restore";
+    undo.textContent = t("shelf.undo", "Undo");
+    undo.onclick = function () {
+      undo.disabled = true;
+      send("/restore").then(function () {
+        said.remove();
+        undo.remove();
+        press.hidden = false;
+        press.disabled = false;
+        press.focus();
+      }, function () {
+        undo.disabled = false;
+      });
+    };
+    row.appendChild(said);
+    row.appendChild(document.createTextNode(" "));
+    row.appendChild(undo);
+    undo.focus();
+  }
 })();
 
 /* Prepare the whole book, for reading somewhere with no connection. A book's only: a

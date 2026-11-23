@@ -19,6 +19,7 @@ from test_serve import postbox, served  # noqa: E402, F401
 from test_video_next_part_browser import WIDE  # noqa: E402
 
 from targum.render.builder import CONTENTS  # noqa: E402
+from targum.serve import TRASHED  # noqa: E402
 
 
 def quiet(page) -> None:
@@ -76,5 +77,63 @@ def test_a_link_to_a_verse_still_goes_on_to_its_file(
     try:
         with page.expect_navigation(url="**/sec-0002.html*"):
             page.goto(f"http://127.0.0.1:{port}/reader/ruth-he/reader/index.html?k={key}#2")
+    finally:
+        context.close()
+
+
+def test_a_text_of_your_own_is_deleted_from_its_own_page_and_undone_there(
+    browser,  # noqa: F811
+    served: tuple[int, str, Path],  # noqa: F811
+) -> None:
+    """A reader who brought a book in looked for Delete on the book's page, and it was only
+    under the shelf's ⋯ (bug report, 2026-11-23)."""
+    port, key, out = served
+    folder = out / "local" / "book-he"
+    built(folder)
+    context = opened(browser, WIDE, scrolling=False)
+    page = context.new_page()
+    page.route("**/account/places*", lambda route: route.fulfill(status=401, body="{}"))
+    page.route("**/jobs*", lambda route: route.fulfill(status=404, body="{}"))
+    page.route("**/offline.json*", lambda route: route.fulfill(status=404, body="{}"))
+    try:
+        page.goto(f"http://127.0.0.1:{port}/reader/book-he/reader/index.html?k={key}")
+        press = page.locator("#bin")
+        press.wait_for(state="visible")
+        assert press.inner_text().strip() == "Delete"
+        press.click()
+        note = page.locator("#bin-row .binned-note")
+        note.wait_for(state="visible")
+        assert note.inner_text().endswith("is in Trash")
+        assert (folder / TRASHED).is_file(), "the text went to Trash"
+        page.locator("#bin-row .restore").click()
+        press.wait_for(state="visible")
+        assert not (folder / TRASHED).exists(), "and Undo put it back"
+        assert page.locator("#bin-row .binned-note").count() == 0
+    finally:
+        context.close()
+
+
+def test_a_shared_text_s_page_offers_no_delete(
+    browser,  # noqa: F811
+    served: tuple[int, str, Path],  # noqa: F811
+) -> None:
+    port, key, out = served
+    built(out / "local" / "book-he")
+    context = opened(browser, WIDE, scrolling=False)
+    page = context.new_page()
+    quiet(page)
+    page.route(
+        "**/readers*",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps({"readers": [{"name": "book-he", "title": "ספר", "shared": True}]}),
+        ),
+    )
+    try:
+        with page.expect_response("**/readers*"):
+            page.goto(f"http://127.0.0.1:{port}/reader/book-he/reader/index.html?k={key}")
+        page.wait_for_timeout(200)
+        assert page.locator("#bin-row").is_hidden()
     finally:
         context.close()
