@@ -6,6 +6,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- A pointed upload with a page read without its marks gets that page pointed (bug
+  report, 2026-11-23). A photographed children's book came back with one page's five
+  paragraphs bare between pages pointed throughout, and they stayed bare: a text that
+  mostly carries its own pointing was taken for a pointed edition, so no diacritizer
+  ran. Now, in a text a model read off photographs, a sentence with not one mark on
+  it is pointed by the diacritizer and marked as the machine's; what the page itself
+  pointed, wholly or in part, is never touched (`vocalize.wholly_bare`,
+  `models.read_from_pictures`). A text read from its own file keeps its bare lines:
+  39 Ben-Yehuda pages carry one each, on purpose. `rebuild --words` mends the
+  photographed books already on the box at the next deploy.
 - A podcast or video made a part at a time no longer slows down with every part
   (David, 2026-11-23). Each part moved the text's fingerprint, so the vowel points and
   the dictionary forms of every part already heard were made again: part 8 of a

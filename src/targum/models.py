@@ -227,6 +227,14 @@ PINNED_EDITIONS = ("sefaria:", "siddur:")
 UNPOINTED_EDITIONS = ("sefaria:daf:", "sefaria:Rashi on ", "sefaria:Tosafot on ")
 
 
+def read_from_pictures(ingester: str) -> bool:
+    """Whether a model read this text off photographs, where a page's marks can be lost.
+
+    Every other ingester takes the text from the file itself, character for character.
+    """
+    return str(ingester or "").startswith("picture/")
+
+
 def keeps_its_own_pointing(source: object) -> bool:
     """Whether a diacritizer must never be asked about this text.
 

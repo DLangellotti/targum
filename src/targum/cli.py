@@ -2064,9 +2064,33 @@ def rebuild_one(
     moves: dict[str, object] | None = moves_module.carried(folder) or None
     repointed = False
     vocalization = read_artifact(Vocalization, folder / "vocalization.json")
+    from .models import read_from_pictures
+    from .vocalize import SOURCE_ONLY, wholly_bare
     from .vocalize import russian as russian_stress
 
     if (
+        vocalization is not None
+        and vocalize is not None
+        and vocalization.vocalizer == SOURCE_ONLY
+        and read_from_pictures(document.ingester)
+        and any(wholly_bare(segment) for segment in segmented.segments)
+    ):
+        # Pointed by its photographs alone, with whole sentences a reading came back
+        # without marks for (2026-11-23): those, and only those, are pointed now. What
+        # the photographs pointed is kept as it was read.
+        from .vocalize import vocalize_document
+
+        try:
+            fresh = vocalize_document(
+                segmented, vocalize(document), source=document.source, only_bare=True
+            )
+        except TargumError as error:
+            console.print(f"[dim]{error.message} Kept the pointing it had.[/dim]")
+        else:
+            fresh.write(folder / "vocalization.json")
+            vocalization = fresh
+            repointed = True
+    elif (
         vocalization is not None
         and vocalize is not None
         and vocalization.machine
