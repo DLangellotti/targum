@@ -8,7 +8,7 @@ what the reader shows.
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Collection, Mapping
 
 from ..catalogue import Register
 from ..errors import SkeletonChanged, TargumError
@@ -133,7 +133,11 @@ LABELS = frozenset({BlockKind.heading, BlockKind.byline})
 
 
 def vocalize_document(
-    segmented: SegmentedDocument, engine: Vocalizer | None = None, source: str = ""
+    segmented: SegmentedDocument,
+    engine: Vocalizer | None = None,
+    source: str = "",
+    known: Mapping[str, str] | None = None,
+    known_machine: Collection[str] = (),
 ) -> Vocalization:
     """The pointed form of every segment: the source's own pointing first, then a model.
 
@@ -153,10 +157,18 @@ def vocalize_document(
     # number, and asking for them is how a Tanakh — pointed throughout, and the one case
     # this is meant to need no engine for — ends up loading one anyway. Sefaria's
     # "רות א׳" was enough to make Nakdimon assert and take the whole build down with it.
+    #
+    # `known` is what this engine already said about a sentence that has not changed
+    # (`Build.vocalize` decides which): a recording grows a part at a time, and asking the
+    # model again about every part already heard made each new one slower than the last,
+    # nineteen minutes on the box for part 8 of a two-hour podcast (2026-11-23).
+    known = known or {}
     unfinished = [
         segment
         for segment in segmented.segments
-        if segment.kind not in LABELS and not is_fully_pointed(segment.text)
+        if segment.kind not in LABELS
+        and not is_fully_pointed(segment.text)
+        and segment.id not in known
     ]
     guesses: dict[str, str] = {}
     if engine is not None and unfinished:
@@ -173,6 +185,11 @@ def vocalize_document(
     machine: list[str] = []
     rejected: list[str] = []
     for segment in segmented.segments:
+        if segment.id in known:
+            pointed[segment.id] = known[segment.id]
+            if segment.id in known_machine:
+                machine.append(segment.id)
+            continue
         guess = guesses.get(segment.id)
         if guess is None:
             merged, from_model = segment.text, False

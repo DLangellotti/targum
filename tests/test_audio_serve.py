@@ -1076,3 +1076,22 @@ def test_a_part_is_asked_for_only_by_the_readers_own_page() -> None:
         text = path.read_text(encoding="utf-8")
         for door in ('"/chapter"', "_buy_parts", "._chapter("):
             assert door not in text, f"{name} reaches {door}"
+
+
+def test_a_part_build_is_named_by_its_recording_and_its_part(
+    served, fake_audio, monkeypatch
+) -> None:
+    """David, 2026-11-23: a part build had no title, so the waiting card's "Yours, ahead
+    of it" drew a bare Cancel beside an empty line for each part. It is named now: the
+    recording's title and which part, in the recording's language."""
+    port, token, out = served
+    build = talk(out, fake_audio, parts=3)
+    build.run(chapters=1)
+    folder = build.resolved_out
+    _claims, queued = _spied(monkeypatch)
+    title = json_module.loads((folder / "document.json").read_text(encoding="utf-8"))["title"]
+
+    status, made = opened(port, token, folder, 2)
+    assert status == 200, made
+    assert title and queued[0].title == f"{title} · Part 2"
+    assert made["title"] == f"{title} · Part 2"
