@@ -565,3 +565,5 @@
 {"at": "2026-11-23", "corpus": "oshb-aramaic", "metric": "emphatic_recall", "n": 844, "note": "books=2 tp=754 fp=72 fn=90 gold=66c81414440c", "score": 0.8934, "stage": "lemma", "system": "arc-state/1", "version": "arc-state/1"}
 {"at": "2026-11-23", "corpus": "oshb-aramaic", "metric": "dalet_precision", "n": 350, "note": "books=2 tp=344 fp=6 fn=0 gold=66c81414440c", "score": 0.9829, "stage": "lemma", "system": "arc-particles/1", "version": "arc-particles/1"}
 {"at": "2026-11-23", "corpus": "oshb-aramaic", "metric": "dalet_recall", "n": 344, "note": "books=2 tp=344 fp=6 fn=0 gold=66c81414440c", "score": 1.0, "stage": "lemma", "system": "arc-particles/1", "version": "arc-particles/1"}
+{"at": "2026-11-23", "corpus": "oshb-aramaic", "metric": "suffix_precision", "n": 468, "note": "books=2 tp=449 fp=19 fn=14 gold=66c81414440c", "score": 0.9594, "stage": "lemma", "system": "arc-suffixes/1", "version": "arc-suffixes/1"}
+{"at": "2026-11-23", "corpus": "oshb-aramaic", "metric": "suffix_recall", "n": 463, "note": "books=2 tp=449 fp=19 fn=14 gold=66c81414440c", "score": 0.9698, "stage": "lemma", "system": "arc-suffixes/1", "version": "arc-suffixes/1"}

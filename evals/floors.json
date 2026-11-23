@@ -865,6 +865,22 @@
   },
   {
     "stage": "lemma",
+    "corpus": "oshb-aramaic",
+    "metric": "suffix_precision",
+    "system": "arc-suffixes/1",
+    "at_least": 0.94,
+    "why": "0.9594 on 2026-11-23, first scored: a second- or third-person pronoun read off the end of a pointed Aramaic word (annotate/aramaic_suffixes.py) against Open Scriptures' Sp2/Sp3 pieces over the Aramaic of Daniel and Ezra, names left out; not held out, so a guard. Aramaic's third hard spot (design.md §12, 2026-10-25)"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "oshb-aramaic",
+    "metric": "suffix_recall",
+    "system": "arc-suffixes/1",
+    "at_least": 0.95,
+    "why": "0.9698 on 2026-11-23, first scored: the same rule, the same words"
+  },
+  {
+    "stage": "lemma",
     "corpus": "iahltknesset",
     "metric": "gender_accuracy",
     "system": "dicta/dicta-il/dictabert-joint",

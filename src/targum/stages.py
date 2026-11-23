@@ -141,7 +141,8 @@ class HardSpot:
     #: (`annotate.false_friends`), "rule:french_register" (read off the words,
     #: `annotate.french_register`), "pointing:aramaic_state" (read off the pointed text,
     #: `annotate.aramaic_state`), "lookup:aramaic_particles" (read off the hand table's
-    #: answer, `annotate.aramaic_particles`), or "none".
+    #: answer, `annotate.aramaic_particles`), "pointing:aramaic_suffixes"
+    #: (`annotate.aramaic_suffixes`), or "none".
     computed: str
     #: "card", "lens", "marks" (in the text), "pieces" (the pieces line), or "none".
     shown: str
@@ -514,8 +515,9 @@ HARD_SPOTS: dict[str, tuple[HardSpot, ...]] = {
     # the first covered: read off Onkelos's pointing (`annotate.aramaic_state`), lit by
     # the state lens and scored on Open Scriptures' state letter in Daniel and Ezra; ד־
     # the second, read off the hand table's answer (`annotate.aramaic_particles`) and lit
-    # by the particles lens beside ית. The rest are named and not yet covered; the list
-    # does not move the badge.
+    # by the particles lens beside ית; the pronoun on the end the third, read off the
+    # pointing (`annotate.aramaic_suffixes`) and lit, ending alone, by the suffix lens.
+    # The rest are named and not yet covered; the list does not move the badge.
     "arc": (
         HardSpot(
             "prefixed particles and ד־",
@@ -531,7 +533,13 @@ HARD_SPOTS: dict[str, tuple[HardSpot, ...]] = {
             ("arc-state/1", "oshb-aramaic", "emphatic_precision"),
             lens=True,
         ),
-        HardSpot("suffixes on nouns, prepositions and ית", "none", "none", None, lens=True),
+        HardSpot(
+            "suffixes on nouns, prepositions and ית",
+            "pointing:aramaic_suffixes",
+            "lens",
+            ("arc-suffixes/1", "oshb-aramaic", "suffix_precision"),
+            lens=True,
+        ),
         HardSpot("the participle as present, its enclitics and קא", "none", "none", None),
         HardSpot("the verb stems", "none", "none", None),
         HardSpot("abbreviations and roshei teivot", "none", "none", None),

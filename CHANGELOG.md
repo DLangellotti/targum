@@ -332,8 +332,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   (אַרְעָא, "the earth"). Read off Onkelos's pointing (`annotate/aramaic_state.py`), lit by
   a new lens on Aramaic pages (`x`), and scored against Open Scriptures' state letter in
   the Aramaic of Daniel and Ezra: precision 0.913, recall 0.893, with floors. Aramaic's
-  seven hard spots are listed in `stages.HARD_SPOTS` (design.md §12, 2026-10-25); the
-  other six are named and not yet covered.
+  seven hard spots are listed in `stages.HARD_SPOTS` (design.md §12, 2026-10-25).
+- Aramaic's ד־ and ית, on one lens that shows one at a time (`d`): ד־ only where the
+  annotator already took it off a word it knows, or דִּי itself. Against Open Scriptures'
+  דִּי in Daniel and Ezra: precision 0.983, recall 1.0.
+- Aramaic's pronoun endings (עֲלוֹהִי, בְּנָךְ, יָתְהוֹן) on the suffix lens (`e`), the ending lit
+  and the stem plain. Second and third person, read off the pointing: precision 0.959,
+  recall 0.970 against Open Scriptures' suffix codes. Three of Aramaic's seven hard spots
+  are covered.
 - `scripts/voice_scenes.py` gives the director 4,096 tokens of answer: 1,024 ran out near 80
   turns, and French's A2 scenes run to 72. Only what is written is billed.
 - `how_much_i_understand`, a connector and chat tool under the `record` scope

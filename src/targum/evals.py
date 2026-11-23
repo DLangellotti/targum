@@ -103,6 +103,8 @@ SCRIPTS = {
     "lemma/oshb-aramaic": "eval_aramaic_state.py",
     # ד־ read off the hand table's answer, against OSHB's דִּי (the same section).
     "lemma/oshb-aramaic-particles": "eval_aramaic_particles.py",
+    # A pronoun on the end of an Aramaic word, against OSHB's Sp2/Sp3 (the same section).
+    "lemma/oshb-aramaic-suffixes": "eval_aramaic_suffixes.py",
     # The pointing's stress rules for modern text, against the accents (#454, #500).
     "stress/tanakh-segolate": "eval_segolate.py",
     "align": "eval_align.py",
