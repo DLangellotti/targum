@@ -522,3 +522,48 @@ def test_a_single_page_loses_the_wikis_sister_project_box() -> None:
     assert [text for _, _, text in _read(html)] == [
         "Говорили, что на набережной появилось новое лицо: дама с собачкой."
     ]
+
+
+def test_a_poem_set_in_a_layout_table_is_read() -> None:
+    """ru.wikisource sets a poem in `table.poetry` around a `div.poem`, and tables are
+    dropped as page furniture, so Зимнее утро read as "no readable text" (2026-11-22).
+    Each stanza is a paragraph, as on he.wikisource."""
+    from targum.ingest.fetch.wikisource import _read
+
+    html = (
+        '<table class="poetry"><tbody><tr><td><h4>ЗИМНЕЕ УТРО</h4>'
+        '<div class="poem"><p>Мороз и солнце; день чудесный!<br />'
+        "Еще ты дремлешь, друг прелестный —<br /></p>"
+        "<p>Вечор, ты помнишь, вьюга злилась,<br />"
+        "На мутном небе мгла носилась;<br /></p></div></td></tr></tbody></table>"
+    )
+    assert [text for _, _, text in _read(html)] == [
+        "ЗИМНЕЕ УТРО",
+        "Мороз и солнце; день чудесный! Еще ты дремлешь, друг прелестный —",
+        "Вечор, ты помнишь, вьюга злилась, На мутном небе мгла носилась;",
+    ]
+
+
+def test_ru_wikisource_s_notes_and_commentary_are_cut_off_the_end() -> None:
+    """Стрекоза и Муравей came with 464 words of commentary and Демьянова уха with an
+    academic edition's notes and its key to abbreviations (2026-11-23): not the work,
+    and not in the public domain where the work is."""
+    from targum.ingest.fetch.wikisource import drop_trailing_navigation
+    from targum.models import BlockKind
+
+    heading, paragraph = BlockKind.heading, BlockKind.paragraph
+    page = [
+        (heading, 2, "Демьянова уха"),
+        (paragraph, 0, "«Соседушка, мой свет! Пожалуйста, покушай»."),
+        (heading, 2, "Примечания"),
+        (paragraph, 0, "По свидетельству близко знавшего Крылова М. Лобанова…"),
+        (heading, 2, "Расшифровка сокращений"),
+        (paragraph, 0, "ПД — рукописи, принадлежащие Академии наук СССР."),
+        (heading, 2, "Комментарии"),
+        (paragraph, 0, "…в разговорном языке XVIII века слово «стрекоза»…"),
+        (heading, 2, "Примечания редакторов Викитеки"),
+    ]
+    assert [text for _, _, text in drop_trailing_navigation(page)] == [
+        "Демьянова уха",
+        "«Соседушка, мой свет! Пожалуйста, покушай».",
+    ]

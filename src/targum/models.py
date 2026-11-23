@@ -227,6 +227,14 @@ PINNED_EDITIONS = ("sefaria:", "siddur:")
 UNPOINTED_EDITIONS = ("sefaria:daf:", "sefaria:Rashi on ", "sefaria:Tosafot on ")
 
 
+def read_from_pictures(ingester: str) -> bool:
+    """Whether a model read this text off photographs, where a page's marks can be lost.
+
+    Every other ingester takes the text from the file itself, character for character.
+    """
+    return str(ingester or "").startswith("picture/")
+
+
 def keeps_its_own_pointing(source: object) -> bool:
     """Whether a diacritizer must never be asked about this text.
 
@@ -613,6 +621,13 @@ class Annotation(Artifact):
     #: (targum-internal#180). Additive on purpose — it is not in the name, so it
     #: invalidates no cache and re-annotates nothing.
     scripture_share: float | None = None
+    #: What each segment was when it was read: its text and its pointing, hashed
+    #: (`pipeline.reading_fingerprint`). A recording grows a part at a time, and these
+    #: let the next build keep the words of every sentence that did not move instead of
+    #: reading two hours of Hebrew again for each new part (2026-11-23). Additive: a file
+    #: without them is read whole once, and carries them after.
+    #: Before `tokens`, which the corpus ledger reads as the file's last field.
+    fingerprints: dict[str, str] = Field(default_factory=dict)
     tokens: dict[str, list[Token]] = Field(default_factory=dict)
 
     def counts(self) -> dict[int, int]:

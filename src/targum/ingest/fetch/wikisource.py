@@ -60,9 +60,17 @@ _NAVIGATION = frozenset(
         "further reading",
         "sources",
         "bibliography",
-        # Russian
+        # Russian. The last five are ru.wikisource's apparatus after a work: its editors'
+        # notes, an edition's commentary and the key to its abbreviations. A commentary
+        # from a Soviet academic edition is not the work and is not in the public domain
+        # where the work is; Стрекоза и Муравей came with 464 words of it (2026-11-23).
         "см. также",
         "примечания",
+        "примечания редакторов викитеки",
+        "примечания редакции",
+        "комментарии",
+        "комментарий",
+        "расшифровка сокращений",
         "ссылки",
         "литература",
         "источники",
@@ -268,6 +276,19 @@ def drop_apparatus(html: str) -> str:
     soup = _soup(html)
     for tag in soup.select(".ws-noexport"):
         tag.decompose()
+    # A poem is set in a layout table on ru.wikisource (`table.poetry`, a `div.poem`
+    # inside), and the page reader drops every table as furniture, so a poem read as
+    # nothing at all: "no readable text" for Зимнее утро, one heading for Двенадцать
+    # (2026-11-22). That table is the wiki's typesetting, not furniture, so its cells
+    # are kept as blocks and the table around them goes.
+    for table in soup.select("table"):
+        if "poetry" not in (table.get("class") or []) and table.select_one(".poem") is None:
+            continue
+        for cell in table.select("td, th"):
+            cell.name = "div"
+        for wrapper in table.select("tr, tbody, thead, tfoot"):
+            wrapper.unwrap()
+        table.unwrap()
     return str(soup)
 
 
@@ -347,7 +368,12 @@ class WikisourceFetcher:
     # walked work. It takes ru.wikisource's sister-project box off the front of every
     # story, and it also takes the edition box off it.wikisource pages, which is why the
     # bump is here: the Italian shelf's pages are read again rather than kept.
-    name = "wikisource/4"
+    # 5: a poem set in ru.wikisource's `table.poetry` is read rather than dropped with
+    # the tables (2026-11-22). A page with no such table reads as it did under 4.
+    # 6: ru.wikisource's notes, commentary and abbreviation key are cut off the end of a
+    # page (2026-11-23). None of the 42 wikisource texts on the box's shared shelf has
+    # one, so none of them reads differently.
+    name = "wikisource/6"
 
     def _parse(self, language: str, title: str) -> dict[str, Any]:
         payload: Any = json.loads(

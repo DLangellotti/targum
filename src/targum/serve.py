@@ -17609,23 +17609,25 @@ class Handler(BaseHTTPRequestHandler):
         on a fixed yardstick", 2026-10-30). Per register: the exact percentage now
         (`level.known_percent`), and `base` and each day's `gain`, from which the page
         draws the line by Week or Month. A register with no snapshot is left out, never
-        sent as 0. Hebrew only: the yardsticks are counted with DICTA's lemmas.
+        sent as 0. Each language is measured on its own lists (`registers.picker`): Hebrew's
+        counted with DICTA's lemmas, Russian's and French's under `ru:` and `fr:`
+        (targum-internal#752), and sent by the register's bare name under the language.
         """
         from . import level as level_module
-        from .tables.registers import PICKER
+        from .tables.registers import bare_register, measured_languages, picker
 
         out: dict[str, Any] = {}
         began = self.store.began()
-        # Hebrew's alone (targum-internal#637): PICKER's registers are Hebrew's counts,
-        # and a Russian list measured on them would be a Russian score on Hebrew lemmas.
-        for language in ("he",):
+        # A language is measured only on its own counts (targum-internal#637): a Russian
+        # list read off Hebrew lemmas would be a Russian score on Hebrew words.
+        for language in measured_languages():
             dated = self.store.known_dated(person_id, language)
             registers: dict[str, Any] = {}
-            for register in PICKER:
+            for register in picker(language):
                 got = level_module.coverage_days(register, dated, began=began, zone=zone)
                 if got is None:
                     continue
-                registers[register] = {
+                registers[bare_register(register)] = {
                     "percent": level_module.known_percent(got["share"]),
                     "base": got["base"],
                     "days": got["days"],
@@ -19560,7 +19562,7 @@ class Handler(BaseHTTPRequestHandler):
             data = json.loads((folder / "document.json").read_text(encoding="utf-8"))
             source = str(data.get("source") or "")
         except (OSError, json.JSONDecodeError):
-            source = ""
+            data, source = {}, ""
         segmented = read_artifact(SegmentedDocument, folder / "segments.json")
         if not source or segmented is None:
             return self._json({"error": "not found"}, 404)
@@ -19629,6 +19631,11 @@ class Handler(BaseHTTPRequestHandler):
             home=home,
             estimate=estimate,
         )
+        # Named, as every other build is: the waiting card lists the reader's builds
+        # ahead of theirs by title, and a part with none drew a bare Cancel beside an
+        # empty line, one per part (David, 2026-11-23).
+        job.language = str(data.get("language") or "")
+        job.title = _part_job_title(str(data.get("title") or ""), buying, job.language)
         job.stage = "ready"
         self.library.jobs[job.id] = job
         self.library.remember(job)
@@ -20644,10 +20651,11 @@ class Handler(BaseHTTPRequestHandler):
     def _gathered(self, uploads: list[str]) -> Path:
         """Chunked uploads of pages, made into one source that stays.
 
-        A set of pictures is one text, in the order the reader chose them, and the
-        folder is the source: the first upload's folder keeps the lot, numbered, and
-        the others are emptied. The chunked door's own marks come off — `.meta.json`
-        is what the sweep eats after a day, and a document points back at this folder
+        A set of pictures is one text, in the order the page sent them (by name, in
+        `bring.js`), and the folder is the source: the first upload's folder keeps the
+        lot, numbered, and the others are emptied. The chunked door's own marks come
+        off — `.meta.json` is what the sweep eats after a day, and a document points
+        back at this folder
         for as long as it is on the shelf, the way the JSON door's uploads are kept.
         A lone PDF goes through the same motions so it, too, outlives the sweep.
         """
@@ -21239,6 +21247,9 @@ class Handler(BaseHTTPRequestHandler):
                         "part": True,
                         "files": narrowed,
                         "pages": sum(1 for f in narrowed if str(f["url"]).endswith(".html")),
+                        # How many pages the whole has, so a copy kept in parts can say
+                        # "2 of 14 parts" (targum-internal#720, P2 8): a count, not a list.
+                        "whole": self._offline_pages(bases),
                         "bytes": sum(int(f["bytes"]) for f in narrowed),
                     }
                 )
@@ -21274,6 +21285,21 @@ class Handler(BaseHTTPRequestHandler):
                 "bytes": sum(int(file["bytes"]) for file in files),
             }
         )
+
+    @staticmethod
+    def _offline_pages(bases: list[tuple[str, Path, bool]]) -> int:
+        """How many pages the whole text has, counted the way `_offline_files` lists them
+        but without a file's size or stamp: only the count is told."""
+        count = 0
+        for _under, base, deep in bases:
+            try:
+                listed = base.rglob("*.html") if deep else base.glob("*.html")
+                count += sum(
+                    1 for target in listed if target.is_file() and base in target.resolve().parents
+                )
+            except OSError:
+                continue
+        return count
 
     def _offline_part(
         self, page: str, prefix: str, bases: list[tuple[str, Path, bool]]
@@ -21851,6 +21877,17 @@ def _spelled_like(root: Path, folder: str) -> str | None:
     except OSError:
         return None
     return found[0] if len(found) == 1 else None
+
+
+def _part_job_title(title: str, numbers: list[int], language: str) -> str:
+    """A part build's name: the recording's title and which part, in its own language."""
+    from .audio.parts import WORD_FOR_PART
+
+    if not title or not numbers:
+        return title
+    word = WORD_FOR_PART.get(language.split("-")[0].lower(), "Part")
+    which = "–".join(str(n) for n in sorted({numbers[0], numbers[-1]}))
+    return f"{title} · {word} {which}"
 
 
 def _parts_on(section: Any, by_id: Mapping[str, Any]) -> set[int]:

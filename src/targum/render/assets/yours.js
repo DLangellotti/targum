@@ -103,12 +103,16 @@
      up the phrases — the record appears a moment later, and a reader with none still
      sees nothing at all. */
   function drawRewrote() {
-    if (!lists || !lists.rewrote || which !== "phrases") return;
-    ask("/slips")
-      .then(function (data) {
-        lists.rewrote((data && data.slips) || []);
-      })
-      .catch(function () {});
+    if (!lists || !lists.rewrote || (which !== "phrases" && which !== "words")) return;
+    if (which === "phrases") {
+      ask("/slips")
+        .then(function (data) {
+          lists.rewrote((data && data.slips) || []);
+        })
+        .catch(function () {});
+    }
+    // The record on both pages: on Your Words it is only the Phrases tab's count
+    // (targum-internal#716), which says how many lines the phrases list holds.
     ask("/slips?all=1")
       .then(function (data) {
         lists.record((data && data.slips) || []);
@@ -198,8 +202,29 @@
     Object.keys(read).forEach(function (hash) {
       opened[hash] = Math.max(Number(opened[hash] || 0), read[hash]);
     });
+    /* A text read while it was still being built is the same text (2026-11-22): a long
+       video lands a chapter at a time and each chapter gives it a new hash, so last
+       night's four chapters were opened under four hashes the shelf no longer carries,
+       and Recent ordered the row by when it was built, under everything read since. The
+       folder a place's path names survives the rebuild (as `Accounts.places` tells texts
+       apart), so an open counts for the row in that folder too. */
+    var byFolder = {};
+    function stamp(path, when) {
+      var found = /^\/reader\/([^\/]+)\//.exec(String(path || ""));
+      if (!found || !when) return;
+      var folder = decodeURIComponent(found[1]);
+      byFolder[folder] = Math.max(byFolder[folder] || 0, when);
+    }
+    var mine = stored("targum:places");
+    Object.keys(mine).forEach(function (hash) {
+      var place = mine[hash] || {};
+      stamp(place.path, Math.max(Number(place.at || 0), Number(opened[hash] || 0)));
+    });
+    (places || []).forEach(function (place) {
+      if (place) stamp(place.path, Number(place.at || 0));
+    });
     readers.forEach(function (reader) {
-      reader.opened = opened[reader.document] || 0;
+      reader.opened = Math.max(Number(opened[reader.document] || 0), byFolder[reader.name] || 0);
       have[reader.document] = true;
       if (reader.entry) have["entry:" + reader.entry] = true;
     });

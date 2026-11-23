@@ -241,6 +241,7 @@ function understand() {
     shown: panel.hidden === false,
     by: (panel.getAttribute && panel.getAttribute("data-by")) || "",
     register: (panel.getAttribute && panel.getAttribute("data-register")) || "",
+    title: at("understand-title").textContent,
     chosen: at("understand-chosen").textContent,
     open: at("understand-open").getAttribute("aria-label") || "",
     options: at("understand-list").children.map((option) => ({

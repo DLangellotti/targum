@@ -387,6 +387,17 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Continue is for unfinished reading — 2026-11-20
+
+David, 2026-11-20 (targum-internal#695, #703 P2-16): **a text the reader has finished
+leaves Continue.** Continue is where to pick up, and a finished text has nowhere left to
+pick up; it said "Pick up at chapter 4" over a text finished at chapter 4 of 4. Finished
+is what the shelf's row already says Finished: every part read, or the whole marked done.
+There is no "Read again" card. The text stays on the shelf under it, and the shelf opens
+it. With everything finished Continue is not drawn and the one card says "One to try
+next", as it does for anybody with nothing in progress. "Nothing here yet" is still only
+for a reader who has opened nothing.
+
 ### The portion page says what it lacks, and is finished on three calls — 2026-11-19
 
 David, 2026-11-19, on the three questions of the portion page's finish spec
@@ -409,6 +420,36 @@ from aliyah 1" once every aliyah is read; one line where a reading has no chante
 recording; "Not ready yet" on a row with nothing built behind it, never a link to a 404;
 and Subscribe saying when it is still saving past three seconds, when it did not go
 through, and when it was pressed offline.
+
+### The yardstick figures reach the reader's own model — 2026-11-18
+
+David, 2026-11-18 (targum-internal#750): a reader asking their own model "how much
+Hebrew do I understand?" gets the measured answer, not a guess. A new tool,
+`how_much_i_understand`, under the `record` scope, read only, hands the model what
+"How much Hebrew you understand is measured on a fixed yardstick" (2026-10-30) measures.
+
+- **Facts, never a forecast.** For each yardstick with a snapshot it sends the
+  percentage, the same figure Your Progress shows; how many of the list's 1,000 and 2,000
+  commonest words are not known yet; and what knowing the next 500, 1,000, 2,000 and
+  3,000 of them would make the figure. For the list a model names, or news when it names
+  none, it also sends that figure by week, the latest 26 weeks, and the 25 commonest
+  unknown words, each with every meaning held for it and its place on the list. And the
+  words marked known in the last 30 days.
+  "If you learned the next 1,000" is arithmetic on a fixed list. "In two months you will
+  be at" is a promise, and targum makes none: a model may estimate from the pace, and is
+  told to say it as an estimate.
+- **No level.** The tool says no rung or letter, as `my_progress` does not.
+- **Hebrew only** until other languages have yardsticks of their own (targum-internal#752).
+  Another language's answer says it is not measured, never 0%. *(Since 2026-11-19,
+  targum-internal#752: Russian and French are measured on their own conversation and news
+  lists, filed `ru:` and `fr:`, once a list of theirs is on the box; until then they are
+  still not measured. A reader learning several languages is measured in Hebrew where
+  they learn it, else in the first of theirs that has a list, and a model may name the
+  `language` it asks about, so a reader of Hebrew and Russian can be answered on
+  Russian too. 2026-11-20, qa-claude on targum#1343.)*
+- **The 25 words are a short list on purpose.** They are the next words worth learning,
+  sent with every call that names a list, and with news alone when none is named, so the
+  answer stays small.
 
 ### The back office counts paying readers by source tag — 2026-11-18
 
@@ -3610,7 +3651,12 @@ replaces the "Words you knew" card of "Your level, v3" (2026-10-29) on Your Prog
   (the commonest 20,000 content lemmas, each with its share of the list's running words)
   to the box's tables directory, never the repository, and no page serves it. A list
   stands until the month turns (David, 2026-10-30, on the language tables' question 4),
-  and every reader's line is then recomputed against the new one.
+  and every reader's line is then recomputed against the new one. *(2026-11-20,
+  qa-claude on targum#1343 and #1345: a list is not replaced by counts that lack one of
+  the sources it was made from, so a list made from an outside corpus is not dropped by a
+  ledger that never held that corpus's counts. A changed rule, or `tables snapshot
+  --force`, writes anyway, and the lists made of what readers bring may still shrink.
+  The way a laptop-counted list reaches the box is `tables push --register`.)*
 - **A yardstick with no list is left out of the picker**, never shown as 0%. A register
   gets its first list once it holds 50,000 counted words, so no list is frozen for a
   month on a handful of texts. Where news has none yet, the picker opens on the next of
@@ -3632,7 +3678,14 @@ replaces the "Words you knew" card of "Your level, v3" (2026-10-29) on Your Prog
   closes, each option 44px under a thumb. The choice, and Week or Month, are remembered
   in this browser only.
 - **Only Hebrew has yardsticks.** A language without one keeps "Words you knew" as it
-  was, and so does a Hebrew reader who knows no word on any list yet.
+  was, and so does a Hebrew reader who knows no word on any list yet. *(2026-11-19,
+  targum-internal#752: Russian and French get conversation and news lists of their own,
+  counted with the reader each language's builds use and never with anything bought, and
+  filed `ru:conversation`, `fr:news` and so on, so no list is read off another language's
+  words. The card shows for them once a list lands, titled "How much Russian you
+  understand" or "How much French you understand". Russian conversation is a sample of
+  OPUS OpenSubtitles v2024, counted on the laptop; Russian news is the box's own nightly
+  count. French waits: its words are read by the model, and a count never spends.)*
 - **The Russian strings are drafts** (ling-ru, shipped for David's later read).
 
 What it keeps: every figure is a real count over a stated list (§6), nothing on it
@@ -6811,6 +6864,11 @@ connection banner's Saved texts leads to it.
   text and your record stay in your account." Removing a copy loses nothing that was not
   a copy. *(Amended 2026-11-14: offline a copy can be the only one, so Remove and
   Remove all say "Removed · Undo" for a few seconds. Still no confirm.)*
+- **A copy kept in parts names what it holds** (David, 2026-11-20; targum-internal#720,
+  P2 8). A book of which only the contents page was opened says "Contents only", and one
+  with some chapters says "{kept} of {n} parts", counted from the same files the reader
+  marks its chapters by. Keep still only changes hands and fetches nothing. The rest of
+  the book is saved from the reader's ⋯, where its size, progress and Stop already are.
 - **It is the one desk page that keeps itself.** It is fetched once into the cache the
   first time it is opened, or the first time a text is saved (2026-10-11), and the worker
   keeps it current after that. Its query does not
@@ -6818,6 +6876,13 @@ connection banner's Saved texts leads to it.
   "That isn't on this device, so it opens when you're back online." The reader can then
   open what they do have. A full device's line in a reader's ⋯ points here, because this
   is where room is made.
+- **Kept before the first save, with /connect beside it** (David, 2026-11-20;
+  targum-internal#720 P2 5, #721 P2 8). Offline, a reader who had not saved anything yet
+  met the browser's own error on this page and on /connect. Now any page opened online by
+  a signed-in reader quietly keeps both, once each, so both open with no connection. They
+  are targum's own pages, never a text: no reader content, nothing from another site,
+  outside the count of texts and never let go by it. /connect is one page whatever its
+  query says, as this one is.
 
 ### A text is kept for offline by a press, or by being opened — 2026-10-09
 

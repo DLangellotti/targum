@@ -357,6 +357,17 @@ def test_a_tool_outside_the_scope_cannot_be_called_anyway(box: tuple[int, str]) 
     token = a_token(port, "library")
     said = rpc(port, token, "tools/call", {"name": "my_vocabulary", "arguments": {}})
     assert said["error"]["code"] == mcp_http.INVALID_PARAMS
+    # targum-internal#750: how much a reader understands is their record too.
+    said = rpc(port, token, "tools/call", {"name": "how_much_i_understand", "arguments": {}})
+    assert said["error"]["code"] == mcp_http.INVALID_PARAMS
+
+
+def test_the_record_scope_answers_how_much_i_understand(box: tuple[int, str]) -> None:
+    port, _ = box
+    token = a_token(port, "library record")
+    said = rpc(port, token, "tools/call", {"name": "how_much_i_understand", "arguments": {}})
+    assert said["result"]["isError"] is False
+    assert json.loads(said["result"]["content"][0]["text"])["language"] == "he"
 
 
 def test_a_tool_answers_for_the_person_the_token_names(box: tuple[int, str]) -> None:

@@ -601,7 +601,7 @@ body.is-subscribing .home-grid { grid-template-columns: minmax(0, 1fr); }
   #library-list .series-stack,
   #library-list .row-controls { grid-row: span 2; }
   #library-list .row-meter { grid-column: 2; grid-row: 2; max-inline-size: 7.5rem; }
-  #library-list .row-meter:not(.meter) { display: none; }
+  #library-list .row-meter:not(.meter):not(.row-known) { display: none; }
   /* A phone's row keeps ⋯ alone, always drawn: Add to playlist is in it too. */
   #library-list .row-controls { opacity: 1; }
   #library-list .add-to-list { display: none; }

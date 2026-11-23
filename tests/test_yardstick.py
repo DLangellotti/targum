@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import pytest
 from typer.testing import CliRunner
@@ -128,6 +129,10 @@ def test_scenes_and_the_weekly_are_never_a_yardstick(tmp_path: Path) -> None:
         "podcasts",
         "everyday",
         "imports",
+        "ru:conversation",
+        "ru:news",
+        "fr:conversation",
+        "fr:news",
     }
     assert all(one.outcome == "short" for one in done), "they are all empty here"
 
@@ -325,3 +330,191 @@ def test_a_small_pool_is_blended_by_its_size() -> None:
     assert yardstick.blend_share(800_000, 200_000) == pytest.approx(0.2)
     assert yardstick.blend_share(100_000, 900_000) == yardstick.BLEND_CAP
     assert yardstick.blend_share(0, 900_000) == 0.0
+
+
+def test_another_languages_list_is_its_own_file_and_its_own_counts(tmp_path: Path) -> None:
+    """targum-internal#752: Russian conversation is filed `ru:conversation` and written
+    to `yardstick-ru-conversation-v1.json`; it reads none of Hebrew's counts, and
+    Hebrew's list reads none of its."""
+    from targum.tables import registers
+
+    store = _store(tmp_path, register="ru:conversation")
+    _store(tmp_path, register="conversation", lemmas=5, scale=1)
+    where = tmp_path / "tables"
+    done = yardstick.write(store, "ru:conversation", where, now=NOW)
+    assert done.outcome == "written"
+    assert done.file == where / "yardstick-ru-conversation-v1.json"
+    assert yardstick.write(store, "conversation", where, now=NOW).outcome == "short"
+    assert yardstick.versions("conversation", where) == []
+    assert [v for v, _ in yardstick.versions("ru:conversation", where)] == [1]
+    stick = yardstick.load("ru:conversation", where)
+    assert stick is not None and stick.register == "ru:conversation"
+    assert yardstick.load("conversation", where) is None
+    assert level.coverage_on("ru:conversation", [_lemma(0)], where) == pytest.approx(
+        stick.weights[_lemma(0)]
+    )
+    assert registers.picker("ru") == ("ru:conversation", "ru:news")
+    assert registers.picker("fr-FR") == ("fr:conversation", "fr:news")
+    assert registers.picker("it") == ()
+    assert registers.picker("he") == registers.PICKER
+    assert registers.bare_register("ru:news") == "news"
+    assert registers.bare_register("imports:news") == "imports:news"
+    assert yardstick.load("it:conversation", where) is None, "no picker, no list"
+
+
+def test_a_hebrew_list_past_its_first_version_still_loads(tmp_path: Path) -> None:
+    """qa-claude on targum#1343: the file pattern that takes `ru-conversation` still takes
+    every Hebrew name, past v9 too."""
+    where = tmp_path / "tables"
+    where.mkdir()
+    for name in ("yardstick-news-v12.json", "yardstick-imports-v3.json"):
+        (where / name).write_text(
+            json.dumps({"made_at": "2026-11-01", "weights": {"ספר": 1.0}}), encoding="utf-8"
+        )
+    news = yardstick.load("news", where)
+    assert news is not None and news.version == 12
+    imports = yardstick.load("imports", where)
+    assert imports is not None and imports.version == 3
+    assert yardstick.load("ru:news", where) is None
+
+
+def _sourced(tmp_path: Path, register: str, source: str, scale: int = 1000) -> Store:
+    """A ledger holding one register's counts from one named source."""
+    store = Store(tmp_path / "corpus.db")
+    store.write(
+        Contribution(
+            table="words",
+            register=register,
+            unit=f"unit-{source}-{scale}",
+            source=source,
+            licence="CC0",
+            tool="test/1",
+            rule="words/1",
+        ),
+        _counts(400, scale=scale),
+    )
+    return store
+
+
+TURNED = datetime(2026, 12, 1, 2, 30, tzinfo=UTC)
+
+
+def test_a_list_is_kept_where_this_ledger_lacks_one_of_its_sources(tmp_path: Path) -> None:
+    """qa-claude on targum#1343 and #1345: a list made on the laptop from an outside
+    corpus, copied to a box whose ledger never held the corpus, is kept at the month's
+    turn rather than rebuilt without it."""
+    where = tmp_path / "tables"
+    laptop = _sourced(tmp_path / "laptop", "ru:conversation", "opus-ru")
+    assert yardstick.write(laptop, "ru:conversation", where, now=NOW).outcome == "written"
+    box = _sourced(tmp_path / "box", "ru:conversation", "box-own", scale=3000)
+    kept = yardstick.write(box, "ru:conversation", where, now=TURNED)
+    assert kept.outcome == "kept" and kept.version == 1
+    assert yardstick.missing_sources(box, "ru:conversation", _last(where)) == ["opus-ru"]
+    assert [v for v, _ in yardstick.versions("ru:conversation", where)] == [1]
+
+
+def _last(where: Path) -> dict[str, Any]:
+    return json.loads(yardstick.versions("ru:conversation", where)[-1][1].read_text("utf-8"))
+
+
+def test_force_writes_over_a_missing_source(tmp_path: Path) -> None:
+    where = tmp_path / "tables"
+    yardstick.write(
+        _sourced(tmp_path / "a", "ru:conversation", "opus-ru"), "ru:conversation", where, now=NOW
+    )
+    box = _sourced(tmp_path / "b", "ru:conversation", "box-own", scale=1500)
+    assert yardstick.write(box, "ru:conversation", where, now=TURNED).outcome == "kept"
+    done = yardstick.write(box, "ru:conversation", where, force=True, now=TURNED)
+    assert done.outcome == "written" and done.version == 2
+
+
+def test_a_changed_rule_writes_over_a_missing_source(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    where = tmp_path / "tables"
+    yardstick.write(
+        _sourced(tmp_path / "a", "ru:conversation", "opus-ru"), "ru:conversation", where, now=NOW
+    )
+    monkeypatch.setattr(yardstick, "RULE", "yardstick/2")
+    box = _sourced(tmp_path / "b", "ru:conversation", "box-own")
+    assert yardstick.write(box, "ru:conversation", where, now=TURNED).outcome == "written"
+
+
+def test_a_fixed_corpus_that_shrinks_after_a_rule_change_gets_the_new_list(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Hebrew's Bible, literature and conversation are fixed corpora: a rule or annotator
+    change that lowers their counted words still gives them the new list, since every
+    source is still here."""
+    where = tmp_path / "tables"
+    store = _sourced(tmp_path, "bible", "oshb", scale=2000)
+    first = yardstick.write(store, "bible", where, now=NOW)
+    assert first.outcome == "written"
+    smaller = _sourced(tmp_path / "re", "bible", "oshb", scale=1000)
+    done = yardstick.write(smaller, "bible", where, now=TURNED)
+    assert done.outcome == "written" and done.tokens < first.tokens
+    monkeypatch.setattr(yardstick, "RULE", "yardstick/2")
+    again = yardstick.write(
+        _sourced(tmp_path / "re2", "bible", "oshb", scale=500), "bible", where, now=TURNED
+    )
+    assert again.outcome == "written"
+
+
+def test_a_list_made_of_what_readers_bring_may_shrink(tmp_path: Path) -> None:
+    from targum.tables import imports
+
+    where = tmp_path / "tables"
+    store = Store(tmp_path / "corpus.db")
+    made = [imports._contribution("words")]
+    store.replace_pool(made, {made[0].id: _counts(400, scale=2000)})
+    assert yardstick.write(store, "imports", where, now=NOW).outcome == "written"
+    store.replace_pool(made, {made[0].id: _counts(400, scale=1000)})
+    turned = datetime(2026, 12, 1, 2, 30, tzinfo=UTC)
+    assert yardstick.write(store, "imports", where, now=turned).outcome == "written"
+
+
+def test_write_all_keeps_a_list_whose_counts_fall_under_the_floor(tmp_path: Path) -> None:
+    where = tmp_path / "tables"
+    yardstick.write(
+        _store(tmp_path / "a", register="ru:conversation"), "ru:conversation", where, now=NOW
+    )
+    few = _store(tmp_path / "b", register="ru:conversation", lemmas=5, scale=1)
+    turned = datetime(2026, 12, 1, 2, 30, tzinfo=UTC)
+    done = {one.register: one for one in yardstick.write_all(few, where, now=turned)}
+    assert done["ru:conversation"].outcome == "short"
+    stick = yardstick.load("ru:conversation", where)
+    assert stick is not None and stick.version == 1, "the list stands; nothing is written"
+
+
+def test_a_dialogue_dash_is_not_part_of_a_lemma(tmp_path: Path) -> None:
+    """Subtitles open a line of dialogue with a dash, and 43 Russian lemmas kept it."""
+    store = _store(tmp_path, register="ru:conversation")
+    store.write(
+        Contribution(
+            table="words",
+            register="ru:conversation",
+            unit="unit-dashes",
+            source="synthetic:dashes",
+            licence="CC0",
+            tool="test/1",
+            rule="words/1",
+        ),
+        {("-знать", "VERB"): 30_000, ("знать", "VERB"): 10_000, ("\u2014", "NOUN"): 5},
+    )
+    done = yardstick.write(store, "ru:conversation", tmp_path / "tables", now=NOW)
+    raw = json.loads(done.file.read_text(encoding="utf-8"))  # type: ignore[union-attr]
+    assert "-знать" not in raw["weights"] and "" not in raw["weights"]
+    assert raw["weights"]["знать"] == pytest.approx(40_000 / raw["tokens"])
+
+
+def test_a_push_carries_another_languages_corpus_counts(tmp_path: Path) -> None:
+    """The way a laptop-counted list reaches the box is `tables push`: its counts travel,
+    so the box's own snapshot makes the same list."""
+    laptop = _store(tmp_path / "laptop", register="ru:conversation")
+    box = Store(tmp_path / "box" / "corpus.db")
+    result = box.import_rows(laptop.export("laptop"))
+    assert result.added == 1 and result.refused == 0
+    mine = yardstick.build(laptop, "ru:conversation")
+    theirs = yardstick.build(box, "ru:conversation")
+    assert mine is not None and theirs is not None
+    assert mine["digest"] == theirs["digest"]

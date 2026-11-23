@@ -259,6 +259,19 @@ def wants_pointing(segments: Sequence[Segment]) -> bool:
     return bare / len(prose) > MOSTLY_POINTED
 
 
+def wholly_bare(segment: Segment) -> bool:
+    """Prose in Hebrew letters with not one mark on it.
+
+    In a pointed text that is not an edition's choice — an editor leaves a ketiv or a
+    citation bare, never a paragraph — but a reading that lost its marks: a photographed
+    children's book came back with five paragraphs bare between pages pointed throughout
+    (2026-11-23). See `Build.vocalize`.
+    """
+    if segment.kind in _LABELS or has_nikkud(segment.text):
+        return False
+    return any(ord(c) in LETTERS for c in segment.text)
+
+
 def splice(source: str, model: str) -> tuple[str, bool]:
     """Merge two pointings of one text, word by word. The source's own pointing wins.
 

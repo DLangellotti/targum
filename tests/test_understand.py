@@ -93,3 +93,23 @@ def test_a_russian_list_is_never_measured_on_the_hebrew_yardsticks(
     status, said, _ = call(port, "GET", f"/account/reading?k={token}", cookie=cookie)
     assert status == 200, said
     assert set(said["understand"]) == {"he"}, said["understand"]
+
+
+def test_a_russian_reader_is_measured_on_the_russian_lists(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    """targum-internal#752: Russian lists are filed `ru:` and written
+    `yardstick-ru-<register>`, and a reader's Russian words are measured on them alone,
+    sent under `ru` by the register's bare name."""
+    port, token, _ = served
+    cookie = sign_in(port, postbox)
+    snapshot("news", {"ספר": 0.5, "дом": 0.5})
+    snapshot("ru-conversation", {"дом": 0.8, "знать": 0.2})
+    word = {"language": "ru", "lemma": "дом", "status": KNOWN, "at": 1, "seen": 1}
+    call(port, "POST", f"/sync?k={token}", {"words": [word]}, cookie=cookie)
+    status, said, _ = call(port, "GET", f"/account/reading?k={token}", cookie=cookie)
+    assert status == 200, said
+    russian = said["understand"]["ru"]["registers"]
+    assert set(russian) == {"conversation"}, "no Russian news list yet, so no entry"
+    assert russian["conversation"]["percent"] == 80
+    assert said["understand"]["he"]["registers"]["news"]["percent"] == 0

@@ -192,9 +192,11 @@ def test_the_words_you_may_already_know_stand_on_this_page_and_feed_the_list() -
     # §12, 2026-10-09). Asserted as the whole list rather than as a membership, so a page
     # that starts asking for something new has to say so here.
     # The common words after the account has had its say (#725 P2 3), so after the facts.
+    # The record of corrected lines for the Phrases tab's count (#716 P2 20).
     assert drawn["asked"] == [
         "/account/words?language=he&into=en",
         "/words/common?offset=0&limit=50",
+        "/slips?all=1",
     ]
     marked = draw(
         vocabulary(word("ספר", "book", status=2)),
@@ -375,6 +377,39 @@ def test_a_shared_text_you_also_built_is_one_row() -> None:
         shared=[reader("scene-1", "סצנה ראשונה", shared=True)],
     )
     assert [row["title"] for row in drawn["shelf"]] == ["סצנה ראשונה"]
+
+
+def test_a_text_read_while_it_was_built_keeps_its_place_on_recent() -> None:
+    """2026-11-22: a video landing a chapter at a time gets a new hash with each chapter,
+    so the chapters read last night were opened under hashes the shelf no longer carries,
+    and the row sank to its build time under everything read since. The folder its places
+    name is the same folder, in this browser's record and in the account's."""
+    stored = {
+        "targum:opened": json.dumps({"article-he": 2000, "video-old": 5000}),
+        "targum:places": json.dumps(
+            {"video-old": {"section": "4", "path": "/reader/video-he/reader/sec-0004.html"}}
+        ),
+    }
+    drawn = draw(
+        stored,
+        which="texts",
+        readers=[
+            reader("article-he", "כתבה"),
+            reader("video-he", "פודקאסט", document="video-new", built=1),
+        ],
+    )
+    assert [row["title"] for row in drawn["shelf"]] == ["פודקאסט", "כתבה"]
+    # Read on another device: the account's place, under the old hash, says the same.
+    elsewhere = draw(
+        {"targum:opened": json.dumps({"article-he": 2000})},
+        which="texts",
+        readers=[
+            reader("article-he", "כתבה"),
+            reader("video-he", "פודקאסט", document="video-new", built=1),
+        ],
+        places=[{"hash": "video-old", "path": "/reader/video-he/reader/sec-0002.html", "at": 6000}],
+    )
+    assert [row["title"] for row in elsewhere["shelf"]] == ["פודקאסט", "כתבה"]
 
 
 def test_a_text_the_catalogue_never_heard_of_still_gets_a_row() -> None:
@@ -1128,3 +1163,21 @@ def test_the_csv_has_a_known_by_ear_column() -> None:
     by_word = {row[0]: row for row in rows[1:]}
     assert by_word["ספר"][-1] == "yes" and by_word["דרך"][-1] == ""
     assert by_word["שמע"][-1] == "yes"
+
+
+def test_the_phrases_tab_counts_the_corrected_lines_it_shows() -> None:
+    """targum-internal#716, P2 20: the tab said 0 over a list of three corrections. It
+    counts what the phrases list shows, saved phrases and this language's corrections,
+    on both pages."""
+    other = {**SLIP, "id": 8, "language": "ru"}
+    for which in ("phrases", "words"):
+        drawn = draw(
+            vocabulary(word("ספר", "book", status=2, at=100)),
+            slips=[SLIP, {**SLIP, "id": 9}, other],
+            which=which,
+        )
+        assert drawn["counts"]["phrases"] == "2", which
+    kept = with_phrase(vocabulary(word("ספר", "book", status=2, at=100)), "בית ספר")
+    drawn = draw(kept, slips=[SLIP], which="phrases")
+    assert drawn["counts"]["phrases"] == "2"
+    assert draw(kept, which="phrases")["counts"]["phrases"] == "1"

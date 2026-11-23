@@ -212,9 +212,9 @@ def test_a_text_s_row_and_its_continue_card_say_one_figure(browser) -> None:
     context, page, thrown = home(
         browser, {"/readers": {"readers": [reader("t0")], "shared": [], "trash": []}}
     )
-    page.wait_for_selector("#library-list .row-meter.meter")
+    page.wait_for_selector("#library-list .row-known")
     page.wait_for_selector("#continue-cards li")
-    meter = page.locator("#library-list .row-meter.meter").first.get_attribute("aria-label")
+    meter = page.locator("#library-list .row-known").first.get_attribute("aria-label")
     card = page.locator("#continue-cards").inner_text()
     context.close()
     assert not thrown, thrown

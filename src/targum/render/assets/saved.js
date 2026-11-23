@@ -83,6 +83,18 @@
         : item.sound
           ? t("saved.text-and-recording", "text and recording")
           : t("saved.text", "text");
+    // A book kept only in the parts that were opened says how much of it is here, by
+    // the count the reader marks its chapters from (targum-internal#720, P2 8).
+    var some = offline.parts ? offline.parts(item) : null;
+    if (some) {
+      if (!some.kept) return t("saved.contents-only", "Contents only");
+      if (!some.total) {
+        return tn("saved.parts-saved", some.kept, "{n} part saved", "{n} parts saved");
+      }
+      return tn("saved.parts-of", some.total, "{kept} of {n} part", "{kept} of {n} parts", {
+        kept: some.kept,
+      });
+    }
     var parts = Math.max(0, Number(item.pages || 0) - 1);
     if (parts > 1) {
       return tn("saved.parts", parts, "{n} part, {media}", "{n} parts, {media}", { media: media });

@@ -30,7 +30,16 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from .registers import EVERYDAY, NEWS, PICKER, PODCASTS, SOCIAL, VIDEO, pooled
+from .registers import (
+    EVERYDAY,
+    IMPORTS,
+    NEWS,
+    PODCASTS,
+    SOCIAL,
+    VIDEO,
+    every_picker,
+    pooled,
+)
 
 if TYPE_CHECKING:
     from .store import Store
@@ -60,6 +69,12 @@ BLEND_CAP = 0.5
 #: source for these to be held to half of.
 SUMMED = (SOCIAL, VIDEO, PODCASTS, EVERYDAY)
 
+#: The lists made of what readers bring, which may shrink by design: a reader who turns
+#: counting off leaves the pool, and the list at the month's turn (design.md §12, "What
+#: learners bring is counted in the tables, never kept"), so none is kept for a source
+#: gone from the pool.
+SHRINKS = (IMPORTS, *SUMMED)
+
 #: The version of the snapshot's own rule (what is read, and how it is weighed). A new
 #: number writes a new version at the next run, whatever the month.
 RULE = "yardstick/1"
@@ -68,7 +83,21 @@ RULE = "yardstick/1"
 BOX_DIR = Path("/var/lib/targum/tables")
 LAPTOP_DIR = Path.home() / ".targum" / "tables"
 
-_FILE = re.compile(r"^yardstick-(?P<register>[a-z]+)-v(?P<version>\d+)\.json$")
+#: A snapshot's file: `yardstick-news-v3.json` for Hebrew, `yardstick-ru-conversation-v1.json`
+#: for another language's (targum-internal#752), whose register `ru:conversation` is
+#: written with a hyphen, since a colon is no character for a file's name.
+_FILE = re.compile(r"^yardstick-(?P<register>(?:[a-z]{2,3}-)?[a-z]+)-v(?P<version>\d+)\.json$")
+
+
+def file_stem(register: str) -> str:
+    """How a register is spelled in its snapshot's file name: `ru-conversation` for
+    `ru:conversation`, and a Hebrew register as it is."""
+    return register.replace(":", "-")
+
+
+def _register_of_stem(stem: str) -> str:
+    head, sep, tail = stem.partition("-")
+    return f"{head}:{tail}" if sep else stem
 
 
 def directory() -> Path:
@@ -108,13 +137,18 @@ class Yardstick:
         return min(1.0, math.fsum(self.weights.get(key, 0.0) for key in keys))
 
 
+#: The dashes a line of dialogue opens with, which a lemma never begins with.
+_DASHES = "-\u2010\u2011\u2012\u2013\u2014\u2212"
+
+
 def _counts(store: Store, register: str, depth: int) -> dict[str, int]:
     """One register's commonest content lemmas, bare, with their counts."""
     from .words import WORDS
 
     counts: dict[str, int] = {}
     for key, n in store.top(WORDS, register, limit=depth * 2):
-        lemma = bare(key)
+        # A subtitle's dialogue dash reaches some lemmas ("-знать"): the word is the same.
+        lemma = bare(key).lstrip(_DASHES)
         if lemma:
             counts[lemma] = counts.get(lemma, 0) + int(n)
     return counts
@@ -218,6 +252,34 @@ def provenance(store: Store, register: str) -> list[dict[str, Any]]:
     ]
 
 
+def missing_sources(store: Store, register: str, last: Mapping[str, Any]) -> list[str]:
+    """The sources a list names in its provenance that this ledger holds no current count
+    of, in the register or in the pool's share of it: what a list made elsewhere would
+    lose if it were rebuilt here."""
+    from .words import WORDS
+
+    named = {
+        str(source)
+        for entry in last.get("provenance") or []
+        for source in (entry.get("sources") or [])
+        if source
+    }
+    if not named:
+        return []
+    if not store.file.is_file():
+        return sorted(named)
+    with closing(store._connect()) as db:
+        held = {
+            str(row[0])
+            for row in db.execute(
+                "SELECT DISTINCT source FROM contribution WHERE superseded_at IS NULL"
+                " AND tbl = ? AND register IN (?, ?)",
+                (WORDS, register, pooled(register)),
+            )
+        }
+    return sorted(named - held)
+
+
 def versions(register: str, where: Path | None = None) -> list[tuple[int, Path]]:
     """Every snapshot file of one register in the tables directory, oldest first."""
     folder = where or directory()
@@ -226,7 +288,7 @@ def versions(register: str, where: Path | None = None) -> list[tuple[int, Path]]
     found = []
     for file in folder.iterdir():
         matched = _FILE.match(file.name)
-        if matched and matched["register"] == register:
+        if matched and _register_of_stem(matched["register"]) == register:
             found.append((int(matched["version"]), file))
     return sorted(found)
 
@@ -241,7 +303,8 @@ class Written:
 
     register: str
     #: `written`, `unchanged` (the counts give the same list), `held` (this month's
-    #: version stands until the month turns), or `short` (under `FLOOR`, nothing written).
+    #: version stands until the month turns), `short` (under `FLOOR`, nothing written), or
+    #: `kept` (these counts lack a source the list they would replace was made from).
     outcome: str
     version: int = 0
     file: Path | None = None
@@ -282,10 +345,22 @@ def write(
         return Written(register, "short")
     if last is not None and last.get("digest") == made["digest"]:
         return Written(register, "unchanged", held[-1][0], held[-1][1], made["tokens"])
+    if (
+        not force
+        and last is not None
+        and last.get("rule") == RULE
+        and register not in SHRINKS
+        and missing_sources(store, register, last)
+    ):
+        # A list is never replaced by counts that lack one of its sources: a list made on
+        # a laptop from an outside corpus, copied to a box whose ledger never had that
+        # corpus's counts, keeps the corpus rather than dropping it at the month's turn.
+        # A changed rule or `force` writes anyway: the operator, or the rule, decided.
+        return Written(register, "kept", held[-1][0], held[-1][1], made["tokens"])
     version = (held[-1][0] if held else 0) + 1
     made = {"version": version, "made_at": stamp, **made}
     folder.mkdir(parents=True, exist_ok=True)
-    file = folder / f"yardstick-{register}-v{version}.json"
+    file = folder / f"yardstick-{file_stem(register)}-v{version}.json"
     partial = file.with_suffix(".json.partial")
     partial.write_text(json.dumps(made, ensure_ascii=False, sort_keys=True), encoding="utf-8")
     partial.replace(file)
@@ -295,11 +370,12 @@ def write(
 def write_all(
     store: Store, where: Path | None = None, *, force: bool = False, now: datetime | None = None
 ) -> list[Written]:
-    """`write` for each register the card's picker may offer, and no other: targum's own
+    """`write` for each register the card's picker may offer, in every language that has
+    yardsticks (`registers.every_picker`, targum-internal#752), and no other: targum's own
     scenes and the weekly are never a yardstick (David, 2026-10-30). What learners bring
     is (`registers.IMPORTS`, 2026-11-01), once its pool crosses `FLOOR` like any other:
     every row of it already stands on ten readers' material."""
-    return [write(store, register, where, force=force, now=now) for register in PICKER]
+    return [write(store, register, where, force=force, now=now) for register in every_picker()]
 
 
 #: (file, its mtime) → the yardstick read from it, so a page load reads no file twice.
@@ -309,7 +385,7 @@ _LOADED: dict[tuple[str, float], Yardstick] = {}
 def load(register: str, where: Path | None = None) -> Yardstick | None:
     """The newest snapshot of one register, or None where there is none (or it cannot be
     read). A register with none is absent from the card, never a 0%."""
-    if register not in PICKER:
+    if register not in every_picker():
         return None
     held = versions(register, where)
     for version, file in reversed(held):

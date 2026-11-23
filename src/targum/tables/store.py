@@ -525,9 +525,10 @@ class Store:
                 )
             }
 
-    def export(self, origin: str = "laptop") -> Iterator[str]:
+    def export(self, origin: str = "laptop", register: str | None = None) -> Iterator[str]:
         """Every contribution `origin` wrote, current and superseded, one JSON line each
-        with its tallies: what `targum tables push` carries to the box.
+        with its tallies: what `targum tables push` carries to the box. `register` keeps
+        to one register's rows (`tables push --register`).
 
         A line holds lemmas and counts, never a sentence and never a reader, because a
         contribution never held more (`tables.public_text`). The imports pool is never
@@ -539,10 +540,11 @@ class Store:
             ids = [
                 row[0]
                 for row in db.execute(
-                    "SELECT id FROM contribution WHERE origin = ? AND register != ?"
+                    "SELECT id, register FROM contribution WHERE origin = ? AND register != ?"
                     " AND register NOT LIKE ? AND tbl != ? ORDER BY written_at, id",
                     (origin, IMPORTS, f"{IMPORTS}:%", DIFFICULTY),
                 )
+                if register is None or row[1] == register
             ]
             for one in ids:
                 row = db.execute(

@@ -5,6 +5,19 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-11-22
+A long video read while its chapters are still arriving stays at the top of Recent.
+
+2026-11-20
+A Hebrew plural or feminine shows its meaning on the card of the word it comes from.
+Home's Continue leaves out a text you have finished.
+The Saved page opens offline before the first save, and says how many parts of a book are kept.
+
+2026-11-19
+The card of a Hebrew word can give its meaning in Hebrew, for a reader who chooses it.
+Asked how much Hebrew you understand, your own connected assistant answers with the figures on Your Progress.
+The page of the weekly portion says when a reading has no chanted recording, or is not ready yet.
+
 2026-11-18
 247 more Hebrew words show their root on their card, and 94 roots are corrected.
 Common Hebrew words show their meaning on the card, where it sometimes came back empty.
