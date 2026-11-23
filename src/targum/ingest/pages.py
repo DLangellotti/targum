@@ -15,11 +15,18 @@ Each block carries the page it came from as its `ref` ("p3"), which is what a
 facsimile could stand on later and what the reader can show now. A block with no
 Hebrew letters and some Latin ones is marked English, so the Hebrew lemmatizer leaves
 it alone rather than tagging it (`annotate.base.unread`).
+
+Two things a photographed page hands over that are not the text (2026-11-23, a reader's
+book): its printed page number, which came back as a paragraph of its own, became a
+heading and named the book "3"; and a paragraph the model began, broke off and read
+again from the start, which put its opening words in the reader twice. A paragraph
+that is only a number is left out, and so is one that the next paragraph begins again.
 """
 
 from __future__ import annotations
 
 import re
+from difflib import SequenceMatcher
 from pathlib import Path
 
 from ..ids import block_id
@@ -32,13 +39,23 @@ _LATIN = re.compile(r"[A-Za-z]")
 #: so a line of prose with a colon in its middle stays prose.
 _TURN = re.compile(r"^([^:：\n.!?،؛]{1,40}?)\s*[:：]\s*(.+)$", re.S)
 
+#: A printed page number: digits alone, perhaps between dashes ("- 12 -").
+_FOLIO = re.compile(r"^[\s\-–—]*\d{1,4}[\s\-–—]*$")
+
+#: How alike a paragraph and the start of the next must be for the first to be a false
+#: start of the second. A false start is at least this long, so a short refrain a page
+#: repeats on purpose stays.
+RESTART_SIMILARITY = 0.85
+RESTART_CHARS = 20
+
 #: How much of a title is a title. The first line of a page names it well enough for a
 #: shelf; a whole first paragraph does not.
 TITLE_CHARS = 60
 
 
-def paragraphs_of(lines: list[str]) -> list[str]:
-    """Blank-line groups, each joined into one line of prose."""
+def paragraphs_of(lines: list[str], *, conversation: bool = False) -> list[str]:
+    """Blank-line groups, each joined into one line of prose, without page numbers and
+    false starts. A conversation keeps them all: "5" is a fair answer in a chat."""
     out: list[str] = []
     held: list[str] = []
     for line in [*lines, ""]:
@@ -48,7 +65,27 @@ def paragraphs_of(lines: list[str]) -> list[str]:
         if held:
             out.append(" ".join(held))
             held = []
-    return out
+    if conversation:
+        return out
+    out = [paragraph for paragraph in out if not is_folio(paragraph)]
+    return [
+        paragraph
+        for here, paragraph in enumerate(out)
+        if here + 1 == len(out) or not restarted(paragraph, out[here + 1])
+    ]
+
+
+def is_folio(paragraph: str) -> bool:
+    """Whether a paragraph is nothing but a printed page number."""
+    return bool(_FOLIO.match(paragraph))
+
+
+def restarted(paragraph: str, following: str) -> bool:
+    """Whether `following` begins `paragraph` over again: a reading that broke off."""
+    if len(paragraph) < RESTART_CHARS or len(following) <= len(paragraph):
+        return False
+    start = following[: len(paragraph)]
+    return SequenceMatcher(None, paragraph, start).ratio() >= RESTART_SIMILARITY
 
 
 def mixed(line: str) -> bool:
@@ -81,7 +118,7 @@ def title_of(pages: list[list[str]]) -> str:
     for lines in pages:
         for line in lines:
             words = line.split()
-            if not words:
+            if not words or is_folio(line):
                 continue
             title = " ".join(words)
             if len(title) <= TITLE_CHARS:
@@ -112,7 +149,7 @@ def document_from_pages(
     speakers: list[str] = []
     last = ""
     for number, lines in enumerate(pages, start=1):
-        for text in paragraphs_of([normalize(line) for line in lines]):
+        for text in paragraphs_of([normalize(line) for line in lines], conversation=conversation):
             said = turn_of(text) if conversation else None
             if said is not None:
                 last, text = said

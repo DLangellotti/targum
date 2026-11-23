@@ -6,6 +6,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- A photographed or PDF page's printed number is left out of the text, and so is a
+  paragraph the reading began and then read again from the start (bug report,
+  2026-11-23). A reader's book was called "3", had "4", "40" and "47" as headings,
+  and gave one paragraph's opening words twice (`ingest/pages.py`). A chat keeps a
+  message that is only a number. New uploads only: a book already built keeps its text.
 - Pictures of one text go up in the order their names count, numbers read as numbers,
   not in the order the file picker hands them over (bug report, 2026-11-23). Nine pages
   sent from a phone, named …104 to …112, arrived 107, 108, 104, 105, 106, 109, 112, 111,
