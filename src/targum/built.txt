@@ -5,6 +5,9 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-11-22
+A long video read while its chapters are still arriving stays at the top of Recent.
+
 2026-11-20
 A Hebrew plural or feminine shows its meaning on the card of the word it comes from.
 Home's Continue leaves out a text you have finished.
