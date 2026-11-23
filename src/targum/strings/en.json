@@ -2246,6 +2246,7 @@
   "nav.targums": "targums",
   "nav.your-many": "Your",
   "shelf.known": "You know {share}% of the whole text",
+  "shelf.known.short": "{share}% known",
   "shelf.opened": "Opened {when}",
   "shelf.in-playlists": "In {names}",
   "shelf.length.video": "{n} min video",

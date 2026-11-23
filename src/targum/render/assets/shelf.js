@@ -438,17 +438,23 @@
       line.className = "row-meter";
       return line;
     }
-    line.className = "meter row-meter" + (kind ? " " + kind : "");
+    // The known share is said as a figure, "62% known", not drawn as a bar: a full bar
+    // read as "finished" or as how far through the text (David, 2026-11-23). A bar stays
+    // for a build under way, which is how far, and says so.
     if (!kind && found) {
+      line.className = "row-meter row-known";
       line.removeAttribute("aria-hidden");
-      line.setAttribute("role", "img");
       var said = found.estimated
         ? t("home.card.known-estimate", "You know about {share}% of the whole text (our estimate)", { share: found.percent })
         : t("shelf.known", "You know {share}% of the whole text", { share: found.percent });
+      line.setAttribute("role", "img");
       line.setAttribute("aria-label", said);
       line.title = said;
       if (found.estimated) line.classList.add("is-estimate");
+      line.textContent = t("shelf.known.short", "{share}% known", { share: found.percent });
+      return line;
     }
+    line.className = "meter row-meter" + (kind ? " " + kind : "");
     var fill = document.createElement("span");
     fill.style.setProperty("--done", String(Math.max(0, Math.min(1, share))));
     line.appendChild(fill);

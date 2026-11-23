@@ -2398,6 +2398,7 @@
   "nav.targums": "тексты",
   "nav.your-many": "Ваши",
   "shelf.known": "Вы знаете {share}% всего текста",
+  "shelf.known.short": "Знаю {share}%",
   "shelf.opened": "Открыто {when}",
   "shelf.in-playlists": "В плейлистах: {names}",
   "shelf.length.video": "{n} мин видео",

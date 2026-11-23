@@ -140,6 +140,8 @@ def test_a_row_says_what_the_text_is_at_a_glance(browser, tmp_path: Path) -> Non
     facts = first.locator(".book-facts").inner_text()
     tag = first.locator(".row-tag").inner_text()
     known = first.locator(".row-meter").get_attribute("aria-label")
+    figure = first.locator(".row-meter").inner_text()
+    bars = first.locator(".meter").count()
     end = first.locator(".row-end").inner_text()
     said = first.locator(".row-end").get_attribute("aria-label")
     statuses = page.locator("#library-list .fact-status").all_inner_texts()
@@ -150,6 +152,8 @@ def test_a_row_says_what_the_text_is_at_a_glance(browser, tmp_path: Path) -> Non
     assert "Bet" not in facts and "A2" not in facts
     assert tag.strip() == "Video"
     assert known == "You know 72% of the whole text"
+    # Said as a figure, never a bar: a full bar read as "finished" (David, 2026-11-23).
+    assert figure.strip() == "72% known" and bars == 0
     assert end.strip() == "7 hours ago" and said == "Uploaded 7 hours ago"
     assert "In Morning" in facts
     assert [one.strip() for one in statuses] == ["Finished", "3 of 6", "New"]
@@ -210,7 +214,7 @@ def test_on_a_phone_the_row_keeps_its_title_and_its_line(browser, tmp_path: Path
     first = page.locator("#library-list li").first
     pill = first.locator(".row-tag").is_visible()
     folded = first.locator(".fact-status").is_visible()
-    measured = page.locator("#library-list li .row-meter.meter").first
+    measured = page.locator("#library-list li .row-meter.row-known").first
     meter = measured.count() == 0 or measured.is_visible()
     plus = page.locator("#library-list li .add-to-list").first.is_visible()
     page.locator("#library-list .row-more").first.click()
