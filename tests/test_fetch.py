@@ -542,3 +542,28 @@ def test_a_poem_set_in_a_layout_table_is_read() -> None:
         "Мороз и солнце; день чудесный! Еще ты дремлешь, друг прелестный —",
         "Вечор, ты помнишь, вьюга злилась, На мутном небе мгла носилась;",
     ]
+
+
+def test_ru_wikisource_s_notes_and_commentary_are_cut_off_the_end() -> None:
+    """Стрекоза и Муравей came with 464 words of commentary and Демьянова уха with an
+    academic edition's notes and its key to abbreviations (2026-11-23): not the work,
+    and not in the public domain where the work is."""
+    from targum.ingest.fetch.wikisource import drop_trailing_navigation
+    from targum.models import BlockKind
+
+    heading, paragraph = BlockKind.heading, BlockKind.paragraph
+    page = [
+        (heading, 2, "Демьянова уха"),
+        (paragraph, 0, "«Соседушка, мой свет! Пожалуйста, покушай»."),
+        (heading, 2, "Примечания"),
+        (paragraph, 0, "По свидетельству близко знавшего Крылова М. Лобанова…"),
+        (heading, 2, "Расшифровка сокращений"),
+        (paragraph, 0, "ПД — рукописи, принадлежащие Академии наук СССР."),
+        (heading, 2, "Комментарии"),
+        (paragraph, 0, "…в разговорном языке XVIII века слово «стрекоза»…"),
+        (heading, 2, "Примечания редакторов Викитеки"),
+    ]
+    assert [text for _, _, text in drop_trailing_navigation(page)] == [
+        "Демьянова уха",
+        "«Соседушка, мой свет! Пожалуйста, покушай».",
+    ]
