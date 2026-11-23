@@ -6,6 +6,9 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Changed
+- A row in Your targums says how much of the text you know as a figure, "62% known"
+  («Знаю 62%»), where it drew a green bar (David, 2026-11-23): a full bar read as
+  finished, or as how far through the text. A text still being built keeps its bar.
 - How to mark a word Known by ear moved from Your Progress to Your Words (David,
   2026-11-18; design.md §12): "Know a word when you hear it but not when you read it?
   Open the word and press Known by ear." stands as a quiet note under the list's head
