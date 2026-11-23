@@ -833,6 +833,38 @@
   },
   {
     "stage": "lemma",
+    "corpus": "oshb-aramaic",
+    "metric": "emphatic_precision",
+    "system": "arc-state/1",
+    "at_least": 0.89,
+    "why": "0.9128 on 2026-11-23, first scored: the emphatic state read off the pointing (annotate/aramaic_state.py) against Open Scriptures' state letter over every word of the Aramaic of Daniel and Ezra; not held out, so a guard rather than an estimate. Aramaic's second hard spot (design.md §12, 2026-10-25)"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "oshb-aramaic",
+    "metric": "emphatic_recall",
+    "system": "arc-state/1",
+    "at_least": 0.87,
+    "why": "0.8934 on 2026-11-23, first scored: the same rule, the same words. Biblical Aramaic writes some emphatics with ה, which the rule leaves alone because Onkelos does not"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "oshb-aramaic",
+    "metric": "dalet_precision",
+    "system": "arc-particles/1",
+    "at_least": 0.96,
+    "why": "0.9829 on 2026-11-23, first scored: ד־ said where the hand table found a word with ד taken off, or the word דִּי, against Open Scriptures' lexeme 1768 over every word of the Aramaic of Daniel and Ezra. Mostly דִּי written apart, so a guard for Onkelos's prefix, not an estimate"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "oshb-aramaic",
+    "metric": "dalet_recall",
+    "system": "arc-particles/1",
+    "at_least": 0.98,
+    "why": "1.0 on 2026-11-23, first scored: the same rule, the same words"
+  },
+  {
+    "stage": "lemma",
     "corpus": "iahltknesset",
     "metric": "gender_accuracy",
     "system": "dicta/dicta-il/dictabert-joint",

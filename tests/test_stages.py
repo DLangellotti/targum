@@ -232,7 +232,7 @@ def test_every_hard_spot_list_is_five_to_eleven_or_empty_and_ranked_names_are_di
     for code, spots in HARD_SPOTS.items():
         assert len(spots) == 0 or 5 <= len(spots) <= 11, (code, len(spots))
         assert len({spot.name for spot in spots}) == len(spots), code
-    assert HARD_SPOTS["yi"] == () and HARD_SPOTS["arc"] == ()
+    assert HARD_SPOTS["yi"] == ()
 
 
 def test_a_covered_hard_spot_names_a_floor_that_exists() -> None:

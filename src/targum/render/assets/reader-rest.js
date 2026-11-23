@@ -148,6 +148,8 @@ window.targumReaderRest = function (R) {
     if (orderLens) orderLens.setAttribute("aria-pressed", name === "order" ? "true" : "false");
     if (vavLens) vavLens.setAttribute("aria-pressed", name === "vav" ? "true" : "false");
     if (suffixLens) suffixLens.setAttribute("aria-pressed", name === "suffix" ? "true" : "false");
+    if (stateLens) stateLens.setAttribute("aria-pressed", name === "state" ? "true" : "false");
+    if (particleLens) particleLens.value = name.indexOf("part-") === 0 ? name.slice(5) : "";
   }
 
   function showGoverned(on, quietly) {
@@ -286,6 +288,99 @@ window.targumReaderRest = function (R) {
   function toggleSuffix() {
     if (!suffixLens || suffixLens.hidden) return false;
     return showSuffix(body.getAttribute("data-lens") !== "suffix");
+  }
+
+  /* The state lens: every Aramaic word in the emphatic state, lit (design.md §12,
+   * "Aramaic's lenses", 2026-10-25). מַלְכָּא is "the king", and the "the" is the ending
+   * ־א: a reader from Hebrew looks for ה־ at the front and finds nothing there. */
+  var stateLens = document.querySelector("[data-state-lens]");
+  function stateCount() {
+    var count = 0;
+    Object.keys(wordData).forEach(function (segmentId) {
+      (wordData[segmentId] || []).forEach(function (token) {
+        if (token.length > 8 && feat(grammarTable[token[8]] || "", "State") === "Emph") count++;
+      });
+    });
+    return count;
+  }
+
+  function showState(on, quietly) {
+    if (!stateLens) return false;
+    if (on) lensOn("state");
+    else if (body.getAttribute("data-lens") === "state") lensOn("");
+    if (quietly) return true;
+    say(
+      on
+        ? cueOnce("state", t("reader.lens.state-cue", "Each word lit is in the emphatic state.")) ||
+            t("reader.lens.state-said", "The emphatic state, {n} here.", { n: stateCount() })
+        : t("reader.lens.none", "No lens shown.")
+    );
+    return true;
+  }
+
+  if (stateLens) {
+    stateLens.addEventListener("click", function () {
+      showState(body.getAttribute("data-lens") !== "state");
+    });
+  }
+
+  // `x` turns the state lens on and off, where the page has it and it is offered.
+  function toggleState() {
+    if (!stateLens || stateLens.hidden) return false;
+    return showState(body.getAttribute("data-lens") !== "state");
+  }
+
+  /* The particles lens: ד־ or ית, one at a time (design.md §12, "Aramaic's lenses",
+   * 2026-10-25). ד־ is "of, which, that, because" written onto the next word, where a
+   * reader from Hebrew takes it for a root letter; ית marks the object, as אֶת does. */
+  var particleLens = document.querySelector("[data-particle-lens]");
+  var PARTICLE_CUES = {
+    D: ["reader.lens.dalet-cue", "Each word lit starts with ד־: of, which, that or because."],
+    Yat: ["reader.lens.yat-cue", "Each word lit marks the object of its verb."],
+  };
+  var PARTICLE_SAID = {
+    D: ["reader.lens.dalet-said", "ד־, {n} here."],
+    Yat: ["reader.lens.yat-said", "ית, {n} here."],
+  };
+  function particleCount(name) {
+    var count = 0;
+    Object.keys(wordData).forEach(function (segmentId) {
+      (wordData[segmentId] || []).forEach(function (token) {
+        if (token.length > 8 && feat(grammarTable[token[8]] || "", "Particle") === name) count++;
+      });
+    });
+    return count;
+  }
+
+  function showParticle(name, quietly) {
+    if (!particleLens) return false;
+    if (name) lensOn("part-" + name);
+    else if ((body.getAttribute("data-lens") || "").indexOf("part-") === 0) lensOn("");
+    if (quietly) return true;
+    say(
+      name
+        ? cueOnce("part-" + name, t(PARTICLE_CUES[name][0], PARTICLE_CUES[name][1])) ||
+            t(PARTICLE_SAID[name][0], PARTICLE_SAID[name][1], { n: particleCount(name) })
+        : t("reader.lens.none", "No lens shown.")
+    );
+    return true;
+  }
+
+  if (particleLens) {
+    particleLens.addEventListener("change", function () {
+      showParticle(particleLens.value);
+    });
+  }
+
+  // `d` steps through ד־, ית and none, where the page has them and the lens is offered.
+  function nextParticle() {
+    if (!particleLens || particleLens.closest(".lens-row").hidden) return false;
+    var present = Array.prototype.map.call(particleLens.options, function (option) {
+      return option.value;
+    });
+    var on = body.getAttribute("data-lens") || "";
+    var at = present.indexOf(on.indexOf("part-") === 0 ? on.slice(5) : "");
+    return showParticle(present[(at + 1) % present.length]);
   }
 
   if (openedBefore || finishedAt()) offerLenses();
@@ -1460,6 +1555,12 @@ window.targumReaderRest = function (R) {
         break;
       case "e":
         if (!toggleSuffix()) return;
+        break;
+      case "x":
+        if (!toggleState()) return;
+        break;
+      case "d":
+        if (!nextParticle()) return;
         break;
       case "c":
         if (!nextCase()) return;
