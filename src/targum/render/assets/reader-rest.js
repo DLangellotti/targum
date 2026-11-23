@@ -148,6 +148,7 @@ window.targumReaderRest = function (R) {
     if (orderLens) orderLens.setAttribute("aria-pressed", name === "order" ? "true" : "false");
     if (vavLens) vavLens.setAttribute("aria-pressed", name === "vav" ? "true" : "false");
     if (suffixLens) suffixLens.setAttribute("aria-pressed", name === "suffix" ? "true" : "false");
+    if (stateLens) stateLens.setAttribute("aria-pressed", name === "state" ? "true" : "false");
   }
 
   function showGoverned(on, quietly) {
@@ -286,6 +287,46 @@ window.targumReaderRest = function (R) {
   function toggleSuffix() {
     if (!suffixLens || suffixLens.hidden) return false;
     return showSuffix(body.getAttribute("data-lens") !== "suffix");
+  }
+
+  /* The state lens: every Aramaic word in the emphatic state, lit (design.md §12,
+   * "Aramaic's lenses", 2026-10-25). מַלְכָּא is "the king", and the "the" is the ending
+   * ־א: a reader from Hebrew looks for ה־ at the front and finds nothing there. */
+  var stateLens = document.querySelector("[data-state-lens]");
+  function stateCount() {
+    var count = 0;
+    Object.keys(wordData).forEach(function (segmentId) {
+      (wordData[segmentId] || []).forEach(function (token) {
+        if (token.length > 8 && feat(grammarTable[token[8]] || "", "State") === "Emph") count++;
+      });
+    });
+    return count;
+  }
+
+  function showState(on, quietly) {
+    if (!stateLens) return false;
+    if (on) lensOn("state");
+    else if (body.getAttribute("data-lens") === "state") lensOn("");
+    if (quietly) return true;
+    say(
+      on
+        ? cueOnce("state", t("reader.lens.state-cue", "Each word lit is in the emphatic state.")) ||
+            t("reader.lens.state-said", "The emphatic state, {n} here.", { n: stateCount() })
+        : t("reader.lens.none", "No lens shown.")
+    );
+    return true;
+  }
+
+  if (stateLens) {
+    stateLens.addEventListener("click", function () {
+      showState(body.getAttribute("data-lens") !== "state");
+    });
+  }
+
+  // `x` turns the state lens on and off, where the page has it and it is offered.
+  function toggleState() {
+    if (!stateLens || stateLens.hidden) return false;
+    return showState(body.getAttribute("data-lens") !== "state");
   }
 
   if (openedBefore || finishedAt()) offerLenses();
@@ -1460,6 +1501,9 @@ window.targumReaderRest = function (R) {
         break;
       case "e":
         if (!toggleSuffix()) return;
+        break;
+      case "x":
+        if (!toggleState()) return;
         break;
       case "c":
         if (!nextCase()) return;

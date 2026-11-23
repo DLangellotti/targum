@@ -248,6 +248,9 @@ off and asking where the stress falls has an answer on the page (`pronounce.stre
 - **And by:** `scripts/eval_pronoun_suffixes.py` (`lemma/oshb-suffixes`, targum-internal
   #450), which scores the pronoun-suffix reading against OSHB's `Sp` codes outside the
   Torah. Nothing is trained.
+- **And by:** `scripts/eval_aramaic_state.py` (`lemma/oshb-aramaic`), which scores
+  Aramaic's emphatic state read off the pointing against OSHB's state letter in the
+  Aramaic of Daniel and Ezra (design.md §12, 2026-10-25). Nothing is trained.
 
 ## Wiktionary Russian examples
 

@@ -139,7 +139,8 @@ class HardSpot:
     #: `annotate.vav_consecutive`), "pieces:suffixes" (read off the pieces line and the
     #: word's letters, `annotate.suffixes`), "lookup:false_friends"
     #: (`annotate.false_friends`), "rule:french_register" (read off the words,
-    #: `annotate.french_register`), or "none".
+    #: `annotate.french_register`), "pointing:aramaic_state" (read off the pointed text,
+    #: `annotate.aramaic_state`), or "none".
     computed: str
     #: "card", "lens", "marks" (in the text), "pieces" (the pieces line), or "none".
     shown: str
@@ -507,7 +508,26 @@ HARD_SPOTS: dict[str, tuple[HardSpot, ...]] = {
     ),
     # No list yet: a list is written when somebody who reads the language can review it.
     "yi": (),
-    "arc": (),
+    # The research's seven (ling-arc, 2026-10-25), ranked by how much each blocks a reader,
+    # and taken by design.md §12 ("Aramaic has a hard-spot list"). The emphatic state is
+    # the first covered: read off Onkelos's pointing (`annotate.aramaic_state`), lit by
+    # the state lens and scored on Open Scriptures' state letter in Daniel and Ezra. The
+    # rest are named and not yet covered; the list does not move the badge.
+    "arc": (
+        HardSpot("prefixed particles and ד־", "none", "none", None, lens=True),
+        HardSpot(
+            "emphatic, absolute and construct state",
+            "pointing:aramaic_state",
+            "lens",
+            ("arc-state/1", "oshb-aramaic", "emphatic_precision"),
+            lens=True,
+        ),
+        HardSpot("suffixes on nouns, prepositions and ית", "none", "none", None, lens=True),
+        HardSpot("the participle as present, its enclitics and קא", "none", "none", None),
+        HardSpot("the verb stems", "none", "none", None),
+        HardSpot("abbreviations and roshei teivot", "none", "none", None),
+        HardSpot("the argument terms and the move each makes", "none", "none", None),
+    ),
 }
 
 #: Which languages the box can build a new text in with no laptop in the loop. A

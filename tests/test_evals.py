@@ -245,11 +245,13 @@ def test_a_stage_measured_two_ways_names_both_rather_than_picking() -> None:
     # Three since the vav-consecutive rule's eval (targum-internal#449, 2026-10-21), and
     # four since the pronoun suffixes' (targum-internal#450, the same day), five since the
     # construct state's (targum-internal#454), six since the passé composé against the
-    # imparfait's (targum-internal#644).
+    # imparfait's (targum-internal#644), seven since Aramaic's emphatic state's
+    # (design.md §12, "Aramaic's lenses").
     with pytest.raises(
         ValueError,
         match=(
-            "lemma/iahlt, lemma/oshb, lemma/oshb-construct, lemma/oshb-suffixes, "
+            "lemma/iahlt, lemma/oshb, lemma/oshb-aramaic, lemma/oshb-construct, "
+            "lemma/oshb-suffixes, "
             "lemma/pc-imparfait, lemma/ud"
         ),
     ):

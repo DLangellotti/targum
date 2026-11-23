@@ -98,6 +98,9 @@ SCRIPTS = {
     "lemma/oshb-suffixes": "eval_pronoun_suffixes.py",
     # The construct state from OSHB's state letter, on the build's token (#454).
     "lemma/oshb-construct": "eval_construct_state.py",
+    # Aramaic's emphatic state read off the pointing, against OSHB's state letter in
+    # Daniel and Ezra (design.md §12, "Aramaic's lenses").
+    "lemma/oshb-aramaic": "eval_aramaic_state.py",
     # The pointing's stress rules for modern text, against the accents (#454, #500).
     "stress/tanakh-segolate": "eval_segolate.py",
     "align": "eval_align.py",

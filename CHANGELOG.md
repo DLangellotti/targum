@@ -328,6 +328,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   B2+, and French's rows as the box has them.
 
 ### Added
+- Aramaic's first hard spot is covered: the emphatic state, the ending ־א that says "the"
+  (אַרְעָא, "the earth"). Read off Onkelos's pointing (`annotate/aramaic_state.py`), lit by
+  a new lens on Aramaic pages (`x`), and scored against Open Scriptures' state letter in
+  the Aramaic of Daniel and Ezra: precision 0.913, recall 0.893, with floors. Aramaic's
+  seven hard spots are listed in `stages.HARD_SPOTS` (design.md §12, 2026-10-25); the
+  other six are named and not yet covered.
 - `scripts/voice_scenes.py` gives the director 4,096 tokens of answer: 1,024 ran out near 80
   turns, and French's A2 scenes run to 72. Only what is written is billed.
 - `how_much_i_understand`, a connector and chat tool under the `record` scope

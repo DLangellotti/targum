@@ -277,6 +277,14 @@
         <span class="m-icon" aria-hidden="true"><svg viewBox="0 0 16 16" focusable="false"><circle cx="7" cy="7" r="4.25"></circle><path d="M10.25 10.25 14 14"></path></svg></span>
         <span class="m-label aa-name">{{ t("reader.page.pronoun-endings", "Pronoun endings") }}</span><span class="sw" aria-hidden="true"></span></button>
       {% endif %}
+      {#- The state lens: every Aramaic word in the emphatic state, whose ending says "the"
+          (design.md §12, "Aramaic's lenses", 2026-10-25). -#}
+      {% if emphatics %}
+      <button type="button" class="m-row aa-switch lens-row" data-state-lens aria-pressed="false" hidden
+              title="{{ t("reader.page.show-the-emphatic-state-x", "Show the emphatic state (x)") }}">
+        <span class="m-icon" aria-hidden="true"><svg viewBox="0 0 16 16" focusable="false"><circle cx="7" cy="7" r="4.25"></circle><path d="M10.25 10.25 14 14"></path></svg></span>
+        <span class="m-label aa-name">{{ t("reader.page.emphatic-state", "Emphatic state") }}</span><span class="sw" aria-hidden="true"></span></button>
+      {% endif %}
       {% if cases %}
       <label class="m-row aa-row lens-row" hidden>
         <span class="m-icon" aria-hidden="true"><svg viewBox="0 0 16 16" focusable="false"><circle cx="7" cy="7" r="4.25"></circle><path d="M10.25 10.25 14 14"></path></svg></span>
@@ -1497,6 +1505,7 @@
     {% if orders %}<dt>w</dt><dd>{{ t("reader.page.subjects-after-their-verb-lower", "subjects after their verb") }}</dd>{% endif %}
     {% if vavs %}<dt>y</dt><dd>{{ t("reader.page.narrative-past-lower", "the narrative past") }}</dd>{% endif %}
     {% if suffixes %}<dt>e</dt><dd>{{ t("reader.page.pronoun-endings-lower", "pronoun endings") }}</dd>{% endif %}
+    {% if emphatics %}<dt>x</dt><dd>{{ t("reader.page.emphatic-state-lower", "the emphatic state") }}</dd>{% endif %}
     {% if said %}<dt>n</dt><dd>{{ t("said.key", "the French as said") }}</dd>{% endif %}
     {% if has_nikkud %}<dt>n</dt><dd>{% if stress_marks %}{{ t("reader.page.key-stress-marks", "stress marks") }}{% else %}{{ t("reader.page.key-vowel-points", "vowel points") }}{% endif %}</dd>{% endif %}
     {% if has_taamim %}<dt>a</dt><dd>{{ t("reader.page.the-chanting-marks-with-the-vowels-on", "the chanting marks, with the vowels on") }}</dd>{% endif %}

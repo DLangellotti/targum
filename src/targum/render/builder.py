@@ -3630,6 +3630,20 @@ def _vav_line(biblical: bool, token: Token, text: str) -> str:
     return "Vav=Cons" if consecutive(text[token.start : token.end]) else ""
 
 
+def _state_line(aramaic: bool, token: Token, text: str) -> str:
+    """`State=Emph` for an Aramaic word in the emphatic state, which the state lens lights:
+    Aramaic's second hard spot (design.md §12, "Aramaic's lenses", 2026-10-25). מַלְכָּא is
+    "the king", and the "the" is the ending, where a reader from Hebrew looks for ה־.
+
+    Read off the pointed text the page carries (`annotate.aramaic_state`), so Onkelos shows
+    it without being annotated again. A name is never lit: its state is not the point."""
+    if not aramaic or token.entity or token.pos == "PROPN":
+        return ""
+    from ..annotate.aramaic_state import emphatic
+
+    return "State=Emph" if emphatic(text[token.start : token.end]) else ""
+
+
 def _suffix_line(hebrew: bool, token: Token, text: str) -> str:
     """`Pron=before them` for a Hebrew word with a pronoun on the end, which the card says
     and the suffix lens lights: Hebrew's ninth hard spot (targum-internal#450, 2026-10-21).
@@ -7625,6 +7639,12 @@ def render(
             segment.id: segment.language_in(segmented.language).split("-")[0].lower() == "he"
             for segment in segmented.segments
         }
+        # And which are Aramaic, for the state lens: Onkelos, and the Aramaic of Daniel and
+        # Ezra inside their Hebrew books (design.md §12, "Aramaic's lenses").
+        aramaic_at = {
+            segment.id: segment.language_in(segmented.language).split("-")[0].lower() == "arc"
+            for segment in segmented.segments
+        }
         # Whether a subject after its verb is looked for: Russian alone, where the case
         # says who did it and the order is free (`annotate.word_order`).
         ordered = segmented.language.split("-")[0].lower() == "ru"
@@ -7816,6 +7836,7 @@ def render(
                             said_with.get(id(token), ""),
                             _vav_line(biblical, token, as_written.get(sid, "")),
                             _suffix_line(hebrew_at.get(sid, False), token, as_written.get(sid, "")),
+                            _state_line(aramaic_at.get(sid, False), token, as_written.get(sid, "")),
                         )
                         if part
                     )
@@ -8158,6 +8179,9 @@ def render(
             # The suffix lens, on a Hebrew page with a pronoun on the end of a word
             # (targum-internal#450).
             suffixes=any("Pron=" in line for line in grammar),
+            # The state lens, on a page of Aramaic with a word in the emphatic state
+            # (design.md §12, "Aramaic's lenses", 2026-10-25).
+            emphatics=any("State=Emph" in line for line in grammar),
             # CC BY asks to be named where the work is used, and the words are used in
             # the reader, so the naming goes in the reader rather than in a file about
             # the reader. Keyed off what actually ran: a text annotated before the swap

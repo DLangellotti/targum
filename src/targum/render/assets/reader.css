@@ -984,12 +984,14 @@ body[data-case="Loc"] .w.case-Loc {
    The word-order lens likewise: a Russian subject standing after its verb ("Subjects
    after their verb, on a lens"). And the vav lens: a vav-consecutive on a Biblical page
    (targum-internal#449). And the suffix lens: a word with a pronoun on the end
-   (targum-internal#450). */
+   (targum-internal#450). And the state lens: an Aramaic word in the emphatic state
+   (design.md §12, "Aramaic's lenses"). */
 body[data-lens="governed"] .w.gov-verb,
 body[data-lens="governed"] .w.gov-arg,
 body[data-lens="order"] .w.late-subject,
 body[data-lens="vav"] .w.vav-cons,
-body[data-lens="suffix"] .w.pron-end {
+body[data-lens="suffix"] .w.pron-end,
+body[data-lens="state"] .w.emph {
   background: color-mix(in srgb, var(--accent) 20%, transparent);
   text-decoration: underline dotted var(--accent);
   text-decoration-thickness: 2px;

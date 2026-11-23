@@ -8666,3 +8666,95 @@ def test_a_line_heard_first_is_played_without_its_text(scene) -> None:
     scene.wait_for_timeout(250)
     plays = scene.evaluate("() => window.__plays")
     assert plays and all(p["text"] is False for p in plays), plays
+
+
+#: Onkelos Genesis 1:1 as Sefaria prints it.
+ONKELOS_1_1 = "בְּקַדְמִין בְּרָא יְיָ יָת שְׁמַיָּא וְיָת אַרְעָא׃"
+
+
+def onkelos_1_1(out: Path, language: str = "arc") -> Path:
+    """Onkelos Genesis 1:1, a page of Aramaic, every word a token the way the Aramaic
+    annotator leaves them: no part of speech, nothing tagged."""
+    segment = Segment(
+        id="0000.000-aaaaaa",
+        block_id="b0000",
+        block_index=0,
+        index=0,
+        kind=BlockKind.verse,
+        text=ONKELOS_1_1,
+        ref="Onkelos Genesis 1:1",
+    )
+    tokens = [
+        Token(
+            start=found.start(), end=found.end(), surface=found.group(), lemma=found.group(), band=2
+        )
+        for found in re.finditer(r"[^\s׃־]+", ONKELOS_1_1)
+    ]
+    return render(
+        Document(
+            source="sefaria:arc:Genesis 1",
+            title="Onkelos Genesis 1:1",
+            language=language,
+            blocks=[Block(id="b0000", kind=BlockKind.verse, text=ONKELOS_1_1)],
+            content_hash="o",
+        ),
+        SegmentedDocument(
+            document_hash="o", language=language, segmenter="test/1", segments=[segment]
+        ),
+        [
+            Translation(
+                name="English",
+                document_hash="o",
+                source_language=language,
+                target_language="en",
+                provider="null",
+                segments={
+                    segment.id: "In the beginning the LORD created the heavens and the earth."
+                },
+            )
+        ],
+        out,
+        annotation=Annotation(
+            document_hash="o",
+            language=language,
+            annotator="test/1",
+            method="frequency",
+            method_note="a test",
+            tokens={segment.id: tokens},
+        ),
+    )[0]
+
+
+def test_the_state_lens_lights_the_emphatic_and_not_the_verb_beside_it(
+    browser, tmp_path: Path
+) -> None:
+    """Aramaic's state lens (design.md §12, "Aramaic's lenses", 2026-10-25): hidden on a
+    first read, `x` lights שְׁמַיָּא and אַרְעָא, whose ending says "the", and not בְּרָא,
+    "created", which ends the same way; it says once what it shows."""
+    context, page = open_reader(browser, onkelos_1_1(tmp_path / "onkelos"))
+    lens = "[data-state-lens]"
+    assert page.evaluate(f"() => document.querySelector('{lens}').hidden"), "not on a first read"
+    page.keyboard.press("x")
+    assert page.evaluate(GOVERNED_SHOWN) == []
+    page.click("#done-go")
+    page.keyboard.press("x")
+    lit = page.evaluate(GOVERNED_SHOWN)
+    assert len(lit) == 2 and not any(
+        "ברא" in word.replace("ְ", "").replace("ּ", "").replace("ָ", "") for word in lit
+    ), lit
+    said = page.evaluate("() => document.getElementById('spoken').textContent")
+    assert said == "Each word lit is in the emphatic state."
+    assert page.evaluate(LENS_STATE, lens) == ["state", None, "true"]
+    page.keyboard.press("x")
+    assert page.evaluate(LENS_STATE, lens) == [None, None, "false"]
+    page.keyboard.press("x")
+    said = page.evaluate("() => document.getElementById('spoken').textContent")
+    assert said == "The emphatic state, 2 here.", "the cue is said once"
+    context.close()
+
+
+def test_a_hebrew_page_has_no_state_lens(browser, tmp_path: Path) -> None:
+    """The same words on a page that is not Aramaic are not this spot."""
+    context, page = open_reader(browser, onkelos_1_1(tmp_path / "hebrew", language="he"))
+    assert page.evaluate("() => document.querySelector('[data-state-lens]')") is None
+    context.close()

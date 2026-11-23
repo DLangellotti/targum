@@ -3414,6 +3414,9 @@ var targumReader = function () {
       if (feat(governedLine, "Vav") === "Cons") classes.push("vav-cons");
       // And a pronoun on the end, for the suffix lens (targum-internal#450).
       if (feat(governedLine, "Pron")) classes.push("pron-end");
+      // And an Aramaic word in the emphatic state, for the state lens (design.md §12,
+      // "Aramaic's lenses", 2026-10-25).
+      if (feat(governedLine, "State") === "Emph") classes.push("emph");
       var status = statusOf(lemma);
       layers.push({
         start: at(token[0]),
