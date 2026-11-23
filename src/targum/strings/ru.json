@@ -4773,6 +4773,7 @@
   "reader.page.pronoun-endings-lower": "местоимения на конце",
   "reader.lens.suffix-cue": "У каждого выделенного слова на конце местоимение.",
   "reader.lens.suffix-said": "Местоимения на конце: {n} здесь.",
+  "reader.lens.ending-cue": "Каждое выделенное окончание говорит, чьё это или кого.",
   "reader.page.show-the-emphatic-state-x": "Показать определённое состояние (x)",
   "reader.page.emphatic-state": "Определённое состояние",
   "reader.page.emphatic-state-lower": "определённое состояние",

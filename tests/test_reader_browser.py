@@ -8673,7 +8673,7 @@ def test_a_line_heard_first_is_played_without_its_text(scene) -> None:
 ONKELOS_1_1 = "בְּקַדְמִין בְּרָא יְיָ יָת שְׁמַיָּא וְיָת אַרְעָא חִוְיָא דִּי עֲבַד יְיָ דְאַרְעָא׃"
 
 
-def onkelos_1_1(out: Path, language: str = "arc") -> Path:
+def onkelos_1_1(out: Path, language: str = "arc", text: str = ONKELOS_1_1) -> Path:
     """Onkelos as the shelf builds it: the verse pointed as its edition writes it, read by
     the Aramaic annotator on the bare text and its offsets carried back onto the pointed
     one, as `annotate.Annotator` does."""
@@ -8687,11 +8687,11 @@ def onkelos_1_1(out: Path, language: str = "arc") -> Path:
         block_index=0,
         index=0,
         kind=BlockKind.verse,
-        text=ONKELOS_1_1,
+        text=text,
         ref="Onkelos Genesis 1:1",
     )
-    plain = segment.model_copy(update={"text": strip_nikkud(ONKELOS_1_1)[0]})
-    at = pointed_positions(ONKELOS_1_1)
+    plain = segment.model_copy(update={"text": strip_nikkud(text)[0]})
+    at = pointed_positions(text)
     tokens = [
         token.model_copy(
             update=dict(zip(("start", "end"), map_span(token.start, token.end, at), strict=True))
@@ -8708,7 +8708,7 @@ def onkelos_1_1(out: Path, language: str = "arc") -> Path:
             source="sefaria:arc:Genesis 1",
             title="Onkelos Genesis 1:1",
             language=language,
-            blocks=[Block(id="b0000", kind=BlockKind.verse, text=ONKELOS_1_1)],
+            blocks=[Block(id="b0000", kind=BlockKind.verse, text=text)],
             content_hash="o",
         ),
         SegmentedDocument(
@@ -8799,4 +8799,35 @@ def test_the_particles_lens_lights_dalet_then_yat_one_at_a_time(browser, tmp_pat
     page.keyboard.press("d")
     page.keyboard.press("x")
     assert page.evaluate("() => document.querySelector('[data-particle-lens]').value") == ""
+    context.close()
+
+
+#: Whether each lit ending sits beside its own stem, the two slices one word.
+SAME_WORD = """
+() => [...document.querySelectorAll('.w.arc-ending')].map((e) => {
+  const stem = e.previousElementSibling;
+  return Boolean(stem) && stem.dataset.lemma === e.dataset.lemma;
+})
+"""
+
+#: Onkelos Genesis 37:4, with pronouns on the ends of its words.
+ONKELOS_37_4 = "וַחֲזוֹ אֲחוֹהִי אֲרֵי יָתֵיהּ רְחֵים אֲבוּהוֹן מִכָּל אֲחוֹהִי וּסְנוֹ יָתֵיהּ׃"
+
+
+def test_the_suffix_lens_lights_an_aramaic_ending_and_leaves_the_stem_plain(
+    browser, tmp_path: Path
+) -> None:
+    """design.md §12, "Aramaic's lenses": "the suffix is lit, and its stem is left plain".
+    The word is drawn in two slices, still one word to tap."""
+    path = onkelos_1_1(tmp_path / "onkelos", text=ONKELOS_37_4)
+    context, page = open_reader(browser, path)
+    page.click("#done-go")
+    page.keyboard.press("e")
+    lit = page.evaluate(GOVERNED_SHOWN)
+    assert _bare(lit) == ["והי", "יה", "הונ", "והי", "יה"], lit
+    said = page.evaluate("() => document.getElementById('spoken').textContent")
+    assert said == "Each ending lit says whose, or whom."
+    # The stem and the ending are one word: tapping the stem opens that word's card.
+    lemmas = page.evaluate(SAME_WORD)
+    assert all(lemmas) and lemmas, lemmas
     context.close()

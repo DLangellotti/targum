@@ -993,13 +993,19 @@ body[data-lens="vav"] .w.vav-cons,
 body[data-lens="suffix"] .w.pron-end,
 body[data-lens="state"] .w.emph,
 body[data-lens="part-D"] .w.part-d,
-body[data-lens="part-Yat"] .w.part-yat {
+body[data-lens="part-Yat"] .w.part-yat,
+body[data-lens="suffix"] .w.arc-ending {
   background: color-mix(in srgb, var(--accent) 20%, transparent);
   text-decoration: underline dotted var(--accent);
   text-decoration-thickness: 2px;
   text-underline-offset: 0.2em;
 }
 .lens-row[hidden] { display: none; }
+/* An Aramaic word with a pronoun on the end is drawn in two slices, so the suffix lens can
+   light the ending alone; the corners where they meet stay square, or a word with a wash
+   behind it would show a seam. */
+.w.arc-ending { border-start-start-radius: 0; border-end-start-radius: 0; }
+.w:has(+ .w.arc-ending) { border-start-end-radius: 0; border-end-end-radius: 0; }
 
 /* --- phrases you picked out ---------------------------------------------- */
 

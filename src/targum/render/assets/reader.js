@@ -3422,6 +3422,12 @@ var targumReader = function () {
       if (particle === "D") classes.push("part-d");
       else if (particle === "Yat") classes.push("part-yat");
       var status = statusOf(lemma);
+      // An Aramaic pronoun on the end, for the suffix lens: the ending its own slice, so
+      // the lens can light it and leave the stem plain (design.md §12, "Aramaic's lenses").
+      var ending = Number(feat(governedLine, "Ending")) || 0;
+      if (ending > 0 && ending < token[1] - token[0]) {
+        layers.push({ start: at(token[1] - ending), end: at(token[1]), classes: ["arc-ending"] });
+      }
       layers.push({
         start: at(token[0]),
         end: at(token[1]),

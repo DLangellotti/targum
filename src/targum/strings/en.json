@@ -4537,6 +4537,7 @@
   "reader.page.pronoun-endings-lower": "pronoun endings",
   "reader.lens.suffix-cue": "Each word lit has a pronoun on the end.",
   "reader.lens.suffix-said": "Pronoun endings, {n} here.",
+  "reader.lens.ending-cue": "Each ending lit says whose, or whom.",
   "reader.page.show-the-emphatic-state-x": "Show the emphatic state (x)",
   "reader.page.emphatic-state": "Emphatic state",
   "reader.page.emphatic-state-lower": "the emphatic state",

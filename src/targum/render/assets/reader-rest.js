@@ -258,7 +258,8 @@ window.targumReaderRest = function (R) {
     var count = 0;
     Object.keys(wordData).forEach(function (segmentId) {
       (wordData[segmentId] || []).forEach(function (token) {
-        if (token.length > 8 && feat(grammarTable[token[8]] || "", "Pron")) count++;
+        var line = token.length > 8 ? grammarTable[token[8]] || "" : "";
+        if (feat(line, "Pron") || feat(line, "Ending")) count++;
       });
     });
     return count;
@@ -271,7 +272,12 @@ window.targumReaderRest = function (R) {
     if (quietly) return true;
     say(
       on
-        ? cueOnce("suffix", t("reader.lens.suffix-cue", "Each word lit has a pronoun on the end.")) ||
+        ? cueOnce(
+            "suffix",
+            document.querySelector(".w.arc-ending")
+              ? t("reader.lens.ending-cue", "Each ending lit says whose, or whom.")
+              : t("reader.lens.suffix-cue", "Each word lit has a pronoun on the end.")
+          ) ||
             t("reader.lens.suffix-said", "Pronoun endings, {n} here.", { n: suffixCount() })
         : t("reader.lens.none", "No lens shown.")
     );
