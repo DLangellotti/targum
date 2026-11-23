@@ -6,6 +6,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- Pictures of one text go up in the order their names count, numbers read as numbers,
+  not in the order the file picker hands them over (bug report, 2026-11-23). Nine pages
+  sent from a phone, named …104 to …112, arrived 107, 108, 104, 105, 106, 109, 112, 111,
+  110 and were read so, with the chapter's opening third (`bring.js` `inNameOrder`).
 - A pointed upload with a page read without its marks gets that page pointed (bug
   report, 2026-11-23). A photographed children's book came back with one page's five
   paragraphs bare between pages pointed throughout, and they stayed bare: a text that
