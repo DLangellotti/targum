@@ -201,6 +201,20 @@
 .parts-offline .offline-go:hover { color: var(--ink); }
 .parts-offline .m-icon svg { inline-size: 16px; block-size: 16px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; }
 .parts .whole { margin: 1rem 0 0; font-size: 0.875rem; }
+.parts-bin { margin: 0.75rem 0 0; font-size: 0.875rem; color: var(--ink-soft); }
+.parts-bin[hidden] { display: none; }
+.parts-bin button {
+  min-block-size: 2rem;
+  padding: 0.2rem 0;
+  border: 0;
+  background: none;
+  color: var(--ink-soft);
+  font: inherit;
+  cursor: pointer;
+}
+.parts-bin button:hover { color: var(--ink); }
+.parts-bin .restore { color: var(--teal); font-weight: 600; }
+.parts-bin button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--radius-control); }
 .parts .whole[hidden] { display: none; }
 .parts .whole button,
 .parts-row .get {
@@ -455,6 +469,7 @@
   .parts-book .parts-known,
   .parts-book .parts-go,
   .parts-book .whole,
+  .parts-book .parts-bin,
   .parts-tanakh .parts-byline,
   .parts-tanakh .parts-facts,
   .parts-tanakh .parts-known,

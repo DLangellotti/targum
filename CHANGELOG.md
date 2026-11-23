@@ -6,6 +6,9 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- A text of your own can be deleted from its own page (bug report, 2026-11-23). A
+  reader looked for Delete beside Save for offline, and it was only under the ⋯ on Your
+  targums, which a desk draws on hover. The same press: to Trash, with Undo in place.
 - A Hebrew recording's previous and next links read each part's clock from start to
   end (bug report, 2026-11-23). The part's name went into the pager bare, and in a
   right-to-left line "1:35:48–1:50:45" showed as 1:50:45–1:35:48. The next-up link
