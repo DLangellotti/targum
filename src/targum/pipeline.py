@@ -39,6 +39,7 @@ from .models import (
     is_biblical,
     keeps_its_own_pointing,
     read_artifact,
+    read_from_pictures,
 )
 from .renderings import commentary_ref, with_commentaries
 from .segment import HebrewSegmenter, Segmenter, segment_document
@@ -1242,7 +1243,9 @@ class Build:
             found[words_key(translation)] = words
         return found
 
-    def vocalize(self, segmented: SegmentedDocument) -> Vocalization | None:
+    def vocalize(
+        self, segmented: SegmentedDocument, *, read_from_pictures: bool = False
+    ) -> Vocalization | None:
         """The pointed form of each segment, for the reader's vowel toggle.
 
         Not asked for and not switched off: a Hebrew text gets the toggle, and one in any
@@ -1282,15 +1285,19 @@ class Build:
             # where its weights are on disk, Nakdimon otherwise. Chosen but not loaded —
             # loading is the engine's own business and happens only if it runs.
             engine = vocalize_module.for_source(self.source, notify=self.notify)
-        elif engine is None and any(
-            vocalize_module.wholly_bare(segment) for segment in segmented.segments
+        elif (
+            engine is None
+            and read_from_pictures
+            and any(vocalize_module.wholly_bare(segment) for segment in segmented.segments)
         ):
-            # Mostly pointed, and still with whole sentences bare. Not an edition (those
-            # keep their own pointing above), so not an editor's choice: a reading that
-            # lost its marks. A photographed children's book came back with one page's
-            # five paragraphs bare, and they stayed bare, because a text this pointed was
+            # Mostly pointed, and still with whole sentences bare, in a text a model read
+            # off photographs: a reading that lost its marks, not a page printed without
+            # them. A photographed children's book came back with one page's five
+            # paragraphs bare, and they stayed bare, because a text this pointed was
             # taken to have been published so (2026-11-23). Those sentences, and only
-            # those, are pointed; the page's own marks are never touched.
+            # those, are pointed; the page's own marks are never touched. A text read
+            # from its own file keeps a bare line as the file has it: there, as in an
+            # edition, it is somebody's choice.
             engine = vocalize_module.for_source(self.source, notify=self.notify)
             only_bare = True
         if not self.force:
@@ -2755,7 +2762,9 @@ class Build:
 
         # Vowels first. The bands do not need them, but the reading of each word is
         # worked out from them, and a stage cannot use what has not run yet.
-        vocalization = self.vocalize(segmented)
+        vocalization = self.vocalize(
+            segmented, read_from_pictures=read_from_pictures(plan.document.ingester)
+        )
         annotation = self.annotate(segmented, vocalization, only=only)
         if annotation is not None:
             # The lemmas the page will show, so the meanings bought for it are theirs: a

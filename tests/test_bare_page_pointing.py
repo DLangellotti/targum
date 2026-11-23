@@ -55,12 +55,18 @@ def book(*texts: str) -> SegmentedDocument:
     )
 
 
-def pointed_by(source: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *texts: str):
+def pointed_by(
+    source: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *texts: str,
+    pictures: bool = True,
+):
     engine = Diacritizer()
     monkeypatch.setattr(vocalize_module, "for_source", lambda *_a, **_k: engine)
     build = Build(source, target_language="en", provider_name="null", out=tmp_path / "book")
     build._resolved_out = tmp_path / "book"
-    return engine, build.vocalize(book(*texts))
+    return engine, build.vocalize(book(*texts), read_from_pictures=pictures)
 
 
 def test_a_bare_page_in_a_pointed_upload_is_pointed(
@@ -85,3 +91,73 @@ def test_an_edition_keeps_its_bare_sentences(
     )
     assert engine.asked == []
     assert result is not None and "s3" not in result.segments
+
+
+def test_a_bare_line_in_a_text_read_from_its_own_file_stays_bare(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ben-Yehuda's pages carry a bare line or two of their own: the file has them so."""
+    engine, result = pointed_by(
+        "https://benyehuda.org/read/1",
+        tmp_path,
+        monkeypatch,
+        POINTED,
+        POINTED,
+        POINTED,
+        BARE,
+        pictures=False,
+    )
+    assert engine.asked == []
+    assert result is not None and "s3" not in result.segments
+
+
+def test_the_rebuild_points_a_photographed_book_s_bare_page(tmp_path: Path) -> None:
+    """The book already on the shelf: the next deploy's `rebuild --words` mends it."""
+    from targum import cli
+    from targum.models import Block, BlockKind, Document, Translation, Vocalization
+
+    folder = tmp_path / "3-he"
+    folder.mkdir()
+    texts = (POINTED, POINTED, BARE)
+    document = Document(
+        source="/uploads/4ffd65",
+        title="ספר",
+        language="he",
+        ingester="picture/2",
+        content_hash="c",
+        source_hash="s",
+        blocks=[
+            Block(id=f"b{i}", kind=BlockKind.paragraph, text=text) for i, text in enumerate(texts)
+        ],
+    )
+    document.write(folder / "document.json")
+    segmented = book(*texts)
+    segmented.write(folder / "segments.json")
+    Vocalization(
+        document_hash=segmented.document_hash,
+        language="he",
+        vocalizer="source",
+        segments={"s0": POINTED, "s1": POINTED},
+    ).write(folder / "vocalization.json")
+    (folder / "translations").mkdir()
+    Translation(
+        name="null",
+        document_hash=segmented.document_hash,
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={f"s{i}": "A line." for i in range(len(texts))},
+    ).write(folder / "translations" / "null.natural.en.json")
+    engine = Diacritizer()
+
+    title, _written = cli.rebuild_one(
+        folder,
+        reads=None,
+        covers=tmp_path / "thumbs",
+        vocalize=lambda _document: engine,  # type: ignore[arg-type,return-value]
+    )
+    assert title == "ספר"
+    after = Vocalization.model_validate_json((folder / "vocalization.json").read_text())
+    assert engine.asked == ["s2"]
+    assert has_nikkud(after.segments["s2"]) and after.machine == ["s2"]
+    assert after.segments["s0"] == POINTED
