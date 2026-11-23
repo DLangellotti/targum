@@ -1271,6 +1271,7 @@ class Build:
             return vocalization
 
         engine = self._vocalizer
+        only_bare = False
         if keeps_its_own_pointing(self.source):
             # Not merely unused: never loaded. A diacritizer has nothing to offer a text
             # it must not touch, and the ONNX model costs a second and a few hundred
@@ -1281,6 +1282,17 @@ class Build:
             # where its weights are on disk, Nakdimon otherwise. Chosen but not loaded —
             # loading is the engine's own business and happens only if it runs.
             engine = vocalize_module.for_source(self.source, notify=self.notify)
+        elif engine is None and any(
+            vocalize_module.wholly_bare(segment) for segment in segmented.segments
+        ):
+            # Mostly pointed, and still with whole sentences bare. Not an edition (those
+            # keep their own pointing above), so not an editor's choice: a reading that
+            # lost its marks. A photographed children's book came back with one page's
+            # five paragraphs bare, and they stayed bare, because a text this pointed was
+            # taken to have been published so (2026-11-23). Those sentences, and only
+            # those, are pointed; the page's own marks are never touched.
+            engine = vocalize_module.for_source(self.source, notify=self.notify)
+            only_bare = True
         if not self.force:
             # Same text, and pointed by the same vocalizer that would run now. The name
             # is what lets a better diacritizer reach a text already built: a file that
@@ -1314,6 +1326,7 @@ class Build:
                     source=str(self.source),
                     known=known,
                     known_machine=known_machine,
+                    only_bare=only_bare,
                 )
             except TargumError as error:
                 # Vowels are a reading aid on top of a translation someone has already

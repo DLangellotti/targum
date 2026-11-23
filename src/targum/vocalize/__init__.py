@@ -30,6 +30,7 @@ from .base import (
     strip_taamim,
     supports,
     wants_pointing,
+    wholly_bare,
 )
 from .dicta import DictaVocalizer
 from .nakdimon import NakdimonVocalizer
@@ -61,6 +62,7 @@ __all__ = [
     "supports",
     "vocalize_document",
     "wants_pointing",
+    "wholly_bare",
 ]
 
 SOURCE_ONLY = "source"
@@ -138,6 +140,7 @@ def vocalize_document(
     source: str = "",
     known: Mapping[str, str] | None = None,
     known_machine: Collection[str] = (),
+    only_bare: bool = False,
 ) -> Vocalization:
     """The pointed form of every segment: the source's own pointing first, then a model.
 
@@ -169,6 +172,9 @@ def vocalize_document(
         if segment.kind not in LABELS
         and not is_fully_pointed(segment.text)
         and segment.id not in known
+        # A pointed text asks only about sentences with no marks at all: what its own
+        # pointing left bare inside a sentence stays as printed (`Build.vocalize`).
+        and (not only_bare or wholly_bare(segment))
     ]
     guesses: dict[str, str] = {}
     if engine is not None and unfinished:
