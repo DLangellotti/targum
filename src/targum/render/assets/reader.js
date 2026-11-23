@@ -3417,6 +3417,10 @@ var targumReader = function () {
       // And an Aramaic word in the emphatic state, for the state lens (design.md §12,
       // "Aramaic's lenses", 2026-10-25).
       if (feat(governedLine, "State") === "Emph") classes.push("emph");
+      // And ד־ or ית, for the particles lens.
+      var particle = feat(governedLine, "Particle");
+      if (particle === "D") classes.push("part-d");
+      else if (particle === "Yat") classes.push("part-yat");
       var status = statusOf(lemma);
       layers.push({
         start: at(token[0]),

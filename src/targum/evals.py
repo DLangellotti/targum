@@ -101,6 +101,8 @@ SCRIPTS = {
     # Aramaic's emphatic state read off the pointing, against OSHB's state letter in
     # Daniel and Ezra (design.md §12, "Aramaic's lenses").
     "lemma/oshb-aramaic": "eval_aramaic_state.py",
+    # ד־ read off the hand table's answer, against OSHB's דִּי (the same section).
+    "lemma/oshb-aramaic-particles": "eval_aramaic_particles.py",
     # The pointing's stress rules for modern text, against the accents (#454, #500).
     "stress/tanakh-segolate": "eval_segolate.py",
     "align": "eval_align.py",

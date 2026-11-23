@@ -246,11 +246,12 @@ def test_a_stage_measured_two_ways_names_both_rather_than_picking() -> None:
     # four since the pronoun suffixes' (targum-internal#450, the same day), five since the
     # construct state's (targum-internal#454), six since the passé composé against the
     # imparfait's (targum-internal#644), seven since Aramaic's emphatic state's
-    # (design.md §12, "Aramaic's lenses").
+    # (design.md §12, "Aramaic's lenses"), eight since ד־'s.
     with pytest.raises(
         ValueError,
         match=(
-            "lemma/iahlt, lemma/oshb, lemma/oshb-aramaic, lemma/oshb-construct, "
+            "lemma/iahlt, lemma/oshb, lemma/oshb-aramaic, lemma/oshb-aramaic-particles, "
+            "lemma/oshb-construct, "
             "lemma/oshb-suffixes, "
             "lemma/pc-imparfait, lemma/ud"
         ),

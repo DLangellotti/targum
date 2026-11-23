@@ -3644,6 +3644,19 @@ def _state_line(aramaic: bool, token: Token, text: str) -> str:
     return "State=Emph" if emphatic(text[token.start : token.end]) else ""
 
 
+def _particle_line(aramaic: bool, token: Token) -> str:
+    """`Particle=D` for an Aramaic word that is or starts with ד־, and `Particle=Yat` for
+    the object marker, which the particles lens lights one at a time (design.md §12,
+    "Aramaic's lenses", 2026-10-25). Read off what the annotator found: the hand table's
+    headword and the prefixes it took off (`annotate.aramaic_particles`)."""
+    if not aramaic:
+        return ""
+    from ..annotate.aramaic_particles import particle
+
+    said = particle(token)
+    return f"Particle={said}" if said else ""
+
+
 def _suffix_line(hebrew: bool, token: Token, text: str) -> str:
     """`Pron=before them` for a Hebrew word with a pronoun on the end, which the card says
     and the suffix lens lights: Hebrew's ninth hard spot (targum-internal#450, 2026-10-21).
@@ -7837,6 +7850,7 @@ def render(
                             _vav_line(biblical, token, as_written.get(sid, "")),
                             _suffix_line(hebrew_at.get(sid, False), token, as_written.get(sid, "")),
                             _state_line(aramaic_at.get(sid, False), token, as_written.get(sid, "")),
+                            _particle_line(aramaic_at.get(sid, False), token),
                         )
                         if part
                     )
@@ -8182,6 +8196,13 @@ def render(
             # The state lens, on a page of Aramaic with a word in the emphatic state
             # (design.md §12, "Aramaic's lenses", 2026-10-25).
             emphatics=any("State=Emph" in line for line in grammar),
+            # The particles lens, ד־ and ית one at a time, on a page of Aramaic that has
+            # either (design.md §12, "Aramaic's lenses").
+            particles=[
+                name
+                for name in ("D", "Yat")
+                if any(f"Particle={name}" in line.split("|") for line in grammar)
+            ],
             # CC BY asks to be named where the work is used, and the words are used in
             # the reader, so the naming goes in the reader rather than in a file about
             # the reader. Keyed off what actually ran: a text annotated before the swap

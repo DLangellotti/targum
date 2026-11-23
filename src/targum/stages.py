@@ -140,7 +140,8 @@ class HardSpot:
     #: word's letters, `annotate.suffixes`), "lookup:false_friends"
     #: (`annotate.false_friends`), "rule:french_register" (read off the words,
     #: `annotate.french_register`), "pointing:aramaic_state" (read off the pointed text,
-    #: `annotate.aramaic_state`), or "none".
+    #: `annotate.aramaic_state`), "lookup:aramaic_particles" (read off the hand table's
+    #: answer, `annotate.aramaic_particles`), or "none".
     computed: str
     #: "card", "lens", "marks" (in the text), "pieces" (the pieces line), or "none".
     shown: str
@@ -511,10 +512,18 @@ HARD_SPOTS: dict[str, tuple[HardSpot, ...]] = {
     # The research's seven (ling-arc, 2026-10-25), ranked by how much each blocks a reader,
     # and taken by design.md §12 ("Aramaic has a hard-spot list"). The emphatic state is
     # the first covered: read off Onkelos's pointing (`annotate.aramaic_state`), lit by
-    # the state lens and scored on Open Scriptures' state letter in Daniel and Ezra. The
-    # rest are named and not yet covered; the list does not move the badge.
+    # the state lens and scored on Open Scriptures' state letter in Daniel and Ezra; ד־
+    # the second, read off the hand table's answer (`annotate.aramaic_particles`) and lit
+    # by the particles lens beside ית. The rest are named and not yet covered; the list
+    # does not move the badge.
     "arc": (
-        HardSpot("prefixed particles and ד־", "none", "none", None, lens=True),
+        HardSpot(
+            "prefixed particles and ד־",
+            "lookup:aramaic_particles",
+            "lens",
+            ("arc-particles/1", "oshb-aramaic", "dalet_precision"),
+            lens=True,
+        ),
         HardSpot(
             "emphatic, absolute and construct state",
             "pointing:aramaic_state",
