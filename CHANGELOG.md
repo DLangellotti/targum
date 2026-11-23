@@ -6,6 +6,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- Pictures of one text go up in the order their names count, numbers read as numbers,
+  not in the order the file picker hands them over (bug report, 2026-11-23). Nine pages
+  sent from a phone, named …104 to …112, arrived 107, 108, 104, 105, 106, 109, 112, 111,
+  110 and were read so, with the chapter's opening third (`bring.js` `inNameOrder`).
 - ru.wikisource's apparatus after a work is cut off: its editors' notes, an edition's
   commentary and the key to its abbreviations (2026-11-23). Стрекоза и Муравей came
   with 464 words of commentary and Демьянова уха with a Soviet academic edition's notes,

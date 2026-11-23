@@ -147,13 +147,30 @@
 
   /* What the reader gave, sent up, as the fields `/prepare` takes: `{ upload }` for a
      recording or a PDF, `{ uploads }` for pictures — several at once are one text, in
-     the order chosen — `{ name, content }` for anything read whole, or `{ reader }`
+     the order their names count (`inNameOrder`) — `{ name, content }` for anything read whole, or `{ reader }`
      when the same bytes were already brought and the text is the answer. Rejects with
      a sentence. `tell(share)` hears the upload as a whole. */
+  /* Pictures of one text in the order their names count, numbers read as numbers: a
+     phone's and a camera's names count up in the order the pages were photographed, and
+     the picker's own order does not. Nine pages sent from a phone arrived 107, 108, 104,
+     105, 106, 109, 112, 111, 110, and the book was read with its chapter opening third
+     (2026-11-23). */
+  function inNameOrder(pictures) {
+    var compare =
+      typeof Intl !== "undefined" && Intl.Collator
+        ? new Intl.Collator(undefined, { numeric: true, sensitivity: "base" }).compare
+        : function (a, b) {
+            return a < b ? -1 : a > b ? 1 : 0;
+          };
+    return pictures.slice().sort(function (a, b) {
+      return compare(String(a.name || ""), String(b.name || ""));
+    });
+  }
+
   function upload(files, tell) {
     var chosen = listed(files);
     if (!chosen.length) return Promise.reject(t("bring.choose-first", "Choose a file first."));
-    var pictures = chosen.filter(isPicture);
+    var pictures = inNameOrder(chosen.filter(isPicture));
     if (pictures.length) {
       if (pictures.length !== chosen.length) {
         return Promise.reject(
@@ -793,6 +810,7 @@
     isPicture: isPicture,
     isPdf: isPdf,
     listed: listed,
+    inNameOrder: inNameOrder,
     upload: upload,
     start: start,
     door: door,

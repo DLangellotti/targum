@@ -20634,10 +20634,11 @@ class Handler(BaseHTTPRequestHandler):
     def _gathered(self, uploads: list[str]) -> Path:
         """Chunked uploads of pages, made into one source that stays.
 
-        A set of pictures is one text, in the order the reader chose them, and the
-        folder is the source: the first upload's folder keeps the lot, numbered, and
-        the others are emptied. The chunked door's own marks come off — `.meta.json`
-        is what the sweep eats after a day, and a document points back at this folder
+        A set of pictures is one text, in the order the page sent them (by name, in
+        `bring.js`), and the folder is the source: the first upload's folder keeps the
+        lot, numbered, and the others are emptied. The chunked door's own marks come
+        off — `.meta.json` is what the sweep eats after a day, and a document points
+        back at this folder
         for as long as it is on the shelf, the way the JSON door's uploads are kept.
         A lone PDF goes through the same motions so it, too, outlives the sweep.
         """
