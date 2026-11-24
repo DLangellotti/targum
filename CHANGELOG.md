@@ -12,6 +12,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   before the emphatic or a name. Each is lit only where the form says so: a singular
   absolute looks like its construct and stays plain. 0.90 and 0.94 precision on the
   Aramaic of Daniel and Ezra (`arc-state/2`).
+### Changed
+- Onkelos's commonest unanswered words have a meaning from the hand table now
+  (2026-11-24): 269 forms of 198 words, such as עוֹפָא "bird", תֵּבוֹתָא "ark" and חֶלְמָא
+  "dream", which went to the dictionary by spelling. Forms that are two words at once
+  stay out. The Aramaic annotator is `aramaic/2`, so every Aramaic text is read again
+  once, on the next deploy; no Hebrew text is.
 
 ### Fixed
 - "A first week of Onkelos" is on the Aramaic shelf as well as the Hebrew one

@@ -177,7 +177,7 @@ def test_a_known_word_s_meaning_is_free() -> None:
     annotation = Annotation(
         document_hash="h",
         language="arc",
-        annotator="aramaic/1",
+        annotator="aramaic/2",
         method="none",
         method_note="",
         tokens={"0000.000-aaaaaa": annotation_tokens},
@@ -213,7 +213,7 @@ def test_it_reads_an_aramaic_block_and_asks_what_it_wraps_about_the_rest() -> No
     reader = aramaic.AramaicLemmatizer(ReadsDaniel())
     assert reader.reads(segment("יָת", language="arc"))
     assert not reader.reads(segment("בראשית"))
-    assert reader.name == "aramaic/1+refuses/1"
+    assert reader.name == "aramaic/2+refuses/1"
 
 
 def test_a_document_in_aramaic_is_annotated_rather_than_refused() -> None:
@@ -262,7 +262,7 @@ def test_no_hebrew_text_on_the_shelf_changes_its_annotator_name() -> None:
         assert lemma.for_source(source, auto_download=False, language="he").name == before
     assert lemma.for_source(
         "sefaria:arc:Genesis", auto_download=False, language="arc"
-    ).name.startswith("aramaic/1+")
+    ).name.startswith("aramaic/2+")
 
 
 def test_a_token_is_what_the_reader_already_knows_how_to_draw() -> None:
@@ -287,3 +287,23 @@ def test_a_rendering_s_words_are_measured_in_the_text_the_reader_shows(
     assert [shown[t.start : t.end] for t in words] == ["וארעא", "הות", "צדיא", "על", "אפי", "תהומא"]
     assert words[0].lexeme == "targum:אַרְעָא" and words[0].built == "ו + ארעא"
     assert aramaic.sense(words[3].lexeme) and aramaic.sense(words[4].lexeme)
+
+
+def test_the_table_answers_the_commonest_forms_it_once_left_to_the_dictionary() -> None:
+    """2026-11-24: 41% of Onkelos's words were answered by spelling alone, and the
+    commonest of them were everyday nouns and verbs. Filled by hand, with the forms that
+    are two words at once still left out (`שנא`, a tooth and a year)."""
+    from targum.annotate.closed import TARGUM_GLOSSES
+
+    for form, headword in (
+        ("עוֹפָא", "עוֹפָא"),
+        ("לְתֵבוֹתָא", "תֵּבוֹתָא"),
+        ("חֶלְמָא", "חֶלְמָא"),
+        ("וּבְכָא", "בְּכָא"),
+        ("עֵינוֹהִי", "עֵינָא"),
+        ("בְּנָיךְ", "בַּר"),
+    ):
+        found = aramaic.look_up(form)
+        assert found is not None and found.headword == headword, form
+        assert TARGUM_GLOSSES[headword], headword
+    assert aramaic.look_up("שְׁנָא") is None

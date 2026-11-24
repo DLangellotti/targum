@@ -43,7 +43,7 @@ from typing import Any, NamedTuple
 
 from ..models import Segment, Token
 
-NAME = "aramaic/1"
+NAME = "aramaic/2"
 
 #: What a lexeme looks like when the hand table answered: `targum:אַרְעָא`. A lexeme is
 #: where a word's meaning is found (`gloss.from_the_tagging`), and a Strong's number is the
@@ -175,7 +175,7 @@ class AramaicLemmatizer:
 
     @property
     def name(self) -> str:
-        """`aramaic/1` before the name of what it wraps, the way `oshb/6` sits before
+        """`aramaic/2` before the name of what it wraps, the way `oshb/6` sits before
         DICTA's. Wrapped only around a text written in Aramaic (`lemma.for_source`), so
         every Hebrew text's annotator is named exactly as it was and nothing on the shelf
         is read again for this."""
