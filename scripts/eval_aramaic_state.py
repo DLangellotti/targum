@@ -32,7 +32,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from targum import evals  # noqa: E402
 from targum.annotate import oshb  # noqa: E402
-from targum.annotate.aramaic_state import NAME, emphatic  # noqa: E402
+from targum.annotate.aramaic_state import NAME, absolute, construct, emphatic  # noqa: E402
 from targum.ingest.fetch.sefaria import BIBLICAL_ARAMAIC  # noqa: E402
 
 STAGE = "lemma"
@@ -63,14 +63,41 @@ def gold(word: oshb.Word) -> bool:
     return False
 
 
-def score(book: str) -> tuple[Counter[str], Counter[str]]:
+def tagged(word: oshb.Word, letter: str) -> bool:
+    """Whether Open Scriptures tagged a noun or an adjective of this word in the state
+    `letter` (a: absolute, c: construct): no participle, which is a verb to a reader, and
+    no name. A construct with a pronoun on it is not counted: the suffix lens shows those."""
+    if letter == "c" and any(code.startswith("S") for code in word.morph if code):
+        return False
+    return any(
+        code and code[0] in "NA" and not code.startswith("Np") and code[-1] == letter
+        for code in word.morph
+    )
+
+
+def named(word: oshb.Word) -> bool:
+    return any(code.startswith("Np") for code in word.morph if code)
+
+
+def said_by(state: str, words: list[oshb.Word], at: int) -> bool:
+    word = words[at]
+    if state == "d":
+        return emphatic(word.text)
+    if state == "a":
+        return absolute(word.text)
+    after = words[at + 1] if at + 1 < len(words) else None
+    return construct(word.text, after.text if after else "", bool(after and named(after)))
+
+
+def score(book: str, state: str = "d") -> tuple[Counter[str], Counter[str]]:
     counts: Counter[str] = Counter()
     wrong: Counter[str] = Counter()
     for name, words in oshb.verses(CODES[book]):
         if not aramaic(book, name):
             continue
-        for word in words:
-            marked, said = gold(word), emphatic(word.text)
+        for at, word in enumerate(words):
+            marked = gold(word) if state == "d" else tagged(word, state)
+            said = said_by(state, words, at)
             if marked and said:
                 counts["tp"] += 1
             elif said:
@@ -95,31 +122,33 @@ def main(argv: list[str] | None = None) -> None:
 
     if not oshb.available():
         raise SystemExit("OSHB is not on disk; run `targum models fetch scripture` first")
-    counts: Counter[str] = Counter()
-    wrong: Counter[str] = Counter()
-    for book in BIBLICAL_ARAMAIC:
-        each, missed = score(book)
-        print(f"({book}: precision {rates(each)[0]}, recall {rates(each)[1]})")
-        counts += each
-        wrong += missed
-    precision, recall = rates(counts)
-    for line, n in wrong.most_common(12):
-        print(f"  {n:3} {line}")
-    note = evals.pinned(
-        f"books={len(BIBLICAL_ARAMAIC)} tp={counts['tp']} fp={counts['fp']} fn={counts['fn']}",
-        [oshb.root() / f"{CODES[book]}.json" for book in BIBLICAL_ARAMAIC],
-    )
     today = date.today().isoformat()
-    rows = [
-        evals.Row(
-            today, STAGE, SYSTEM, SYSTEM, "emphatic_precision", precision,
-            counts["tp"] + counts["fp"], CORPUS, note,
-        ),
-        evals.Row(
-            today, STAGE, SYSTEM, SYSTEM, "emphatic_recall", recall,
-            counts["tp"] + counts["fn"], CORPUS, note,
-        ),
-    ]  # fmt: skip
+    rows: list[evals.Row] = []
+    for state, metric in (("d", "emphatic"), ("a", "absolute"), ("c", "construct")):
+        counts: Counter[str] = Counter()
+        wrong: Counter[str] = Counter()
+        for book in BIBLICAL_ARAMAIC:
+            each, missed = score(book, state)
+            print(f"({metric}, {book}: precision {rates(each)[0]}, recall {rates(each)[1]})")
+            counts += each
+            wrong += missed
+        precision, recall = rates(counts)
+        for line, n in wrong.most_common(8):
+            print(f"  {n:3} {line}")
+        note = evals.pinned(
+            f"books={len(BIBLICAL_ARAMAIC)} tp={counts['tp']} fp={counts['fp']} fn={counts['fn']}",
+            [oshb.root() / f"{CODES[book]}.json" for book in BIBLICAL_ARAMAIC],
+        )
+        rows += [
+            evals.Row(
+                today, STAGE, SYSTEM, SYSTEM, f"{metric}_precision", precision,
+                counts["tp"] + counts["fp"], CORPUS, note,
+            ),
+            evals.Row(
+                today, STAGE, SYSTEM, SYSTEM, f"{metric}_recall", recall,
+                counts["tp"] + counts["fn"], CORPUS, note,
+            ),
+        ]  # fmt: skip
     for row in rows:
         print(f"{row.metric:20} {row.score:.4f}  n={row.n}  {row.system}", flush=True)
     if not args.dry:

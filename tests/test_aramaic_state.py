@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import pytest
 
-from targum.annotate.aramaic_state import emphatic
+from targum.annotate.aramaic_state import absolute, construct, emphatic, state
 from targum.models import Token
 from targum.render.builder import _state_line
 
@@ -60,3 +60,92 @@ def test_the_build_marks_it_on_aramaic_alone_and_never_on_a_name() -> None:
     assert _state_line(True, _token(word), word) == "State=Emph"
     assert _state_line(False, _token(word), word) == "", "a Hebrew word ending ־ָא is not this"
     assert _state_line(True, _token("עֶזְרָא", pos="PROPN"), "עֶזְרָא") == ""
+
+
+@pytest.mark.parametrize(
+    "word",
+    [
+        "שְׁנִין",  # years
+        "בְּנִין",  # sons
+        "חַכִּימִין",  # wise men
+        "וּשְׁנִין",  # and years
+        "לִנְהוֹרִין",  # for lights
+    ],
+)
+def test_the_absolute_plural_is_read_off_its_hiriq_yod_nun(word: str) -> None:
+    assert absolute(word)
+    assert state(word) == "Abs"
+
+
+@pytest.mark.parametrize(
+    "word",
+    [
+        "פָּלְחִין",  # serving: a participle, CָCְCִין
+        "דָּיְרִין",  # dwelling: the hollow participle
+        "מְהַלְּכִין",  # walking: a derived stem's מְ־
+        "מִתְכַּנְּשִׁין",  # gathering
+        "מַלְכָּא",  # the king: emphatic
+        "מֶלֶךְ",  # a king: the singular says nothing
+        "שנין",  # unpointed
+    ],
+)
+def test_participles_and_singulars_are_not_absolute(word: str) -> None:
+    assert not absolute(word)
+
+
+@pytest.mark.parametrize(
+    "word",
+    [
+        "בְּנֵי",  # sons of: the plural's ־ֵי
+        "יוֹמֵי",  # days of
+        "אַפֵּי",  # the face of
+        "בִּמְצִיעוּת",  # in the midst of: ־וּת
+        "כָּל",  # all of
+        "וּבְכָל",  # and in all of
+        "בֵּית",  # house of
+    ],
+)
+def test_the_construct_is_read_off_its_form(word: str) -> None:
+    assert construct(word)
+    assert state(word) == "Cstr"
+
+
+@pytest.mark.parametrize(
+    "word",
+    [
+        "אֲרֵי",  # for: a particle
+        "לְוַת",  # to: a preposition
+        "יְהֵי",  # let there be: the imperfect
+        "לְמֶחֱזֵי",  # to see: the infinitive
+        "אַסְגֵּי",  # he multiplied: the afel
+        "גָּלֵי",  # he reveals: a weak participle
+        "יָדְעֵי",  # knowing: the participle's plural
+        "מוּת",  # die: too short for ־וּת
+        "בני",  # unpointed
+    ],
+)
+def test_verbs_and_particles_ending_alike_are_not_construct(word: str) -> None:
+    assert not construct(word)
+
+
+def test_a_singular_is_construct_before_the_emphatic_or_a_name_and_nothing_else() -> None:
+    """A noun with no ending of its own says its state by what follows it."""
+    assert construct("קַל", "מֵימְרָא")  # the voice of the Word
+    assert construct("אִתַּת", "אַבְרָם", after_is_name=True)  # the wife of Abram
+    assert not construct("קַל"), "alone, nothing says which"
+    assert not construct("דְּכַר", "וְנוּקְבָא"), "male and female: the next word has its own ו"
+    assert not construct("יָת", "שְׁמַיָּא"), "the object marker"
+    assert not construct("כָּל", "קֳבֵל"), "כָּל־קֳבֵל is because"
+
+
+def test_the_build_writes_each_state_and_reads_the_next_word() -> None:
+    text = "בְּנֵי שְׁנִין קַל מֵימְרָא"
+    tokens = []
+    for word in text.split():
+        start = text.index(word)
+        tokens.append(Token(start=start, end=start + len(word), surface=word, lemma=word, band=0))
+    assert _state_line(True, tokens[0], text, tokens[1]) == "State=Cstr"
+    assert _state_line(True, tokens[1], text, tokens[2]) == "State=Abs"
+    assert _state_line(True, tokens[2], text, tokens[3]) == "State=Cstr"
+    assert _state_line(True, tokens[2], text) == "", "without the next word, nothing"
+    assert _state_line(True, tokens[3], text) == "State=Emph"

@@ -148,7 +148,7 @@ window.targumReaderRest = function (R) {
     if (orderLens) orderLens.setAttribute("aria-pressed", name === "order" ? "true" : "false");
     if (vavLens) vavLens.setAttribute("aria-pressed", name === "vav" ? "true" : "false");
     if (suffixLens) suffixLens.setAttribute("aria-pressed", name === "suffix" ? "true" : "false");
-    if (stateLens) stateLens.setAttribute("aria-pressed", name === "state" ? "true" : "false");
+    if (stateLens) stateLens.value = name.indexOf("state-") === 0 ? name.slice(6) : "";
     if (particleLens) particleLens.value = name.indexOf("part-") === 0 ? name.slice(5) : "";
   }
 
@@ -296,44 +296,60 @@ window.targumReaderRest = function (R) {
     return showSuffix(body.getAttribute("data-lens") !== "suffix");
   }
 
-  /* The state lens: every Aramaic word in the emphatic state, lit (design.md §12,
-   * "Aramaic's lenses", 2026-10-25). מַלְכָּא is "the king", and the "the" is the ending
-   * ־א: a reader from Hebrew looks for ה־ at the front and finds nothing there. */
+  /* The state lens: one state at a time (design.md §12, "Aramaic's lenses", 2026-10-25).
+   * מַלְכָּא is "the king", and the "the" is the ending ־א: a reader from Hebrew looks for
+   * ה־ at the front and finds nothing there. שְׁנִין, "years", has none; בְּנֵי, "sons of",
+   * is bound to the word after it. Each is lit only where its form says so. */
   var stateLens = document.querySelector("[data-state-lens]");
-  function stateCount() {
+  var STATE_CUES = {
+    Emph: ["reader.lens.state-cue", "Each word lit is in the emphatic state."],
+    Abs: ["reader.lens.absolute-cue", "Each word lit is a plural in the absolute state, with no “the”."],
+    Cstr: ["reader.lens.construct-cue", "Each word lit is in the construct state, bound to the word after it: “of”."],
+  };
+  var STATE_SAID = {
+    Emph: ["reader.lens.state-said", "The emphatic state, {n} here."],
+    Abs: ["reader.lens.absolute-said", "The absolute state, {n} here."],
+    Cstr: ["reader.lens.construct-said", "The construct state, {n} here."],
+  };
+  function stateCount(name) {
     var count = 0;
     Object.keys(wordData).forEach(function (segmentId) {
       (wordData[segmentId] || []).forEach(function (token) {
-        if (token.length > 8 && feat(grammarTable[token[8]] || "", "State") === "Emph") count++;
+        if (token.length > 8 && feat(grammarTable[token[8]] || "", "State") === name) count++;
       });
     });
     return count;
   }
 
-  function showState(on, quietly) {
+  function showState(name, quietly) {
     if (!stateLens) return false;
-    if (on) lensOn("state");
-    else if (body.getAttribute("data-lens") === "state") lensOn("");
+    if (name) lensOn("state-" + name);
+    else if ((body.getAttribute("data-lens") || "").indexOf("state-") === 0) lensOn("");
     if (quietly) return true;
     say(
-      on
-        ? cueOnce("state", t("reader.lens.state-cue", "Each word lit is in the emphatic state.")) ||
-            t("reader.lens.state-said", "The emphatic state, {n} here.", { n: stateCount() })
+      name
+        ? cueOnce("state-" + name, t(STATE_CUES[name][0], STATE_CUES[name][1])) ||
+            t(STATE_SAID[name][0], STATE_SAID[name][1], { n: stateCount(name) })
         : t("reader.lens.none", "No lens shown.")
     );
     return true;
   }
 
   if (stateLens) {
-    stateLens.addEventListener("click", function () {
-      showState(body.getAttribute("data-lens") !== "state");
+    stateLens.addEventListener("change", function () {
+      showState(stateLens.value);
     });
   }
 
-  // `x` turns the state lens on and off, where the page has it and it is offered.
-  function toggleState() {
-    if (!stateLens || stateLens.hidden) return false;
-    return showState(body.getAttribute("data-lens") !== "state");
+  // `x` steps through the states this page has and none, where the lens is offered.
+  function nextState() {
+    if (!stateLens || stateLens.closest(".lens-row").hidden) return false;
+    var present = Array.prototype.map.call(stateLens.options, function (option) {
+      return option.value;
+    });
+    var on = body.getAttribute("data-lens") || "";
+    var at = present.indexOf(on.indexOf("state-") === 0 ? on.slice(6) : "");
+    return showState(present[(at + 1) % present.length]);
   }
 
   /* The particles lens: ד־ or ית, one at a time (design.md §12, "Aramaic's lenses",
@@ -1563,7 +1579,7 @@ window.targumReaderRest = function (R) {
         if (!toggleSuffix()) return;
         break;
       case "x":
-        if (!toggleState()) return;
+        if (!nextState()) return;
         break;
       case "d":
         if (!nextParticle()) return;
