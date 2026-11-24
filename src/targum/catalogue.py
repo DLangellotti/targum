@@ -683,12 +683,21 @@ class Entry:
         carrying Onkelos as a column was filed under Aramaic for a morning, and the
         Aramaic shelf became the Hebrew Torah. Onkelos and the other targums are texts of
         their own on that shelf now, written in Aramaic.
+
+        And Aramaic for a lesson in reading it: a row in a collection behind the targum
+        door (`onkelos-starter`, "A first week of Onkelos") is a Torah passage with Onkelos
+        under it, filed as Hebrew because the Hebrew is what it is cut from, and it was on
+        the Hebrew shelf and missing from the Aramaic one, which is the shelf a reader who
+        set out to learn Aramaic looks on (David, 2026-11-24). A Torah book outside such a
+        collection still is not.
         """
         from .ingest.fetch.sefaria import BIBLICAL_ARAMAIC
 
         found = [self.language]
         scheme, _, book = self.source.partition(":")
         if scheme == "sefaria" and book in BIBLICAL_ARAMAIC:
+            found.append("arc")
+        if any(self.id in group.members for group in COLLECTIONS if group.door == "targum"):
             found.append("arc")
         return list(dict.fromkeys(code for code in found if code))
 

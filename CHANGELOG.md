@@ -6,6 +6,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- "A first week of Onkelos" is on the Aramaic shelf as well as the Hebrew one
+  (2026-11-24). Its seven passages are Torah cut with Onkelos beside them, filed as
+  Hebrew, so a reader who chose Aramaic never found them. A row in a collection behind
+  the targum door now counts as Aramaic too; a Torah book outside one still does not.
 - A text of your own can be deleted from its own page (bug report, 2026-11-23). A
   reader looked for Delete beside Save for offline, and it was only under the ⋯ on Your
   targums, which a desk draws on hover. The same press: to Trash, with Undo in place.
