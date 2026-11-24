@@ -18,6 +18,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   "dream", which went to the dictionary by spelling. Forms that are two words at once
   stay out. The Aramaic annotator is `aramaic/2`, so every Aramaic text is read again
   once, on the next deploy; no Hebrew text is.
+- The Onkelos-to-Hebrew word alignment, built and not yet shown (targum-internal G3,
+  design.md §12, 2026-10-25). Learned from the Torah's 5,846 verse pairs with no model,
+  and drawn only where both directions agree: 75% of Onkelos's words get a counterpart,
+  the poems mostly none. The card waits for ling-arc's 300-verse gold and a floor;
+  `scripts/eval_onkelos_align.py --sheet` writes the sheet to read.
 
 ### Fixed
 - "A first week of Onkelos" is on the Aramaic shelf as well as the Hebrew one

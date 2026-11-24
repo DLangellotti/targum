@@ -108,6 +108,9 @@ SCRIPTS = {
     # The pointing's stress rules for modern text, against the accents (#454, #500).
     "stress/tanakh-segolate": "eval_segolate.py",
     "align": "eval_align.py",
+    # Onkelos's words to the Hebrew words they render, against ling-arc's hand gold
+    # (targum-internal G3, design.md §12, 2026-10-25).
+    "align/onkelos-gold": "eval_onkelos_align.py",
     "grading": "eval_grading.py",
     "recast": "eval_recast.py",
     "chat": "eval_why.py",
