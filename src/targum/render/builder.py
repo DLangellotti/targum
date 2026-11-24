@@ -3630,18 +3630,23 @@ def _vav_line(biblical: bool, token: Token, text: str) -> str:
     return "Vav=Cons" if consecutive(text[token.start : token.end]) else ""
 
 
-def _state_line(aramaic: bool, token: Token, text: str) -> str:
-    """`State=Emph` for an Aramaic word in the emphatic state, which the state lens lights:
-    Aramaic's second hard spot (design.md §12, "Aramaic's lenses", 2026-10-25). מַלְכָּא is
-    "the king", and the "the" is the ending, where a reader from Hebrew looks for ה־.
+def _state_line(aramaic: bool, token: Token, text: str, after: Token | None = None) -> str:
+    """`State=Emph`, `State=Abs` or `State=Cstr` for an Aramaic word whose form says its
+    state, which the state lens lights one state at a time: Aramaic's second hard spot
+    (design.md §12, "Aramaic's lenses", 2026-10-25). מַלְכָּא is "the king", and the "the" is
+    the ending, where a reader from Hebrew looks for ה־; שְׁנִין is "years", with none; בְּנֵי
+    is "sons of", bound to the word after it, which `after` is.
 
     Read off the pointed text the page carries (`annotate.aramaic_state`), so Onkelos shows
     it without being annotated again. A name is never lit: its state is not the point."""
     if not aramaic or token.entity or token.pos == "PROPN":
         return ""
-    from ..annotate.aramaic_state import emphatic
+    from ..annotate.aramaic_state import state
 
-    return "State=Emph" if emphatic(text[token.start : token.end]) else ""
+    next_word = text[after.start : after.end] if after is not None else ""
+    named = after is not None and (bool(after.entity) or after.pos == "PROPN")
+    said = state(text[token.start : token.end], next_word, named)
+    return f"State={said}" if said else ""
 
 
 def _particle_line(aramaic: bool, token: Token) -> str:
@@ -7777,6 +7782,9 @@ def render(
                     id(one): next_one.surface
                     for one, next_one in zip(on_row, on_row[1:], strict=False)
                 }
+                next_of = {
+                    id(one): next_one for one, next_one in zip(on_row, on_row[1:], strict=False)
+                }
                 for token in on_row:
                     word = (token.lemma, token.head)
                     verb = (token.lemma, token.head, token.binyan or "")
@@ -7863,7 +7871,9 @@ def render(
                             said_with.get(id(token), ""),
                             _vav_line(biblical, token, as_written.get(sid, "")),
                             _suffix_line(hebrew_at.get(sid, False), token, as_written.get(sid, "")),
-                            _state_line(aramaic, token, as_written.get(sid, "")),
+                            _state_line(
+                                aramaic, token, as_written.get(sid, ""), next_of.get(id(token))
+                            ),
                             _particle_line(aramaic, token),
                             _arc_suffix_line(aramaic, token, as_written.get(sid, "")),
                         )
@@ -8210,9 +8220,13 @@ def render(
             # And on a page of Aramaic, where it lights the ending alone (design.md §12,
             # "Aramaic's lenses").
             suffixes=any("Pron=" in line or "Ending=" in line for line in grammar),
-            # The state lens, on a page of Aramaic with a word in the emphatic state
-            # (design.md §12, "Aramaic's lenses", 2026-10-25).
-            emphatics=any("State=Emph" in line for line in grammar),
+            # The state lens, one state at a time, on a page of Aramaic with a word whose
+            # form says its state (design.md §12, "Aramaic's lenses", 2026-10-25).
+            states=[
+                name
+                for name in ("Emph", "Abs", "Cstr")
+                if any(f"State={name}" in line.split("|") for line in grammar)
+            ],
             # The particles lens, ד־ and ית one at a time, on a page of Aramaic that has
             # either (design.md §12, "Aramaic's lenses").
             particles=[

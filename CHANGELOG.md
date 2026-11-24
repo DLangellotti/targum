@@ -5,6 +5,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 
 ## [Unreleased]
 
+### Added
+- The Aramaic state lens shows the absolute and the construct as well as the emphatic,
+  one at a time, from its menu or by `x` (design.md §12, 2026-10-25). The absolute is
+  the plural's ־ִין, with no "the"; the construct is "of": בְּנֵי, יוֹמֵי, כָּל, and a noun
+  before the emphatic or a name. Each is lit only where the form says so: a singular
+  absolute looks like its construct and stays plain. 0.90 and 0.94 precision on the
+  Aramaic of Daniel and Ezra (`arc-state/2`).
+
 ### Fixed
 - "A first week of Onkelos" is on the Aramaic shelf as well as the Hebrew one
   (2026-11-24). Its seven passages are Torah cut with Onkelos beside them, filed as

@@ -835,7 +835,7 @@
     "stage": "lemma",
     "corpus": "oshb-aramaic",
     "metric": "emphatic_precision",
-    "system": "arc-state/1",
+    "system": "arc-state/2",
     "at_least": 0.89,
     "why": "0.9128 on 2026-11-23, first scored: the emphatic state read off the pointing (annotate/aramaic_state.py) against Open Scriptures' state letter over every word of the Aramaic of Daniel and Ezra; not held out, so a guard rather than an estimate. Aramaic's second hard spot (design.md §12, 2026-10-25)"
   },
@@ -843,9 +843,41 @@
     "stage": "lemma",
     "corpus": "oshb-aramaic",
     "metric": "emphatic_recall",
-    "system": "arc-state/1",
+    "system": "arc-state/2",
     "at_least": 0.87,
     "why": "0.8934 on 2026-11-23, first scored: the same rule, the same words. Biblical Aramaic writes some emphatics with ה, which the rule leaves alone because Onkelos does not"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "oshb-aramaic",
+    "metric": "absolute_precision",
+    "system": "arc-state/2",
+    "at_least": 0.87,
+    "why": "0.8966 on 2026-11-24, first scored: the plural's ־ִין read off the pointing, less the participles, against Open Scriptures' state letter on nouns and adjectives over the Aramaic of Daniel and Ezra; not held out. The lens's absolute (design.md §12, 2026-10-25)"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "oshb-aramaic",
+    "metric": "absolute_recall",
+    "system": "arc-state/2",
+    "at_least": 0.2,
+    "why": "0.2218 on 2026-11-24, first scored: low by design, since a singular absolute (מֶלֶךְ) looks the same as its construct and is left unlit rather than guessed"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "oshb-aramaic",
+    "metric": "construct_precision",
+    "system": "arc-state/2",
+    "at_least": 0.91,
+    "why": "0.9369 on 2026-11-24, first scored: ־ֵי, ־וּת, a noun's ־ַת, כָּל and בֵּית, and a singular noun before the emphatic or a name, against Open Scriptures' state letter on nouns and adjectives with no pronoun on them; not held out"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "oshb-aramaic",
+    "metric": "construct_recall",
+    "system": "arc-state/2",
+    "at_least": 0.43,
+    "why": "0.4552 on 2026-11-24, first scored: the same rule, the same words; a singular construct before anything but the emphatic or a name is left unlit"
   },
   {
     "stage": "lemma",

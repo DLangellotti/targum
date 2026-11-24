@@ -8749,23 +8749,56 @@ def test_the_state_lens_lights_the_emphatic_and_not_the_verb_beside_it(
 ) -> None:
     """Aramaic's state lens (design.md §12, "Aramaic's lenses", 2026-10-25): hidden on a
     first read, `x` lights שְׁמַיָּא, אַרְעָא and the rest whose ending says "the", and not בְּרָא,
-    "created", which ends the same way; it says once what it shows."""
+    "created", which ends the same way; it says once what it shows. The next `x` is the
+    absolute, בְּקַדְמִין, with no "the", and past the last state, none."""
     context, page = open_reader(browser, onkelos_1_1(tmp_path / "onkelos"))
     lens = "[data-state-lens]"
-    assert page.evaluate(f"() => document.querySelector('{lens}').hidden"), "not on a first read"
+    assert page.evaluate(f"() => document.querySelector('{lens}').closest('.lens-row').hidden")
     page.keyboard.press("x")
     assert page.evaluate(GOVERNED_SHOWN) == []
     page.click("#done-go")
+    options = page.evaluate(
+        f"() => Array.from(document.querySelector('{lens}').options, (o) => o.value)"
+    )
+    assert options == ["", "Emph", "Abs"], "only the states this page has"
     page.keyboard.press("x")
     assert _bare(page.evaluate(GOVERNED_SHOWN)) == ["שמיא", "ארעא", "חויא", "דארעא"]
     said = page.evaluate("() => document.getElementById('spoken').textContent")
     assert said == "Each word lit is in the emphatic state."
-    assert page.evaluate(LENS_STATE, lens) == ["state", None, "true"]
+    assert page.evaluate(
+        f"() => [document.body.getAttribute('data-lens'), document.querySelector('{lens}').value]"
+    ) == ["state-Emph", "Emph"]
     page.keyboard.press("x")
-    assert page.evaluate(LENS_STATE, lens) == [None, None, "false"]
+    assert _bare(page.evaluate(GOVERNED_SHOWN)) == _bare(["בקדמין"])
+    said = page.evaluate("() => document.getElementById('spoken').textContent")
+    assert said == "Each word lit is a plural in the absolute state, with no “the”."
+    page.keyboard.press("x")
+    assert page.evaluate(GOVERNED_SHOWN) == []
+    assert page.evaluate("() => document.body.getAttribute('data-lens')") is None
     page.keyboard.press("x")
     said = page.evaluate("() => document.getElementById('spoken').textContent")
     assert said == "The emphatic state, 4 here.", "the cue is said once"
+    context.close()
+
+
+def test_the_state_lens_lights_a_construct_bound_to_the_word_after_it(
+    browser, tmp_path: Path
+) -> None:
+    """The construct, one of the lens's three: בְּנֵי, "sons of", by its ending, and קַל,
+    "the voice of", by the emphatic after it; picked from the menu."""
+    text = "וּשְׁמַעוּ יָת קַל מֵימְרָא דַּיְיָ וּבְנֵי אֱנָשָׁא׃"
+    context, page = open_reader(browser, onkelos_1_1(tmp_path / "onkelos", text=text))
+    page.click("#done-go")
+    page.evaluate(
+        """() => {
+          const menu = document.querySelector('[data-state-lens]');
+          menu.value = 'Cstr';
+          menu.dispatchEvent(new Event('change'));
+        }"""
+    )
+    assert _bare(page.evaluate(GOVERNED_SHOWN)) == ["קל", "ובני"]
+    said = page.evaluate("() => document.getElementById('spoken').textContent")
+    assert said == "Each word lit is in the construct state, bound to the word after it: “of”."
     context.close()
 
 

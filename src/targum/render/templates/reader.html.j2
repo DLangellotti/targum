@@ -277,13 +277,19 @@
         <span class="m-icon" aria-hidden="true"><svg viewBox="0 0 16 16" focusable="false"><circle cx="7" cy="7" r="4.25"></circle><path d="M10.25 10.25 14 14"></path></svg></span>
         <span class="m-label aa-name">{{ t("reader.page.pronoun-endings", "Pronoun endings") }}</span><span class="sw" aria-hidden="true"></span></button>
       {% endif %}
-      {#- The state lens: every Aramaic word in the emphatic state, whose ending says "the"
-          (design.md §12, "Aramaic's lenses", 2026-10-25). -#}
-      {% if emphatics %}
-      <button type="button" class="m-row aa-switch lens-row" data-state-lens aria-pressed="false" hidden
-              title="{{ t("reader.page.show-the-emphatic-state-x", "Show the emphatic state (x)") }}">
+      {#- The state lens: one state at a time, emphatic, absolute or construct, each read
+          off the form (design.md §12, "Aramaic's lenses", 2026-10-25). -#}
+      {% if states %}
+      <label class="m-row aa-row lens-row" hidden>
         <span class="m-icon" aria-hidden="true"><svg viewBox="0 0 16 16" focusable="false"><circle cx="7" cy="7" r="4.25"></circle><path d="M10.25 10.25 14 14"></path></svg></span>
-        <span class="m-label aa-name">{{ t("reader.page.emphatic-state", "Emphatic state") }}</span><span class="sw" aria-hidden="true"></span></button>
+        <span class="m-label aa-label">{{ t("reader.page.show-a-state", "Show a state") }}</span>
+        <select class="m-end m-select" data-state-lens aria-label="{{ t("reader.page.show-a-state", "Show a state") }}" title="{{ t("reader.page.show-a-state-x", "Show a state (x)") }}">
+          <option value="">{{ t("reader.bar.case-none", "none") }}</option>
+          {%- if "Emph" in states %}<option value="Emph">{{ t("reader.page.state-emphatic", "emphatic") }}</option>{% endif %}
+          {%- if "Abs" in states %}<option value="Abs">{{ t("reader.page.state-absolute", "absolute") }}</option>{% endif %}
+          {%- if "Cstr" in states %}<option value="Cstr">{{ t("reader.page.state-construct", "construct") }}</option>{% endif %}
+        </select>
+      </label>
       {% endif %}
       {#- The particles lens: ד־, "of, which, that, because", written onto the next word, or
           ית, which marks the object; one at a time (design.md §12, "Aramaic's lenses"). -#}
@@ -1518,7 +1524,7 @@
     {% if orders %}<dt>w</dt><dd>{{ t("reader.page.subjects-after-their-verb-lower", "subjects after their verb") }}</dd>{% endif %}
     {% if vavs %}<dt>y</dt><dd>{{ t("reader.page.narrative-past-lower", "the narrative past") }}</dd>{% endif %}
     {% if suffixes %}<dt>e</dt><dd>{{ t("reader.page.pronoun-endings-lower", "pronoun endings") }}</dd>{% endif %}
-    {% if emphatics %}<dt>x</dt><dd>{{ t("reader.page.emphatic-state-lower", "the emphatic state") }}</dd>{% endif %}
+    {% if states %}<dt>x</dt><dd>{{ t("reader.page.states-lower", "the states, in turn") }}</dd>{% endif %}
     {% if particles %}<dt>d</dt><dd>{{ t("reader.page.particles-lower", "the particles, in turn") }}</dd>{% endif %}
     {% if said %}<dt>n</dt><dd>{{ t("said.key", "the French as said") }}</dd>{% endif %}
     {% if has_nikkud %}<dt>n</dt><dd>{% if stress_marks %}{{ t("reader.page.key-stress-marks", "stress marks") }}{% else %}{{ t("reader.page.key-vowel-points", "vowel points") }}{% endif %}</dd>{% endif %}
