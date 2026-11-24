@@ -208,9 +208,11 @@ def test_the_emphatic_ending_is_met_on_day_one() -> None:
 def test_forty_common_words_from_the_top_of_the_frequency_list() -> None:
     chosen = starter.FUNCTION_WORDS
     assert len(chosen) == 40 and len(set(chosen)) == 40
+    # 300 since the hand table was filled (2026-11-24): the nouns it now files under one
+    # headword count as one word, and climb past אֲנַחְנָא, "we", at 268.
     for lemma in chosen:
         rank = aramaic_frequency.rank(lemma)
-        assert rank is not None and rank <= 250, f"{lemma} ranks {rank}"
+        assert rank is not None and rank <= 300, f"{lemma} ranks {rank}"
 
 
 def test_every_common_word_is_met_in_a_line_of_the_set() -> None:
