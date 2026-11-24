@@ -5,6 +5,11 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-11-23
+A text of your own can be deleted from its own page, with Undo.
+The commonest small Russian words, such as как and уж, now mean the same right thing in every text.
+Photographed pages are read in name order, without their page numbers, and with vowel points on every page.
+
 2026-11-22
 A long video read while its chapters are still arriving stays at the top of Recent.
 
