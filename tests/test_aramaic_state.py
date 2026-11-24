@@ -122,10 +122,41 @@ def test_the_construct_is_read_off_its_form(word: str) -> None:
         "יָדְעֵי",  # knowing: the participle's plural
         "מוּת",  # die: too short for ־וּת
         "בני",  # unpointed
+        "גַּלֵּי",  # he revealed: the pael, glossed "revealed; to reveal"
+        "שֵׁיצֵי",  # he finished: the shafel
+        "אַסֵּי",  # he healed
+        "וְאֶמְחֵי",  # and I will strike: the imperfect behind ו
+        "תֶּחֱזֵי",  # you will see
+        "דְיִמְחֵי",  # who strikes: the imperfect behind ד
+        "וְתֵיתֵי",  # and you will bring
+        "אִתְגְּלֵי",  # he was revealed: the ithpeel
+        "וִימוּת",  # and he will die: an imperfect, not ־וּת
+        "מִצְרָאֵי",  # the Egyptians: a people's plural, with "the"
+        "דְּכֵי",  # clean
+        "עֶסְרֵי",  # twenty
     ],
 )
 def test_verbs_and_particles_ending_alike_are_not_construct(word: str) -> None:
     assert not construct(word)
+
+
+@pytest.mark.parametrize(
+    ("word", "after"),
+    [
+        ("כַּד", "דְּחִילָא"),  # when: a particle
+        ("סַגִּי", "לַחֲדָא"),  # very many: לַחֲדָא is "very"
+        ("שְׁבִיעָאָה", "חַגָּא"),  # the seventh: an ordinal
+        ("בִּסְרָא", "דְתוֹרָא"),  # the flesh: it is emphatic, and ד says "of"
+        ("דְּכֵי", "קֻדְשָׁא"),  # pure, holy
+    ],
+)
+def test_a_word_before_the_emphatic_is_not_always_bound_to_it(word: str, after: str) -> None:
+    assert not construct(word, after)
+
+
+@pytest.mark.parametrize("word", ["אֲרִיחֵי", "אֲרָמוּת", "חַיֵּי", "אַפֵּי"])
+def test_a_noun_with_an_imperfect_s_letter_in_front_is_still_construct(word: str) -> None:
+    assert construct(word)  # the poles of, the raising of, the life of, the face of
 
 
 def test_a_singular_is_construct_before_the_emphatic_or_a_name_and_nothing_else() -> None:

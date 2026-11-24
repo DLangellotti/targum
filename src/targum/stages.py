@@ -530,7 +530,7 @@ HARD_SPOTS: dict[str, tuple[HardSpot, ...]] = {
             "emphatic, absolute and construct state",
             "pointing:aramaic_state",
             "lens",
-            ("arc-state/2", "oshb-aramaic", "emphatic_precision"),
+            ("arc-state/3", "oshb-aramaic", "emphatic_precision"),
             lens=True,
         ),
         HardSpot(
