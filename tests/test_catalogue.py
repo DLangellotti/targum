@@ -7,6 +7,8 @@ import json
 import os
 from pathlib import Path
 
+import pytest
+
 
 def test_an_entry_carries_its_english_title() -> None:
     from targum.catalogue import CATALOGUE, by_id
@@ -223,6 +225,42 @@ def test_a_text_says_every_language_it_can_be_read_in() -> None:
     assert onkelos.languages == ["arc"]
     assert entry("sefaria:Ruth", "sefaria:en:Ruth").languages == ["he"]
     assert entry("sefaria:Ruth").state()["languages"] == ["he"]
+
+
+def test_a_lesson_in_reading_onkelos_is_on_the_aramaic_shelf_too(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """2026-11-24: "A first week of Onkelos" was findable on the Hebrew shelf and not on
+    the Aramaic one. Its rows are Torah passages filed as Hebrew with Onkelos beside them;
+    in a collection behind the targum door they are Aramaic lessons, and on both shelves.
+    The same passage in no such collection, or behind another door, is Hebrew alone."""
+    from dataclasses import replace
+
+    from targum import catalogue
+    from targum.catalogue import Collection, Entry, Kind, Register, Rendering
+
+    row = Entry(
+        id="onkelos-starter-1",
+        title="x",
+        author="",
+        language="he",
+        source="sefaria:Genesis 1:1-5",
+        blurb="",
+        words=10,
+        tags=frozenset(),
+        translations=(Rendering(name="r", source="sefaria:arc:Genesis 1:1-5"),),
+        kind=Kind.prose,
+        register=Register.biblical,
+    )
+    starter = Collection(
+        id="s", title="s", english="s", blurb="", members=("onkelos-starter-1",), door="targum"
+    )
+    monkeypatch.setattr(catalogue, "COLLECTIONS", [starter])
+    assert row.languages == ["he", "arc"]
+    assert row.state()["languages"] == ["he", "arc"]
+    assert replace(row, id="genesis").languages == ["he"]
+    monkeypatch.setattr(catalogue, "COLLECTIONS", [replace(starter, door="")])
+    assert row.languages == ["he"]
 
 
 def test_every_subject_the_arrival_asks_for_can_be_filed() -> None:
