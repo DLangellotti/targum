@@ -60,7 +60,7 @@ from __future__ import annotations
 from .aramaic import key, look_up
 from .vav_consecutive import pointed_letters
 
-NAME = "arc-state/2"
+NAME = "arc-state/3"
 
 QAMATS = "ָ"
 SHVA = "ְ"
@@ -131,6 +131,7 @@ TSERE = "ֵ"
 HIRIQ = "ִ"
 SHVAS = frozenset({SHVA, *HATAF})
 VOWELS = frozenset("ְֱֲֳִֵֶַָֹֻ")
+SEGOL = "ֶ"
 
 #: The one-letter words that go on the front, for the forms below.
 FRONT = "ובדלכ"
@@ -139,7 +140,18 @@ FRONT = "ובדלכ"
 ALWAYS_CONSTRUCT = frozenset({"כל", "בית"})
 
 #: Words that end like a construct and are not a noun: "for", "to", "you", "after".
-NOT_CONSTRUCT = frozenset({"ארי", "לות", "את", "אחרי"})
+NOT_CONSTRUCT = frozenset(
+    {"ארי", "לות", "את", "אחרי"}
+    # The peal of a verb in ־ֵי, or its adjective, that looks like בְּנֵי, "sons of":
+    # דְּכֵי, "clean", קְשֵׁי, "hard", סְגֵי, "much", טְוֵי, "roasted", רְמֵי, "he cast".
+    | {"דכי", "קשי", "סגי", "טוי", "רמי", "שתי", "עדי"}
+    # The numbers: עֶסְרֵי, "twenty", תַּרְתֵּין, "two".
+    | {"עסרי", "עשרי", "תרין", "תרתין"}
+    # תַּקִּיף, "strong", אִלּוּלֵי, "if not", מֵאִתְּמַלֵּי, "yesterday".
+    | {"תקיף", "אלולי", "מאתמלי", "כמאתמלי"}
+    # The pael the hand table has no line for: אַסֵּי, "he healed", חַוֵּי, "he showed".
+    | {"אסי", "חוי"}
+)
 
 #: Words the table knows that do not head a construct: particles, prepositions and
 #: pronouns, folded as `key` folds them.
@@ -148,7 +160,7 @@ FUNCTION = frozenset(
     for word in (
         "די מן על קדם עם עד כען הוא היא מה קבל לקבל אלין לא אנון אנין הא דא אן אף הן כדי "
         "בין תמן כן כדו אנא את אתון אנת אנתון הדין דין אלו ארו לות בתר ברם בגין מטול עוד "
-        "כמה כל ארי אחרי ית יי אלהים תחות מתחות מעל הדא הדין אלין דילמא"
+        "כמה כל ארי אחרי ית יי אלהים תחות מתחות מעל הדא הדין אלין דילמא כד אם או לית לחוד אלולי"
     ).split()
 )
 
@@ -181,26 +193,52 @@ def _derived(letters: list[tuple[str, frozenset[str]]]) -> bool:
     return first[0] == "מ" and bool(first[1] & (SHVAS | {HIRIQ}))
 
 
+def _people(letters: list[tuple[str, frozenset[str]]]) -> bool:
+    """A people's plural, with "the": מִצְרָאֵי, "the Egyptians", ־ָאֵי."""
+    return (
+        len(letters) >= 3
+        and letters[-1][0] == "י"
+        and letters[-2][0] == "א"
+        and TSERE in letters[-2][1]
+        and QAMATS in letters[-3][1]
+    )
+
+
+def _imperfect(letters: list[tuple[str, frozenset[str]]]) -> bool:
+    """The letters start with an imperfect's י, ת, נ or א, behind ו or ד or both or
+    neither: יְהֵי, תֶּחֱזֵי, וְאֶמְחֵי, דְיִמְחֵי, וְתֵיתֵי."""
+    at = 0
+    while at < 2 and len(letters) > at + 3 and letters[at][0] in "וד":
+        at += 1
+    if at and letters[at - 1][0] == "ו" and HIRIQ in letters[at - 1][1] and letters[at][0] == "י":
+        return True  # וִיחֵי, וִימוּת: ו before an imperfect's yod
+    first = letters[at]
+    if first[0] not in "יתנא":
+        return False
+    if first[0] == "א":
+        # אֶמְחֵי and אֱצַלֵּי, "I will strike", "I will pray"; אִקְרֵי, "I will call",
+        # and אִתְגְּלֵי, "he was revealed". Not אֲרִיחֵי, "the poles of".
+        if first[1] & {SEGOL, "ֱ"}:
+            return True
+        return HIRIQ in first[1] and SHVA in letters[at + 1][1]
+    return bool(first[1] & (SHVAS | {HIRIQ, SEGOL, TSERE}))
+
+
 def _finite(letters: list[tuple[str, frozenset[str]]]) -> bool:
     """A verb that ends in ־ֵי: the imperfect, the infinitive, the afel, the weak
     participle CָCֵי."""
-    if (
-        letters[0][0] == "ו"
-        and HIRIQ in letters[0][1]
-        and len(letters) > 1
-        and letters[1][0] == "י"
-    ):
-        return True  # וִיחֵי: ו before an imperfect's yod
+    if _imperfect(letters):
+        return True
     core = letters[1:] if letters[0][0] in "וד" and len(letters) == 4 else letters
     if len(core) == 3 and QAMATS in core[0][1]:
         return True  # גָּלֵי, "he reveals"
-    at = 1 if letters[0][0] == "ו" and len(letters) > 3 else 0
+    at = 1 if letters[0][0] in "וד" and len(letters) > 3 else 0
     first = letters[at]
     after = letters[at + 1] if len(letters) > at + 1 else ("", frozenset())
     if first[0] == "ל" and after[0] == "מ":
         return True  # לְמֶחֱזֵי, the infinitive
-    if first[0] in "יתנא" and first[1] & (SHVAS | {HIRIQ}):
-        return True  # יְהֵי, the imperfect
+    if first[0] == "ש" and TSERE in first[1] and after[0] == "י":
+        return True  # שֵׁיצֵי, "he finished", the shafel
     if first[0] in "יתנא" and PATAH in first[1] and after[1] & SHVAS:
         return True  # אַסְגֵּי, the afel
     return first[0] == "ה" and bool(first[1] & (SHVAS | {PATAH}))
@@ -218,7 +256,9 @@ def _gloss(word: str) -> str | None:
 
 
 def _a_verb(word: str) -> bool:
-    return (_gloss(word) or "").startswith("to ")
+    """Whether the hand table gives the word a verb's sense, first or not: גְּלֵי is
+    "revealed; to reveal"."""
+    return any(sense.strip().startswith("to ") for sense in (_gloss(word) or "").split(";"))
 
 
 def absolute(word: str) -> bool:
@@ -245,6 +285,8 @@ def _construct_form(word: str) -> bool:
         return False
     before, last = letters[-2], letters[-1]
     if last[0] == "י" and not last[1] - {DAGESH} and TSERE in before[1]:
+        if _people(letters):
+            return False
         if _a_verb(word) or _derived(letters) or _finite(letters):
             return False
         return not _participle(letters[:-1])
@@ -254,6 +296,7 @@ def _construct_form(word: str) -> bool:
             and before[0] == "ו"
             and DAGESH in before[1]
             and not letters[-3][1] & VOWELS
+            and not _imperfect(letters)
         ):
             return True  # ־וּת
         if PATAH in before[1]:
@@ -270,6 +313,14 @@ def construct(word: str, after: str = "", after_is_name: bool = False) -> bool:
         # Not כָּל־קֳבֵל, "because", which is one word to a reader.
         return not (_bare_front(word) == "כל" and key(after).endswith("קבל"))
     if not after or not (after_is_name or emphatic(after)):
+        return False
+    # A word in א is emphatic or a verb, and an ordinal in ־ָאָה is "the seventh".
+    if key(word).endswith("א") or key(word).endswith("אה"):
+        return False
+    if _bare_front(word) in NOT_CONSTRUCT or _people(pointed_letters(word)):
+        return False
+    # לַחֲדָא is "very": סַגִּי לַחֲדָא, "very many".
+    if key(after) == "לחדא":
         return False
     # What a construct binds to carries no "and", "in", "to" or "from" of its own: דְּכַר
     # וְנוּקְבָא is "male and female", and תְּרֵין מִכֹּלָּא "two of every kind".

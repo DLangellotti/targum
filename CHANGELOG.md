@@ -5,6 +5,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 
 ## [Unreleased]
 
+### Fixed
+- The Aramaic state lens no longer lights verbs and particles as the construct: the
+  imperfect in ־ֵי behind ו or ד (וְאֶמְחֵי, דְיִמְחֵי), the ithpeel (אִתְגְּלֵי), the shafel
+  (שֵׁיצֵי), a people's plural in ־ָאֵי (מִצְרָאֵי, "the Egyptians"), כַּד, אִם, לֵית, the
+  numbers and the ordinals. Read by hand over Onkelos Exodus: 200 fewer lights, none of
+  them right; on Daniel and Ezra the construct's precision goes from 0.94 to 0.96.
+
 ### Added
 - The Aramaic state lens shows the absolute and the construct as well as the emphatic,
   one at a time, from its menu or by `x` (design.md §12, 2026-10-25). The absolute is
