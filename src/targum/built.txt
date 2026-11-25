@@ -6,7 +6,7 @@
 # deploy/built.md is the brief these are written to.
 
 2026-11-24
-In Aramaic, a word can be lit by its state, by the particles ד־ and ית, or by a pronoun ending.
+In Aramaic, a word can be lit by its state, by its small particles, or by a pronoun ending.
 A first week of Onkelos is now found among the Aramaic texts in the Library.
 269 more forms of common Aramaic words in Onkelos show their meaning on their card.
 
