@@ -5,6 +5,16 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-11-24
+In Aramaic, a word can be lit by its state, by the particles ד־ and ית, or by a pronoun ending.
+A first week of Onkelos is now found among the Aramaic texts in the Library.
+269 more forms of common Aramaic words in Onkelos show their meaning on their card.
+
+2026-11-23
+A text of your own can now be deleted from its own page, with Undo.
+The commonest Russian small words, such as как and уж, have one meaning written by hand that fits every text.
+Photographed pages are read in the order of their names, and bare page numbers stay out of the text.
+
 2026-11-22
 A long video read while its chapters are still arriving stays at the top of Recent.
 
